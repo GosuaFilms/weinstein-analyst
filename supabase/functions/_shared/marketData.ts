@@ -159,12 +159,21 @@ export function computeVolumeAvg(volumes: number[], period: number): number | nu
 async function yahooSearch(query: string): Promise<string | null> {
   // Resolve company names / loose input to a Yahoo ticker.
   // e.g. "Atrys" -> "ATRY.MC", "Apple" -> "AAPL", "Toyota" -> "7203.T"
-  const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=5&newsCount=0`;
+  const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=10&newsCount=0`;
   const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
   if (!res.ok) return null;
-  const body = await res.json() as { quotes?: Array<{ symbol?: string; quoteType?: string; isYahooFinance?: boolean }> };
-  const hit = body.quotes?.find((q) => q.isYahooFinance && q.symbol && ['EQUITY', 'ETF', 'INDEX', 'CRYPTOCURRENCY', 'CURRENCY', 'MUTUALFUND'].includes(q.quoteType ?? ''));
-  return hit?.symbol ?? null;
+  const body = await res.json() as { quotes?: Array<{ symbol?: string; quoteType?: string; isYahooFinance?: boolean; exchange?: string; exchDisp?: string }> };
+  const eligible = body.quotes?.filter((q) =>
+    q.isYahooFinance && q.symbol && ['EQUITY', 'ETF', 'INDEX', 'CRYPTOCURRENCY', 'CURRENCY', 'MUTUALFUND'].includes(q.quoteType ?? '')
+  ) ?? [];
+  if (!eligible.length) return null;
+  // Prefer primary/liquid listings. Downrank thin-mirror exchanges that Yahoo
+  // sometimes returns first (Berlin, Düsseldorf, Hamburg, Munich, Stuttgart,
+  // Frankfurt secondary, XETRA Dark, etc.) over the true primary listing.
+  const thinSuffixes = ['.BE', '.DU', '.HM', '.MU', '.SG', '.F', '.XD', '.NE', '.VI'];
+  const isThin = (s: string) => thinSuffixes.some((suf) => s.toUpperCase().endsWith(suf));
+  const primary = eligible.find((q) => q.symbol && !isThin(q.symbol));
+  return (primary ?? eligible[0]).symbol ?? null;
 }
 
 async function yahooSnapshot(symbol: string, smaPeriod: number): Promise<TechnicalSnapshot> {

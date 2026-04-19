@@ -36,7 +36,7 @@ function buildSystemInstruction(lang: 'es' | 'en', snap: TechnicalSnapshot | nul
   const langName = lang === 'es' ? 'Spanish' : 'English';
   const anchor = snap
     ? `
-REAL-TIME TECHNICAL ANCHOR (source: Finnhub — DO NOT invent prices):
+REAL-TIME TECHNICAL ANCHOR (source: TwelveData + Yahoo Finance — DO NOT invent prices):
 - Symbol: ${snap.symbol} (${snap.name})
 - Current price: ${snap.currentPrice} ${snap.currency}
 - Price timestamp: ${snap.priceTimestamp}
@@ -113,8 +113,8 @@ Deno.serve(async (req) => {
         const cls = classifyStage(snap);
         stageHint = `${cls.stage} (${cls.confidence}) — ${cls.reasoning}`;
       } catch (e) {
-        // Ticker not on Finnhub — fall through to chart-only analysis
-        console.error('Finnhub snapshot failed, falling back:', (e as Error).message);
+        // Ticker not available on TwelveData or Yahoo — fall through to chart-only analysis
+        console.error('Market data snapshot failed, falling back:', (e as Error).message);
       }
     }
 

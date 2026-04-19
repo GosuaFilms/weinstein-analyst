@@ -1,6 +1,6 @@
 // POST /functions/v1/check-alerts
 // Invoked by pg_cron every 5 minutes. Evaluates all active alerts using
-// real Finnhub data (not LLM), updates rows, and inserts alert_events
+// real market data (TwelveData + Yahoo, not LLM), updates rows, and inserts alert_events
 // so the frontend's Realtime subscription pushes notifications.
 //
 // Auth: requires header x-cron-secret matching CRON_SECRET env var.
@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
   if (error) return jsonResponse({ error: error.message }, 500);
   if (!alerts || alerts.length === 0) return jsonResponse({ checked: 0 });
 
-  // Group alerts by ticker to minimize Finnhub calls
+  // Group alerts by ticker to minimize market-data calls
   const byTicker = new Map<string, AlertRow[]>();
   for (const a of alerts as AlertRow[]) {
     const list = byTicker.get(a.ticker) ?? [];

@@ -44,15 +44,17 @@ REAL-TIME TECHNICAL ANCHOR (source: Finnhub — DO NOT invent prices):
 - Day range: ${snap.dayLow} — ${snap.dayHigh}
 - Previous close: ${snap.previousClose}
 - SMA30 (weekly): ${snap.sma30Weekly ?? 'N/A'}
-- Distance from SMA30: ${snap.distanceFromSMA30Pct?.toFixed(2) ?? 'N/A'}%
-- Weekly volume ratio vs 30-week avg: ${snap.volumeRatio?.toFixed(2) ?? 'N/A'}x
+- MM30 slope (last 5w): ${snap.sma30Slope?.toFixed(2) ?? 'N/A'}% → trend = ${snap.sma30Trend ?? 'N/A'} (Weinstein: Stage 2 requires RISING)
+- Distance from SMA30: ${snap.distanceFromSMA30Pct?.toFixed(2) ?? 'N/A'}%${snap.extendedStage2 ? ' ⚠ EXTENDED (>15% above MM30 — late Stage 2, consider partial exit)' : ''}
+- Weekly volume ratio vs 30-week avg: ${snap.volumeRatio?.toFixed(2) ?? 'N/A'}x (Weinstein breakout filter: ≥2×)
 - 52-week high / low: ${snap.weekly52High ?? 'N/A'} / ${snap.weekly52Low ?? 'N/A'}
-- Mansfield Relative Strength vs ${snap.benchmarkName ?? 'benchmark'} (${snap.benchmarkSymbol ?? 'N/A'}): ${snap.mansfieldRS?.toFixed(2) ?? 'N/A'} (prev week: ${snap.mansfieldRSPrev?.toFixed(2) ?? 'N/A'}) — positive = outperforming, negative = underperforming, trend = ${
-    snap.mansfieldRS != null && snap.mansfieldRSPrev != null
-      ? (snap.mansfieldRS > snap.mansfieldRSPrev ? 'rising' : 'falling')
-      : 'N/A'
-  }
-- Rule-based stage hint: ${stageHint}
+- Mansfield Relative Strength vs ${snap.benchmarkName ?? 'benchmark'} (${snap.benchmarkSymbol ?? 'N/A'}): ${snap.mansfieldRS?.toFixed(2) ?? 'N/A'} (prev: ${snap.mansfieldRSPrev?.toFixed(2) ?? 'N/A'}, 13w MA: ${snap.mansfieldRSMA13?.toFixed(2) ?? 'N/A'}) → trend = ${snap.mansfieldRSTrend ?? 'N/A'}
+  Weinstein rule: Stage 2 requires RS > 0 AND rising; Stage 4 usually RS < 0 AND falling.
+- Market filter (${snap.benchmarkName ?? 'benchmark'} own stage): ${snap.benchmarkStage ?? 'N/A'} — ${snap.benchmarkStageReason ?? 'N/A'}
+  Weinstein rule: do NOT open longs if the market/benchmark is itself in Stage 3 or 4.
+- Suggested Weinstein stop-loss: ${snap.suggestedStopLoss?.toFixed(2) ?? 'N/A'} ${snap.currency} (basis: ${snap.stopLossBasis ?? 'N/A'}, risk ${snap.stopLossRiskPct?.toFixed(2) ?? 'N/A'}%)
+- Recent swing-low (last 10w): ${snap.recentSwingLow?.toFixed(2) ?? 'N/A'}
+- Rule-based stage verdict: ${stageHint}
 
 You MUST use exactly these numbers — do not substitute them with search results.
 `
@@ -68,21 +70,23 @@ Output STRICT JSON in ${langName} with this exact schema:
   "currentPrice": "Price with currency symbol (use the REAL-TIME value above)",
   "priceTimestamp": "Human-readable timestamp from the anchor",
   "stage": "Detailed stage label (e.g., 'Etapa 2A — Avance')",
-  "sma30Analysis": "MA relationship analysis using the SMA30 value above",
-  "relativeStrength": "Fuerza Relativa Mansfield — cite the numeric Mansfield RS from the anchor, name the benchmark, state whether it is positive/negative and rising/falling, and what that implies per Weinstein (Stage 2 requires RS > 0 and rising; Stage 4 typically RS < 0 and falling).",
-  "volumeAnalysis": "Volume profile using the volume ratio above",
-  "support": "Support level (numeric, in currency)",
-  "resistance": "Resistance level (numeric, in currency)",
-  "entryPrice": "Entry trigger level",
-  "stopLoss": "Protection stop-loss level",
-  "verdict": "Short action phrase",
+  "sma30Analysis": "Relación precio/MM30 semanal Y pendiente (ascendente/plana/descendente) — cita el valor numérico del anchor. Weinstein: Etapa 2 exige precio > MM30 Y MM30 ascendente.",
+  "relativeStrength": "Fuerza Relativa Mansfield — cita el valor numérico, el benchmark y su MA13. Indica si está positiva/negativa y subiendo/bajando. Weinstein: Etapa 2 requiere RS > 0 Y subiendo; Etapa 4 típicamente RS < 0 Y bajando.",
+  "volumeAnalysis": "Perfil de volumen usando el ratio del anchor. Weinstein: ruptura válida de Etapa 1→2 requiere volumen ≥2× la media de 30 semanas.",
+  "support": "Soporte numérico (sin texto) — usa el swing-low reciente del anchor si aplica",
+  "resistance": "Resistencia numérica (sin texto) — nivel horizontal más relevante en el rango previo",
+  "entryPrice": "Nivel de disparo (breakout de resistencia o pullback a la resistencia rota)",
+  "stopLoss": "Usa el suggestedStopLoss del anchor tal cual (basado en swing-low o MM30 según Weinstein)",
+  "verdict": "Frase corta de acción",
   "verdictType": "BUY | SELL | WAIT | CLOSE",
-  "suggestedStrategy": "Concrete execution plan (2-4 sentences)"
+  "suggestedStrategy": "Plan concreto (2-4 frases) que incluya: (a) veredicto de Etapa 1/2/3/4 explícito, (b) filtro de mercado (si el benchmark NO está en Etapa 2, evitar largos), (c) acción recomendada con entrada/stop/objetivo, (d) advertencia si Etapa 2 está extendida (>15% sobre MM30)."
 }
-Rules:
-- NEVER invent prices. Always use the anchor.
-- NEVER average prices or use stale 'previous close' as current.
-- Keep support/resistance numeric only (no text).`;
+Reglas estrictas (método Stan Weinstein):
+- NUNCA inventes precios: usa siempre el anchor.
+- NUNCA promedies precios ni uses "previous close" como actual.
+- Si el benchmark está en Etapa 3 o 4, el veredicto por defecto es WAIT o SELL (Weinstein: no comprar contra un mercado bajista).
+- Si el precio está extendido >15% sobre MM30, menciona salida parcial.
+- Support/resistance sólo numérico, sin texto extra.`;
 }
 
 Deno.serve(async (req) => {

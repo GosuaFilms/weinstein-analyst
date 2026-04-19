@@ -75,8 +75,21 @@ export interface TechnicalSnapshot {
   // >0 = outperforming the benchmark; <0 = underperforming.
   mansfieldRS: number | null;
   mansfieldRSPrev: number | null; // value one week ago, to judge trend (rising/falling)
+  mansfieldRSMA13: number | null; // 13-week SMA of the Mansfield oscillator
+  mansfieldRSTrend: Trend | null;
   benchmarkSymbol: string | null;
   benchmarkName: string | null;
+
+  // Weinstein extensions
+  sma30Slope: number | null;       // % change of SMA30 over last 5 weeks
+  sma30Trend: Trend | null;        // rising / falling / flat (canon: Stage 2 requires rising)
+  recentSwingLow: number | null;   // lowest weekly low of the last 10 weeks
+  suggestedStopLoss: number | null;
+  stopLossBasis: string | null;
+  stopLossRiskPct: number | null;  // distance from current price to stop (%)
+  extendedStage2: boolean;         // true when price > 15% above MM30 (late Stage 2 warning)
+  benchmarkStage: 'STAGE_1' | 'STAGE_2' | 'STAGE_3' | 'STAGE_4' | null;
+  benchmarkStageReason: string | null;
 }
 
 interface WeeklySeries {
@@ -142,10 +155,9 @@ function computeMansfieldRS(
   stock: WeeklySeries,
   benchmark: WeeklySeries,
   period = 52
-): { current: number | null; prev: number | null } {
-  if (stock.closes.length < period + 2 || benchmark.closes.length < period + 2) {
-    return { current: null, prev: null };
-  }
+): { current: number | null; prev: number | null; ma13: number | null; trend: Trend | null; series: number[] } {
+  const empty = { current: null, prev: null, ma13: null, trend: null, series: [] as number[] };
+  if (stock.closes.length < period + 2 || benchmark.closes.length < period + 2) return empty;
   const bMap = new Map<string, number>();
   for (let i = 0; i < benchmark.timestamps.length; i++) {
     bMap.set(weekKey(benchmark.timestamps[i]), benchmark.closes[i]);
@@ -155,18 +167,23 @@ function computeMansfieldRS(
     const b = bMap.get(weekKey(stock.timestamps[i]));
     if (b && b > 0) rs.push(stock.closes[i] / b);
   }
-  if (rs.length < period + 2) return { current: null, prev: null };
-  const mansfieldAt = (endIdx: number): number | null => {
-    const start = endIdx - period;
-    if (start < 0) return null;
-    const slice = rs.slice(start, endIdx);
+  if (rs.length < period + 2) return empty;
+  // Build full Mansfield oscillator series.
+  const series: number[] = [];
+  for (let i = period; i < rs.length; i++) {
+    const slice = rs.slice(i - period, i);
     const ma = slice.reduce((a, b) => a + b, 0) / period;
-    return ma > 0 ? ((rs[endIdx] / ma) - 1) * 100 : null;
-  };
-  return {
-    current: mansfieldAt(rs.length - 1),
-    prev: mansfieldAt(rs.length - 2),
-  };
+    series.push(ma > 0 ? ((rs[i] / ma) - 1) * 100 : 0);
+  }
+  const current = series[series.length - 1] ?? null;
+  const prev = series[series.length - 2] ?? null;
+  const ma13 = series.length >= 13
+    ? series.slice(-13).reduce((a, b) => a + b, 0) / 13
+    : null;
+  // Weinstein: RS trend is "rising" when current > MA13 and > prev (or simply when slope-3w > 0).
+  const slope3 = computeSlope(series, 3);
+  const trend = classifyTrend(slope3, 0.3);
+  return { current, prev, ma13, trend, series };
 }
 
 interface SymbolResolution {
@@ -252,6 +269,72 @@ export function computeVolumeAvg(volumes: number[], period: number): number | nu
   return slice.reduce((a, b) => a + b, 0) / period;
 }
 
+// Rolling SMA series (length = values.length - period + 1). Used to detect slope.
+export function computeSMASeries(values: number[], period: number): number[] {
+  if (values.length < period) return [];
+  const out: number[] = [];
+  let sum = 0;
+  for (let i = 0; i < period; i++) sum += values[i];
+  out.push(sum / period);
+  for (let i = period; i < values.length; i++) {
+    sum += values[i] - values[i - period];
+    out.push(sum / period);
+  }
+  return out;
+}
+
+export type Trend = 'rising' | 'falling' | 'flat';
+
+// Percent change of last value vs value `lookback` steps ago.
+export function computeSlope(values: number[], lookback: number): number | null {
+  if (values.length < lookback + 1) return null;
+  const cur = values[values.length - 1];
+  const prev = values[values.length - 1 - lookback];
+  if (!prev || prev === 0) return null;
+  return ((cur - prev) / prev) * 100;
+}
+
+export function classifyTrend(slopePct: number | null, flatBand = 0.5): Trend | null {
+  if (slopePct == null) return null;
+  if (slopePct > flatBand) return 'rising';
+  if (slopePct < -flatBand) return 'falling';
+  return 'flat';
+}
+
+// Lowest of the last `lookback` weekly lows (excluding the most recent unfinished week).
+export function findRecentSwingLow(lows: number[], lookback = 10): number | null {
+  if (!lows.length) return null;
+  const slice = lows.slice(-Math.min(lookback, lows.length));
+  const finite = slice.filter((n) => Number.isFinite(n) && n > 0);
+  return finite.length ? Math.min(...finite) : null;
+}
+
+// Weinstein-style stop: prefer the nearest swing-low below current price (with 2% buffer),
+// otherwise fall back to just below MM30 (3% buffer).
+export function suggestStopLoss(
+  currentPrice: number,
+  sma30: number | null,
+  swingLow: number | null
+): { level: number; basis: string; riskPct: number } | null {
+  const candidates: Array<{ level: number; basis: string }> = [];
+  if (swingLow && swingLow < currentPrice) {
+    candidates.push({ level: swingLow * 0.98, basis: 'último swing-low (−2%)' });
+  }
+  if (sma30 && sma30 < currentPrice) {
+    candidates.push({ level: sma30 * 0.97, basis: 'MM30 semanal (−3%)' });
+  }
+  if (!candidates.length) return null;
+  // Use the tightest stop (closest to price) — Weinstein prefers swing-low, but
+  // if MM30 sits above the swing-low we use MM30 to avoid giving back too much.
+  candidates.sort((a, b) => b.level - a.level);
+  const best = candidates[0];
+  return {
+    level: best.level,
+    basis: best.basis,
+    riskPct: ((currentPrice - best.level) / currentPrice) * 100,
+  };
+}
+
 async function yahooSearch(query: string): Promise<string | null> {
   // Resolve company names / loose input to a Yahoo ticker.
   // e.g. "Atrys" -> "ATRY.MC", "Apple" -> "AAPL", "Toyota" -> "7203.T"
@@ -272,22 +355,75 @@ async function yahooSearch(query: string): Promise<string | null> {
   return (primary ?? eligible[0]).symbol ?? null;
 }
 
-async function attachMansfield(
+async function attachWeinsteinExtras(
   base: TechnicalSnapshot,
-  stock: WeeklySeries
+  stock: WeeklySeries,
+  stockLows: number[],
+  smaPeriod: number
 ): Promise<TechnicalSnapshot> {
+  // MM30 slope (% change of the SMA line over the last 5 weeks).
+  const smaSeries = computeSMASeries(stock.closes, smaPeriod);
+  const sma30Slope = computeSlope(smaSeries, 5);
+  const sma30Trend = classifyTrend(sma30Slope, 0.5);
+
+  // Swing-low based Weinstein stop.
+  const recentSwingLow = findRecentSwingLow(stockLows, 10);
+  const stop = suggestStopLoss(base.currentPrice, base.sma30Weekly, recentSwingLow);
+
+  // Late Stage 2 warning: Weinstein recommends partial exits once price is
+  // 15%+ extended above the MM30 weekly.
+  const extendedStage2 = (base.distanceFromSMA30Pct ?? 0) > 15;
+
+  // Mansfield RS + benchmark stage.
   const bench = pickBenchmark(base.symbol, base.currency);
   const benchSeries = await yahooWeeklyCloses(bench.symbol, Math.max(stock.closes.length + 10, 120));
-  if (!benchSeries) {
-    return { ...base, benchmarkSymbol: bench.symbol, benchmarkName: bench.name };
+  let mansfield: ReturnType<typeof computeMansfieldRS> = {
+    current: null, prev: null, ma13: null, trend: null, series: [],
+  };
+  let benchmarkStage: 'STAGE_1' | 'STAGE_2' | 'STAGE_3' | 'STAGE_4' | null = null;
+  let benchmarkStageReason: string | null = null;
+
+  if (benchSeries) {
+    mansfield = computeMansfieldRS(stock, benchSeries, 52);
+    const bSMA = computeSMASeries(benchSeries.closes, 30);
+    const bClose = benchSeries.closes[benchSeries.closes.length - 1];
+    const bSMAlast = bSMA[bSMA.length - 1] ?? null;
+    const bTrend = classifyTrend(computeSlope(bSMA, 5), 0.5);
+    if (bSMAlast != null && bTrend) {
+      const above = bClose > bSMAlast;
+      if (above && bTrend === 'rising') {
+        benchmarkStage = 'STAGE_2';
+        benchmarkStageReason = `${bench.name} en Etapa 2 (sobre MM30 ascendente) — contexto favorable para compras.`;
+      } else if (!above && bTrend === 'falling') {
+        benchmarkStage = 'STAGE_4';
+        benchmarkStageReason = `${bench.name} en Etapa 4 (bajo MM30 descendente) — Weinstein: NO abrir largos.`;
+      } else if (above) {
+        benchmarkStage = 'STAGE_3';
+        benchmarkStageReason = `${bench.name} en Etapa 3 (sobre MM30 pero aplanándose) — precaución, distribución.`;
+      } else {
+        benchmarkStage = 'STAGE_1';
+        benchmarkStageReason = `${bench.name} en Etapa 1 (base bajo MM30) — esperar ruptura del mercado antes de comprar.`;
+      }
+    }
   }
-  const { current, prev } = computeMansfieldRS(stock, benchSeries, 52);
+
   return {
     ...base,
-    mansfieldRS: current,
-    mansfieldRSPrev: prev,
+    mansfieldRS: mansfield.current,
+    mansfieldRSPrev: mansfield.prev,
+    mansfieldRSMA13: mansfield.ma13,
+    mansfieldRSTrend: mansfield.trend,
     benchmarkSymbol: bench.symbol,
     benchmarkName: bench.name,
+    sma30Slope,
+    sma30Trend,
+    recentSwingLow,
+    suggestedStopLoss: stop?.level ?? null,
+    stopLossBasis: stop?.basis ?? null,
+    stopLossRiskPct: stop?.riskPct ?? null,
+    extendedStage2,
+    benchmarkStage,
+    benchmarkStageReason,
   };
 }
 
@@ -296,7 +432,9 @@ async function yahooSnapshot(symbol: string, smaPeriod: number): Promise<Technic
   // exchange (Madrid .MC, Frankfurt .DE, Tokyo .T, London .L, Paris .PA,
   // HK, ASX, TSX, indices ^GSPC, etc.). Used as fallback when TwelveData
   // rejects a symbol on free tier.
-  const weeks = Math.max(smaPeriod + 30, 60);
+  // Need ≥ 52 weeks for Mansfield RS plus ≥ 13 extra weeks for its MA13.
+  // Fetch a comfortable buffer so slope/MA calculations are stable.
+  const weeks = Math.max(smaPeriod + 90, 130);
   // Translate TwelveData-style symbols to Yahoo conventions:
   //   BTC/USD -> BTC-USD (crypto)
   //   EUR/USD -> EURUSD=X (forex)
@@ -384,10 +522,21 @@ async function yahooSnapshot(symbol: string, smaPeriod: number): Promise<Technic
     weekly52Low: meta.fiftyTwoWeekLow ?? (lows.length ? Math.min(...lows.slice(-52)) : null),
     mansfieldRS: null,
     mansfieldRSPrev: null,
+    mansfieldRSMA13: null,
+    mansfieldRSTrend: null,
     benchmarkSymbol: null,
     benchmarkName: null,
+    sma30Slope: null,
+    sma30Trend: null,
+    recentSwingLow: null,
+    suggestedStopLoss: null,
+    stopLossBasis: null,
+    stopLossRiskPct: null,
+    extendedStage2: false,
+    benchmarkStage: null,
+    benchmarkStageReason: null,
   };
-  return await attachMansfield(base, { timestamps: alignedTs, closes: alignedCloses });
+  return await attachWeinsteinExtras(base, { timestamps: alignedTs, closes: alignedCloses }, lows, smaPeriod);
 }
 
 export async function getTechnicalSnapshot(
@@ -413,7 +562,7 @@ export async function getTechnicalSnapshot(
       return await yahooSnapshot(resolvedSymbol, smaPeriod);
     }
   }
-  const series = await fetchWeekly(resolved, Math.max(smaPeriod + 30, 60));
+  const series = await fetchWeekly(resolved, Math.max(smaPeriod + 90, 130));
 
   // TwelveData returns time_series newest -> oldest. Reverse to oldest -> newest.
   const candles = series?.values ? [...series.values].reverse() : null;
@@ -465,8 +614,19 @@ export async function getTechnicalSnapshot(
     weekly52Low: lows.length ? Math.min(...lows.slice(-52)) : null,
     mansfieldRS: null,
     mansfieldRSPrev: null,
+    mansfieldRSMA13: null,
+    mansfieldRSTrend: null,
     benchmarkSymbol: null,
     benchmarkName: null,
+    sma30Slope: null,
+    sma30Trend: null,
+    recentSwingLow: null,
+    suggestedStopLoss: null,
+    stopLossBasis: null,
+    stopLossRiskPct: null,
+    extendedStage2: false,
+    benchmarkStage: null,
+    benchmarkStageReason: null,
   };
-  return await attachMansfield(base, { timestamps: stockTs, closes });
+  return await attachWeinsteinExtras(base, { timestamps: stockTs, closes }, lows, smaPeriod);
 }

@@ -46,8 +46,11 @@ DETERMINISTIC FACTS (use exactly, do not recompute):
 - P/L amount: ${profitAmount.toFixed(2)} ${snap.currency}
 - P/L percent: ${profitPct.toFixed(2)}%
 - Current stage (rule-based): ${cls.stage} (${cls.confidence}) — ${cls.reasoning}
-- SMA30 weekly: ${snap.sma30Weekly?.toFixed(2) ?? 'N/A'}
-- Mansfield Relative Strength vs ${snap.benchmarkName ?? 'benchmark'}: ${snap.mansfieldRS?.toFixed(2) ?? 'N/A'} (prev: ${snap.mansfieldRSPrev?.toFixed(2) ?? 'N/A'})
+- SMA30 weekly: ${snap.sma30Weekly?.toFixed(2) ?? 'N/A'} — pendiente ${snap.sma30Slope?.toFixed(2) ?? 'N/A'}% (${snap.sma30Trend ?? 'N/A'})
+- Distancia a MM30: ${snap.distanceFromSMA30Pct?.toFixed(2) ?? 'N/A'}%${snap.extendedStage2 ? ' ⚠ EXTENDIDA (>15% — considerar recorte)' : ''}
+- Mansfield RS vs ${snap.benchmarkName ?? 'benchmark'}: ${snap.mansfieldRS?.toFixed(2) ?? 'N/A'} (MA13: ${snap.mansfieldRSMA13?.toFixed(2) ?? 'N/A'}, tendencia ${snap.mansfieldRSTrend ?? 'N/A'})
+- Filtro de mercado: ${snap.benchmarkName ?? 'benchmark'} en ${snap.benchmarkStage ?? 'N/A'} — ${snap.benchmarkStageReason ?? 'N/A'}
+- Stop Weinstein sugerido: ${snap.suggestedStopLoss?.toFixed(2) ?? 'N/A'} ${snap.currency} (${snap.stopLossBasis ?? 'N/A'}, riesgo ${snap.stopLossRiskPct?.toFixed(2) ?? 'N/A'}% desde precio actual)
 
 Return STRICT JSON in ${langName}:
 {

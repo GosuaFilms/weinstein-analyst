@@ -75,20 +75,22 @@ export function useAlerts() {
 
   const add = useCallback(
     async (ticker: string, condition: AlertCondition, referenceLevel?: number) => {
-      if (!user) return;
-      await supabase.from('alerts').insert({
+      if (!user) throw new Error('Sesión no iniciada — inicia sesión para crear alertas.');
+      const { error } = await supabase.from('alerts').insert({
         user_id: user.id,
         ticker: ticker.toUpperCase(),
         condition,
         reference_level: referenceLevel ?? null,
       });
-      reload();
+      if (error) throw new Error(error.message);
+      await reload();
     },
     [user, reload]
   );
 
   const remove = useCallback(async (id: string) => {
-    await supabase.from('alerts').delete().eq('id', id);
+    const { error } = await supabase.from('alerts').delete().eq('id', id);
+    if (error) throw new Error(error.message);
     setAlerts(prev => prev.filter(a => a.id !== id));
   }, []);
 

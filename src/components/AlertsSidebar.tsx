@@ -1,13 +1,13 @@
 
 import React, { useState } from 'react';
-import { Alert, AlertCondition } from '../types';
+import { Alert, AlertCondition, ALERT_CONDITION_LABELS } from '../types';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   alerts: Alert[];
-  onAddAlert: (ticker: string, condition: AlertCondition) => void;
-  onDeleteAlert: (id: string) => void;
+  onAddAlert: (ticker: string, condition: AlertCondition) => Promise<void> | void;
+  onDeleteAlert: (id: string) => Promise<void> | void;
   onCheckAll: () => void;
   isChecking: boolean;
 }
@@ -15,14 +15,24 @@ interface Props {
 const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, onDeleteAlert, onCheckAll, isChecking }) => {
   const [newTicker, setNewTicker] = useState('');
   const [newCondition, setNewCondition] = useState<AlertCondition>(AlertCondition.PRICE_CROSS_SMA30_UP);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTicker.trim()) return;
-    onAddAlert(newTicker.toUpperCase(), newCondition);
-    setNewTicker('');
+    setError(null);
+    setSubmitting(true);
+    try {
+      await onAddAlert(newTicker.toUpperCase(), newCondition);
+      setNewTicker('');
+    } catch (err) {
+      setError((err as Error).message || 'No se pudo crear la alerta.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const getConditionColor = (condition: AlertCondition) => {
@@ -78,15 +88,21 @@ const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, o
               onChange={(e) => setNewCondition(e.target.value as AlertCondition)}
             >
               {Object.values(AlertCondition).map((cond) => (
-                <option key={cond} value={cond}>{cond}</option>
+                <option key={cond} value={cond}>{ALERT_CONDITION_LABELS[cond]}</option>
               ))}
             </select>
             <button
               type="submit"
-              className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-bold rounded-lg text-sm transition-all shadow-md"
+              disabled={submitting}
+              className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-bold rounded-lg text-sm transition-all shadow-md disabled:opacity-50"
             >
-              Añadir Alerta
+              {submitting ? 'Añadiendo…' : 'Añadir Alerta'}
             </button>
+            {error && (
+              <p className="text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded px-2 py-1">
+                {error}
+              </p>
+            )}
           </form>
         </div>
 
@@ -110,7 +126,7 @@ const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, o
                   <div>
                     <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">{alert.ticker}</span>
                     <h4 className={`text-sm font-bold mt-0.5 ${getConditionColor(alert.condition)}`}>
-                      {alert.condition}
+                      {ALERT_CONDITION_LABELS[alert.condition] ?? alert.condition}
                     </h4>
                     {alert.triggerMessage && (
                       <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-2 bg-amber-100 dark:bg-amber-900/30 p-2 rounded border border-amber-200 dark:border-amber-700/50">

@@ -18,13 +18,22 @@ export enum Verdict {
   CLOSE = 'Cierre de posición',
 }
 
+// Values MUST match the DB CHECK constraint in migrations/0001_initial_schema.sql.
 export enum AlertCondition {
-  PRICE_CROSS_SMA30_UP = 'Precio cruza al alza SMA30',
-  PRICE_CROSS_SMA30_DOWN = 'Precio cruza a la baja SMA30',
-  VOLUME_SURGE = 'Explosión de volumen (>2x)',
-  RESISTANCE_BREAKOUT = 'Ruptura de Resistencia',
-  SUPPORT_BREAKDOWN = 'Ruptura de Soporte',
+  PRICE_CROSS_SMA30_UP = 'PRICE_CROSS_SMA30_UP',
+  PRICE_CROSS_SMA30_DOWN = 'PRICE_CROSS_SMA30_DOWN',
+  VOLUME_SURGE = 'VOLUME_SURGE',
+  RESISTANCE_BREAKOUT = 'RESISTANCE_BREAKOUT',
+  SUPPORT_BREAKDOWN = 'SUPPORT_BREAKDOWN',
 }
+
+export const ALERT_CONDITION_LABELS: Record<AlertCondition, string> = {
+  [AlertCondition.PRICE_CROSS_SMA30_UP]: 'Precio cruza al alza MM30',
+  [AlertCondition.PRICE_CROSS_SMA30_DOWN]: 'Precio cruza a la baja MM30',
+  [AlertCondition.VOLUME_SURGE]: 'Explosión de volumen (≥2×)',
+  [AlertCondition.RESISTANCE_BREAKOUT]: 'Ruptura de Resistencia',
+  [AlertCondition.SUPPORT_BREAKDOWN]: 'Ruptura de Soporte',
+};
 
 export interface Settings {
   smaPeriod: number;

@@ -73,9 +73,11 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
 
     try {
       const isDark = document.documentElement.classList.contains('dark');
+      // scale=3 + PNG produces ~45MB PDFs. scale=2 + JPEG q=0.82 keeps sharpness
+      // but brings typical reports under ~3MB.
       const canvas = await html2canvas(displayRef.current, {
         backgroundColor: isDark ? '#0f172a' : '#ffffff',
-        scale: 3, // Increased scale for better quality
+        scale: 2,
         logging: false,
         useCORS: true,
         allowTaint: true,
@@ -89,11 +91,11 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
         link.href = canvas.toDataURL('image/png');
         link.click();
       } else {
-        const imgData = canvas.toDataURL('image/png');
-        const pdf = new jsPDF('p', 'mm', 'a4');
+        const imgData = canvas.toDataURL('image/jpeg', 0.82);
+        const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
         pdf.save(`${fileName}.pdf`);
       }
     } finally {

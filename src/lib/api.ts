@@ -17,8 +17,9 @@ async function invoke<T>(fn: string, body: unknown): Promise<T> {
     const ctx = (error as unknown as { context?: Response }).context;
     if (ctx && typeof ctx.json === 'function') {
       try {
-        const body = await ctx.clone().json() as { error?: string };
-        if (body?.error) throw new Error(body.error);
+        const body = await ctx.clone().json() as { error?: string; message?: string; code?: string };
+        const msg = body?.error || body?.message;
+        if (msg) throw new Error(body?.code ? `${body.code}: ${msg}` : msg);
       } catch (inner) {
         if (inner instanceof Error && inner.message && inner.message !== 'Unexpected end of JSON input') {
           throw inner;

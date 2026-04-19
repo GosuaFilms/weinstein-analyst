@@ -92,7 +92,7 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
           <i className="fas fa-times text-xl"></i>
         </button>
         
-        <div className={`w-24 h-24 ${user.avatarColor} rounded-3xl flex items-center justify-center text-white text-3xl font-black shadow-xl mb-4 transform -rotate-3`}>
+        <div className="w-24 h-24 bg-amber-500 rounded-3xl flex items-center justify-center text-slate-900 text-3xl font-black shadow-xl mb-4 transform -rotate-3">
           {initials}
         </div>
         

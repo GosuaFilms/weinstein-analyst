@@ -222,7 +222,7 @@ const App: React.FC = () => {
             </button>
 
             {user ? (
-              <button onClick={() => setIsProfileOpen(true)} className={`w-10 h-10 rounded-xl ${user.avatarColor} text-white font-black text-xs flex items-center justify-center shadow-lg border-2 border-white dark:border-slate-700`}>
+              <button onClick={() => setIsProfileOpen(true)} className="w-10 h-10 rounded-xl bg-amber-500 text-slate-900 font-black text-xs flex items-center justify-center shadow-lg border-2 border-white dark:border-slate-700">
                 {userInitials}
               </button>
             ) : (

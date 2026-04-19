@@ -156,6 +156,17 @@ export function computeVolumeAvg(volumes: number[], period: number): number | nu
   return slice.reduce((a, b) => a + b, 0) / period;
 }
 
+async function yahooSearch(query: string): Promise<string | null> {
+  // Resolve company names / loose input to a Yahoo ticker.
+  // e.g. "Atrys" -> "ATRY.MC", "Apple" -> "AAPL", "Toyota" -> "7203.T"
+  const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=5&newsCount=0`;
+  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+  if (!res.ok) return null;
+  const body = await res.json() as { quotes?: Array<{ symbol?: string; quoteType?: string; isYahooFinance?: boolean }> };
+  const hit = body.quotes?.find((q) => q.isYahooFinance && q.symbol && ['EQUITY', 'ETF', 'INDEX', 'CRYPTOCURRENCY', 'CURRENCY', 'MUTUALFUND'].includes(q.quoteType ?? ''));
+  return hit?.symbol ?? null;
+}
+
 async function yahooSnapshot(symbol: string, smaPeriod: number): Promise<TechnicalSnapshot> {
   // Yahoo Finance public chart endpoint — no API key, covers virtually every
   // exchange (Madrid .MC, Frankfurt .DE, Tokyo .T, London .L, Paris .PA,
@@ -253,7 +264,15 @@ export async function getTechnicalSnapshot(
   } catch (err) {
     const msg = (err as Error).message;
     console.warn(`TwelveData failed for ${symbol} (${msg}). Falling back to Yahoo.`);
-    return await yahooSnapshot(symbol, smaPeriod);
+    try {
+      return await yahooSnapshot(symbol, smaPeriod);
+    } catch (yahooErr) {
+      // Last resort: resolve company name / loose input via Yahoo search.
+      const resolvedSymbol = await yahooSearch(symbol);
+      if (!resolvedSymbol || resolvedSymbol === symbol) throw yahooErr;
+      console.warn(`Yahoo search resolved "${symbol}" -> "${resolvedSymbol}".`);
+      return await yahooSnapshot(resolvedSymbol, smaPeriod);
+    }
   }
   const series = await fetchWeekly(resolved, Math.max(smaPeriod + 30, 60));
 

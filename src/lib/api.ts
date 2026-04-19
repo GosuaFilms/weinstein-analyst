@@ -11,7 +11,22 @@ import type {
 
 async function invoke<T>(fn: string, body: unknown): Promise<T> {
   const { data, error } = await supabase.functions.invoke<T>(fn, { body: body as Record<string, unknown> });
-  if (error) throw new Error(error.message);
+  if (error) {
+    // Supabase wraps non-2xx responses in FunctionsHttpError with the response
+    // stashed in error.context. Try to extract the real server error message.
+    const ctx = (error as unknown as { context?: Response }).context;
+    if (ctx && typeof ctx.json === 'function') {
+      try {
+        const body = await ctx.clone().json() as { error?: string };
+        if (body?.error) throw new Error(body.error);
+      } catch (inner) {
+        if (inner instanceof Error && inner.message && inner.message !== 'Unexpected end of JSON input') {
+          throw inner;
+        }
+      }
+    }
+    throw new Error(error.message);
+  }
   if ((data as any)?.error) throw new Error((data as any).error);
   return data as T;
 }

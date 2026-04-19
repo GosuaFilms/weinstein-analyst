@@ -47,6 +47,11 @@ REAL-TIME TECHNICAL ANCHOR (source: Finnhub — DO NOT invent prices):
 - Distance from SMA30: ${snap.distanceFromSMA30Pct?.toFixed(2) ?? 'N/A'}%
 - Weekly volume ratio vs 30-week avg: ${snap.volumeRatio?.toFixed(2) ?? 'N/A'}x
 - 52-week high / low: ${snap.weekly52High ?? 'N/A'} / ${snap.weekly52Low ?? 'N/A'}
+- Mansfield Relative Strength vs ${snap.benchmarkName ?? 'benchmark'} (${snap.benchmarkSymbol ?? 'N/A'}): ${snap.mansfieldRS?.toFixed(2) ?? 'N/A'} (prev week: ${snap.mansfieldRSPrev?.toFixed(2) ?? 'N/A'}) — positive = outperforming, negative = underperforming, trend = ${
+    snap.mansfieldRS != null && snap.mansfieldRSPrev != null
+      ? (snap.mansfieldRS > snap.mansfieldRSPrev ? 'rising' : 'falling')
+      : 'N/A'
+  }
 - Rule-based stage hint: ${stageHint}
 
 You MUST use exactly these numbers — do not substitute them with search results.
@@ -64,7 +69,7 @@ Output STRICT JSON in ${langName} with this exact schema:
   "priceTimestamp": "Human-readable timestamp from the anchor",
   "stage": "Detailed stage label (e.g., 'Etapa 2A — Avance')",
   "sma30Analysis": "MA relationship analysis using the SMA30 value above",
-  "relativeStrength": "Mansfield relative strength vs S&P500",
+  "relativeStrength": "Fuerza Relativa Mansfield — cite the numeric Mansfield RS from the anchor, name the benchmark, state whether it is positive/negative and rising/falling, and what that implies per Weinstein (Stage 2 requires RS > 0 and rising; Stage 4 typically RS < 0 and falling).",
   "volumeAnalysis": "Volume profile using the volume ratio above",
   "support": "Support level (numeric, in currency)",
   "resistance": "Resistance level (numeric, in currency)",

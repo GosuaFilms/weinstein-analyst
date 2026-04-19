@@ -47,6 +47,7 @@ DETERMINISTIC FACTS (use exactly, do not recompute):
 - P/L percent: ${profitPct.toFixed(2)}%
 - Current stage (rule-based): ${cls.stage} (${cls.confidence}) — ${cls.reasoning}
 - SMA30 weekly: ${snap.sma30Weekly?.toFixed(2) ?? 'N/A'}
+- Mansfield Relative Strength vs ${snap.benchmarkName ?? 'benchmark'}: ${snap.mansfieldRS?.toFixed(2) ?? 'N/A'} (prev: ${snap.mansfieldRSPrev?.toFixed(2) ?? 'N/A'})
 
 Return STRICT JSON in ${langName}:
 {

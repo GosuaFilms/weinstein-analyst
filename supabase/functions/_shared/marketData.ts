@@ -71,6 +71,102 @@ export interface TechnicalSnapshot {
   volumeRatio: number | null;
   weekly52High: number | null;
   weekly52Low: number | null;
+  // Mansfield Relative Strength (Weinstein): ((ratio / SMA52_of_ratio) - 1) * 100
+  // >0 = outperforming the benchmark; <0 = underperforming.
+  mansfieldRS: number | null;
+  mansfieldRSPrev: number | null; // value one week ago, to judge trend (rising/falling)
+  benchmarkSymbol: string | null;
+  benchmarkName: string | null;
+}
+
+interface WeeklySeries {
+  timestamps: number[]; // unix seconds for each weekly candle
+  closes: number[];
+}
+
+function pickBenchmark(symbol: string, currency: string): { symbol: string; name: string } {
+  const u = symbol.toUpperCase();
+  if (u.endsWith('.MC')) return { symbol: '^IBEX', name: 'IBEX 35' };
+  if (u.endsWith('.DE') || u.endsWith('.F') || u.endsWith('.XETRA')) return { symbol: '^GDAXI', name: 'DAX' };
+  if (u.endsWith('.L')) return { symbol: '^FTSE', name: 'FTSE 100' };
+  if (u.endsWith('.PA')) return { symbol: '^FCHI', name: 'CAC 40' };
+  if (u.endsWith('.MI')) return { symbol: 'FTSEMIB.MI', name: 'FTSE MIB' };
+  if (u.endsWith('.AS')) return { symbol: '^AEX', name: 'AEX' };
+  if (u.endsWith('.BR')) return { symbol: '^BFX', name: 'BEL 20' };
+  if (u.endsWith('.LS')) return { symbol: 'PSI20.LS', name: 'PSI 20' };
+  if (u.endsWith('.SW')) return { symbol: '^SSMI', name: 'SMI' };
+  if (u.endsWith('.T') || /^\d{4}\.T$/.test(u)) return { symbol: '^N225', name: 'Nikkei 225' };
+  if (u.endsWith('.HK')) return { symbol: '^HSI', name: 'Hang Seng' };
+  if (u.endsWith('.AX')) return { symbol: '^AXJO', name: 'ASX 200' };
+  if (u.endsWith('.TO') || u.endsWith('.V')) return { symbol: '^GSPTSE', name: 'TSX Composite' };
+  if (u.endsWith('.SA')) return { symbol: '^BVSP', name: 'Bovespa' };
+  if (u.endsWith('.MX')) return { symbol: '^MXX', name: 'IPC Mexico' };
+  if (u.endsWith('.NS') || u.endsWith('.BO')) return { symbol: '^NSEI', name: 'NIFTY 50' };
+  if (u.endsWith('-USD') || /^[A-Z]{3,5}\/USD$/.test(u)) return { symbol: 'BTC-USD', name: 'Bitcoin' };
+  if (currency === 'EUR') return { symbol: '^STOXX50E', name: 'Euro Stoxx 50' };
+  return { symbol: '^GSPC', name: 'S&P 500' };
+}
+
+function weekKey(ts: number): string {
+  // Bucket by ISO monday so TwelveData (Mon close) and Yahoo (Sun/Mon) align.
+  const d = new Date(ts * 1000);
+  const day = d.getUTCDay();
+  const monday = new Date(d.getTime());
+  monday.setUTCDate(d.getUTCDate() - ((day + 6) % 7));
+  return monday.toISOString().slice(0, 10);
+}
+
+async function yahooWeeklyCloses(symbol: string, weeks: number): Promise<WeeklySeries | null> {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1wk&range=${weeks}wk`;
+  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+  if (!res.ok) return null;
+  const body = await res.json() as {
+    chart: { result?: Array<{ timestamp?: number[]; indicators: { quote: Array<{ close: Array<number | null> }> } }> };
+  };
+  const r = body.chart.result?.[0];
+  if (!r) return null;
+  const ts = r.timestamp ?? [];
+  const closes = r.indicators.quote[0]?.close ?? [];
+  const out: WeeklySeries = { timestamps: [], closes: [] };
+  for (let i = 0; i < ts.length; i++) {
+    const c = closes[i];
+    if (typeof c === 'number' && !Number.isNaN(c)) {
+      out.timestamps.push(ts[i]);
+      out.closes.push(c);
+    }
+  }
+  return out.closes.length ? out : null;
+}
+
+function computeMansfieldRS(
+  stock: WeeklySeries,
+  benchmark: WeeklySeries,
+  period = 52
+): { current: number | null; prev: number | null } {
+  if (stock.closes.length < period + 2 || benchmark.closes.length < period + 2) {
+    return { current: null, prev: null };
+  }
+  const bMap = new Map<string, number>();
+  for (let i = 0; i < benchmark.timestamps.length; i++) {
+    bMap.set(weekKey(benchmark.timestamps[i]), benchmark.closes[i]);
+  }
+  const rs: number[] = [];
+  for (let i = 0; i < stock.timestamps.length; i++) {
+    const b = bMap.get(weekKey(stock.timestamps[i]));
+    if (b && b > 0) rs.push(stock.closes[i] / b);
+  }
+  if (rs.length < period + 2) return { current: null, prev: null };
+  const mansfieldAt = (endIdx: number): number | null => {
+    const start = endIdx - period;
+    if (start < 0) return null;
+    const slice = rs.slice(start, endIdx);
+    const ma = slice.reduce((a, b) => a + b, 0) / period;
+    return ma > 0 ? ((rs[endIdx] / ma) - 1) * 100 : null;
+  };
+  return {
+    current: mansfieldAt(rs.length - 1),
+    prev: mansfieldAt(rs.length - 2),
+  };
 }
 
 interface SymbolResolution {
@@ -132,12 +228,12 @@ async function fetchWeekly(resolved: SymbolResolution, weeks: number): Promise<T
   else if (resolved.exchange) params.set('exchange', resolved.exchange);
   const res = await fetch(`${TD_BASE}/time_series?${params.toString()}`);
   if (!res.ok) {
-    console.warn(`TwelveData time_series unavailable for ${symbol}: ${res.status}`);
+    console.warn(`TwelveData time_series unavailable for ${resolved.symbol}: ${res.status}`);
     return null;
   }
   const data = await res.json() as TDTimeSeries;
   if (data.status === 'error' || !data.values?.length) {
-    console.warn(`TwelveData time_series error for ${symbol}: ${data.message ?? 'empty'}`);
+    console.warn(`TwelveData time_series error for ${resolved.symbol}: ${data.message ?? 'empty'}`);
     return null;
   }
   return data;
@@ -174,6 +270,25 @@ async function yahooSearch(query: string): Promise<string | null> {
   const isThin = (s: string) => thinSuffixes.some((suf) => s.toUpperCase().endsWith(suf));
   const primary = eligible.find((q) => q.symbol && !isThin(q.symbol));
   return (primary ?? eligible[0]).symbol ?? null;
+}
+
+async function attachMansfield(
+  base: TechnicalSnapshot,
+  stock: WeeklySeries
+): Promise<TechnicalSnapshot> {
+  const bench = pickBenchmark(base.symbol, base.currency);
+  const benchSeries = await yahooWeeklyCloses(bench.symbol, Math.max(stock.closes.length + 10, 120));
+  if (!benchSeries) {
+    return { ...base, benchmarkSymbol: bench.symbol, benchmarkName: bench.name };
+  }
+  const { current, prev } = computeMansfieldRS(stock, benchSeries, 52);
+  return {
+    ...base,
+    mansfieldRS: current,
+    mansfieldRSPrev: prev,
+    benchmarkSymbol: bench.symbol,
+    benchmarkName: bench.name,
+  };
 }
 
 async function yahooSnapshot(symbol: string, smaPeriod: number): Promise<TechnicalSnapshot> {
@@ -223,7 +338,17 @@ async function yahooSnapshot(symbol: string, smaPeriod: number): Promise<Technic
 
   const meta = r.meta;
   const q = r.indicators.quote[0];
-  const closes = (q.close ?? []).filter((n): n is number => typeof n === 'number' && !Number.isNaN(n));
+  const allTs = r.timestamp ?? [];
+  const alignedTs: number[] = [];
+  const alignedCloses: number[] = [];
+  for (let i = 0; i < (q.close ?? []).length; i++) {
+    const c = q.close[i];
+    if (typeof c === 'number' && !Number.isNaN(c)) {
+      alignedTs.push(allTs[i] ?? 0);
+      alignedCloses.push(c);
+    }
+  }
+  const closes = alignedCloses;
   const highs = (q.high ?? []).filter((n): n is number => typeof n === 'number' && !Number.isNaN(n));
   const lows = (q.low ?? []).filter((n): n is number => typeof n === 'number' && !Number.isNaN(n));
   const volumes = (q.volume ?? []).filter((n): n is number => typeof n === 'number' && !Number.isNaN(n) && n > 0);
@@ -236,8 +361,8 @@ async function yahooSnapshot(symbol: string, smaPeriod: number): Promise<Technic
   const change = Number.isNaN(prevClose) ? NaN : currentPrice - prevClose;
   const changePct = Number.isNaN(prevClose) || prevClose === 0 ? NaN : (change / prevClose) * 100;
 
-  return {
-    symbol: symbol.toUpperCase(),
+  const base: TechnicalSnapshot = {
+    symbol: meta.symbol?.toUpperCase() ?? symbol.toUpperCase(),
     name: meta.longName ?? meta.shortName ?? symbol.toUpperCase(),
     currency: meta.currency ?? 'USD',
     currentPrice,
@@ -257,7 +382,12 @@ async function yahooSnapshot(symbol: string, smaPeriod: number): Promise<Technic
     volumeRatio: volAvg && lastVol ? lastVol / volAvg : null,
     weekly52High: meta.fiftyTwoWeekHigh ?? (highs.length ? Math.max(...highs.slice(-52)) : null),
     weekly52Low: meta.fiftyTwoWeekLow ?? (lows.length ? Math.min(...lows.slice(-52)) : null),
+    mansfieldRS: null,
+    mansfieldRSPrev: null,
+    benchmarkSymbol: null,
+    benchmarkName: null,
   };
+  return await attachMansfield(base, { timestamps: alignedTs, closes: alignedCloses });
 }
 
 export async function getTechnicalSnapshot(
@@ -287,7 +417,17 @@ export async function getTechnicalSnapshot(
 
   // TwelveData returns time_series newest -> oldest. Reverse to oldest -> newest.
   const candles = series?.values ? [...series.values].reverse() : null;
-  const closes = candles?.map((v) => num(v.close)).filter((n) => !Number.isNaN(n)) ?? [];
+  const stockTs: number[] = [];
+  const closes: number[] = [];
+  if (candles) {
+    for (const v of candles) {
+      const c = num(v.close);
+      if (!Number.isNaN(c)) {
+        stockTs.push(Math.floor(new Date(v.datetime).getTime() / 1000));
+        closes.push(c);
+      }
+    }
+  }
   const highs = candles?.map((v) => num(v.high)).filter((n) => !Number.isNaN(n)) ?? [];
   const lows = candles?.map((v) => num(v.low)).filter((n) => !Number.isNaN(n)) ?? [];
   const volumes = candles?.map((v) => num(v.volume ?? '0')) ?? [];
@@ -304,8 +444,8 @@ export async function getTechnicalSnapshot(
     ? new Date(quote.datetime).toISOString()
     : new Date().toISOString();
 
-  return {
-    symbol: symbol.toUpperCase(),
+  const base: TechnicalSnapshot = {
+    symbol: (resolved.symbol ?? symbol).toUpperCase(),
     name: quote.name ?? symbol.toUpperCase(),
     currency: quote.currency ?? series?.meta?.currency ?? 'USD',
     currentPrice,
@@ -323,5 +463,10 @@ export async function getTechnicalSnapshot(
     volumeRatio: volAvg && lastValidVol ? lastValidVol / volAvg : null,
     weekly52High: highs.length ? Math.max(...highs.slice(-52)) : null,
     weekly52Low: lows.length ? Math.min(...lows.slice(-52)) : null,
+    mansfieldRS: null,
+    mansfieldRSPrev: null,
+    benchmarkSymbol: null,
+    benchmarkName: null,
   };
+  return await attachMansfield(base, { timestamps: stockTs, closes });
 }

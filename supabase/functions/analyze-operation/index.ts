@@ -2,7 +2,7 @@
 // Body: { ticker, purchaseDate, purchasePrice, shares, settings }
 
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
-import { getTechnicalSnapshot } from '../_shared/finnhub.ts';
+import { getTechnicalSnapshot } from '../_shared/marketData.ts';
 import { classifyStage } from '../_shared/weinstein.ts';
 import { generate, extractJson } from '../_shared/gemini.ts';
 

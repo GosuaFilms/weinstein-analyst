@@ -7,7 +7,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
-import { getTechnicalSnapshot } from '../_shared/finnhub.ts';
+import { getTechnicalSnapshot } from '../_shared/marketData.ts';
 import { evaluateAlert } from '../_shared/weinstein.ts';
 
 interface AlertRow {

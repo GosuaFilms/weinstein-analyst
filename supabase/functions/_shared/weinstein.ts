@@ -2,7 +2,7 @@
 // always have deterministic technical anchors even if the LLM wobbles.
 // Based on Stan Weinstein's "Secrets for Profiting in Bull & Bear Markets".
 
-import type { TechnicalSnapshot } from './finnhub.ts';
+import type { TechnicalSnapshot } from './marketData.ts';
 
 export type StageLabel = 'STAGE_1' | 'STAGE_2' | 'STAGE_3' | 'STAGE_4';
 

@@ -3,7 +3,7 @@
 // Returns: TechnicalSnapshot (real-time price + SMA30 weekly + volume)
 
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
-import { getTechnicalSnapshot } from '../_shared/finnhub.ts';
+import { getTechnicalSnapshot } from '../_shared/marketData.ts';
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);

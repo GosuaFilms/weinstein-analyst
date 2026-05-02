@@ -4,7 +4,7 @@
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
 import { getTechnicalSnapshot } from '../_shared/marketData.ts';
 import { classifyStage } from '../_shared/weinstein.ts';
-import { generate, extractJson } from '../_shared/gemini.ts';
+import { generate, extractJson } from '../_shared/anthropic.ts';
 
 interface Settings {
   smaPeriod: number;
@@ -71,10 +71,8 @@ Return STRICT JSON in ${langName}:
 }`;
 
     const raw = await generate({
-      systemInstruction,
-      contents: [{ role: 'user', parts: [{ text: 'Return only the JSON.' }] }],
-      temperature: 0.1,
-      jsonMode: true,
+      system: systemInstruction,
+      messages: [{ role: 'user', content: 'Return only the JSON.' }],
     });
 
     const result = extractJson<Record<string, unknown>>(raw);

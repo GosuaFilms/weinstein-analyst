@@ -2,11 +2,22 @@
 // Body: { history: Array<{role, parts}>, userMessage: string, context?: AnalysisResult, language: 'es'|'en' }
 
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
-import { generate } from '../_shared/gemini.ts';
+import { generate, MODEL_CHAT, type AnthropicMessage } from '../_shared/anthropic.ts';
 
-interface ChatMessage {
+// El frontend envía historial en formato Gemini (role:'model', parts:[{text}])
+// Lo convertimos al formato Anthropic (role:'assistant', content: string)
+interface GeminiMessage {
   role: 'user' | 'model';
   parts: Array<{ text: string }>;
+}
+
+function toAnthropicHistory(history: GeminiMessage[], userMessage: string): AnthropicMessage[] {
+  const messages: AnthropicMessage[] = history.map((msg) => ({
+    role: msg.role === 'model' ? 'assistant' : 'user',
+    content: msg.parts.map((p) => p.text).join(''),
+  }));
+  messages.push({ role: 'user', content: userMessage });
+  return messages;
 }
 
 Deno.serve(async (req) => {
@@ -15,28 +26,23 @@ Deno.serve(async (req) => {
 
   try {
     const { history, userMessage, context, language } = await req.json() as {
-      history: ChatMessage[];
+      history: GeminiMessage[];
       userMessage: string;
       context?: Record<string, unknown>;
       language: 'es' | 'en';
     };
 
     const langName = language === 'es' ? 'Spanish' : 'English';
-    let systemInstruction = `You are Alpha Stage's AI assistant, expert in Stan Weinstein's Stage Analysis. Respond in ${langName}. Be concise and precise.`;
+    let system = `You are Alpha Stage's AI assistant, expert in Stan Weinstein's Stage Analysis. Respond in ${langName}. Be concise and precise.`;
     if (context) {
-      systemInstruction += `\n\nCurrent analysis context:\n${JSON.stringify(context).slice(0, 2000)}`;
+      system += `\n\nCurrent analysis context:\n${JSON.stringify(context).slice(0, 2000)}`;
     }
 
-    const contents: ChatMessage[] = [
-      ...history,
-      { role: 'user', parts: [{ text: userMessage }] },
-    ];
-
     const raw = await generate({
-      systemInstruction,
-      contents,
-      temperature: 0.7,
-      model: 'gemini-2.5-flash',
+      system,
+      messages: toAnthropicHistory(history, userMessage),
+      model: MODEL_CHAT,
+      maxTokens: 1024,
     });
 
     return jsonResponse({ text: raw });

@@ -5,7 +5,7 @@
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
 import { getTechnicalSnapshot, type TechnicalSnapshot } from '../_shared/marketData.ts';
 import { classifyStage } from '../_shared/weinstein.ts';
-import { generate, extractJson } from '../_shared/gemini.ts';
+import { generate, extractJson, type ContentBlock } from '../_shared/anthropic.ts';
 
 interface Settings {
   smaPeriod: number;
@@ -118,23 +118,22 @@ Deno.serve(async (req) => {
       }
     }
 
-    const parts: Array<{ text?: string; inlineData?: { data: string; mimeType: string } }> = [];
+    const content: ContentBlock[] = [];
     if (images && images.length > 0) {
       for (const img of images) {
-        parts.push({ inlineData: { data: img.data, mimeType: img.mimeType } });
+        content.push({ type: 'image', source: { type: 'base64', media_type: img.mimeType, data: img.data } });
       }
     }
-    parts.push({
+    content.push({
+      type: 'text',
       text: ticker
         ? `Analyze ${ticker.toUpperCase()} using the real-time anchor provided. Return the JSON only.`
         : 'Analyze the attached charts using Weinstein\'s method. Return the JSON only.',
     });
 
     const raw = await generate({
-      systemInstruction: buildSystemInstruction(settings.language, snap, stageHint),
-      contents: [{ role: 'user', parts }],
-      temperature: 0.1,
-      jsonMode: true,
+      system: buildSystemInstruction(settings.language, snap, stageHint),
+      messages: [{ role: 'user', content }],
     });
 
     const result = extractJson<AnalysisResult>(raw);

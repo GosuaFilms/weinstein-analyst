@@ -19,6 +19,7 @@ import UserProfileSidebar from './components/UserProfileSidebar';
 import EpicHero from './components/EpicHero';
 import LiveClock from './components/LiveClock';
 import OperationAnalyzer from './components/OperationAnalyzer';
+import TradingViewWidget from './components/TradingViewWidget';
 import { useAuth } from './contexts/AuthContext';
 import { supabase } from './lib/supabase';
 import { useAnalyses } from './hooks/useAnalyses';
@@ -41,6 +42,7 @@ const App: React.FC = () => {
   const { history, save: saveAnalysis, remove: removeAnalysis, clear: clearHistory } = useAnalyses();
   const { alerts, add: addAlert, remove: removeAlert, reload: reloadAlerts } = useAlerts();
   const [isCheckingAlerts, setIsCheckingAlerts] = useState(false);
+  const [isChartOpen, setIsChartOpen] = useState(false);
   const { watchlist, loading: watchlistLoading, add: addToWatchlist, remove: removeFromWatchlist, has: isInWatchlist } = useWatchlist();
 
   const [ticker, setTicker] = useState('');
@@ -369,6 +371,24 @@ const App: React.FC = () => {
 
             {analysis.result && (
               <>
+                {/* Action bar — chart toggle + watchlist */}
+                {ticker && (
+                  <div className="max-w-3xl mx-auto mb-4 flex justify-end gap-2">
+                    <button
+                      onClick={() => setIsChartOpen(prev => !prev)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all border shadow-sm ${
+                        isChartOpen
+                          ? 'bg-blue-600 text-white border-blue-500 hover:bg-blue-500'
+                          : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-400 hover:text-blue-500'
+                      }`}
+                    >
+                      <i className="fas fa-chart-candlestick"></i>
+                      {isChartOpen
+                        ? (language === Language.ES ? 'Ocultar Gráfico' : 'Hide Chart')
+                        : (language === Language.ES ? 'Ver Gráfico' : 'View Chart')}
+                    </button>
+                  </div>
+                )}
                 {/* Watchlist shortcut bar */}
                 {ticker && (
                   <div className="max-w-3xl mx-auto mb-4 flex justify-end">
@@ -398,6 +418,36 @@ const App: React.FC = () => {
                   </div>
                 )}
                 <AnalysisDisplay data={analysis.result} isSaved={isSaved} ticker={ticker} language={language} images={images} theme={theme} />
+
+                {/* TradingView Chart */}
+                {isChartOpen && ticker && (
+                  <div className="max-w-5xl mx-auto mt-8">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden shadow-xl">
+                      <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center">
+                            <i className="fas fa-chart-candlestick text-blue-500"></i>
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-slate-900 dark:text-white text-sm">
+                              {ticker.toUpperCase()} — {language === Language.ES ? 'Gráfico Semanal' : 'Weekly Chart'}
+                            </h3>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-widest font-bold">
+                              SMA30 · {language === Language.ES ? 'Método Weinstein' : 'Weinstein Method'}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setIsChartOpen(false)}
+                          className="text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
+                        >
+                          <i className="fas fa-times"></i>
+                        </button>
+                      </div>
+                      <TradingViewWidget symbol={ticker} theme={theme} />
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </>

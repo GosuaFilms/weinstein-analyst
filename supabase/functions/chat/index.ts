@@ -30,38 +30,53 @@ const QUESTION_STARTERS = new Set([
   'qué', 'que', 'cómo', 'como', 'cuál', 'cual', 'cuándo', 'cuando',
   'por', 'dónde', 'donde', 'quién', 'quien', 'explica', 'explain',
   'what', 'how', 'when', 'where', 'why', 'who', 'is', 'are', 'can',
-  'does', 'define', 'qué es', 'what is',
+  'does', 'define', 'cuéntame', 'describe',
 ]);
 
+// Pure noise: articles, prepositions, common abbreviations that look like tickers
 const SKIP_TOKENS = new Set([
   'MM', 'RS', 'SMA', 'EMA', 'ATH', 'ETF', 'IPO', 'FAQ',
   'EU', 'US', 'UK', 'SA', 'SL', 'PLC', 'AG', 'NV',
   'A', 'I', 'ME', 'EL', 'LA', 'LO', 'EN', 'DE', 'SI',
   'NO', 'ES', 'SE', 'UN', 'UNA', 'AND', 'THE', 'FOR',
+  'CON', 'DEL', 'LOS', 'LAS', 'AL', 'MAS', 'MUY',
 ]);
+
+// Spanish/English articles and prepositions to strip before the company name
+const STRIP_PREFIX = /^(?:el|la|los|las|un|una|the|a|an)\s+/i;
 
 function extractAssetQuery(message: string): string | null {
   const trimmed = message.trim();
 
-  // 1. Bare ticker/pair: AAPL  AMP.MC  BTC/USD  EUR/USD
-  if (/^[A-Z]{1,5}(?:\.[A-Z]{1,3})?(?:\/[A-Z]{2,4})?$/.test(trimmed)) {
-    return trimmed;
+  // 1. Bare ticker or pair (case-insensitive): aapl  AMP.MC  btc/usd  EUR/USD
+  if (/^[A-Za-z]{1,5}(?:\.[A-Za-z]{1,3})?(?:\/[A-Za-z]{2,4})?$/.test(trimmed)) {
+    return trimmed.toUpperCase();
   }
 
-  // 2. Action phrase followed by asset name  ("analiza Amper", "cómo está Tesla", etc.)
+  // 2. Action phrase → extract the asset name that follows
+  //    "analiza Amper", "cómo está tesla", "etapa de Santander", "mira NVDA", etc.
   const actionMatch = trimmed.match(
-    /(?:analiza(?:r)?|mira|busca|dame|hazme un análisis de|qué tal|cómo (?:está|va)|etapa de|info(?:rmación)? de|datos de)\s+([A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9\s./]{1,40}?)(?:\s*[?!,.]|$)/i
+    /(?:analiza(?:r)?|mira(?:r)?|busca(?:r)?|dame|hazme|háblame de|cuéntame de|qué tal(?: está)?|cómo (?:está|va)|etapa de|info(?:rmación)? de|datos de|análisis de)\s+(.+?)(?:\s*[?!,.]|$)/i
   );
-  if (actionMatch) return actionMatch[1].trim();
+  if (actionMatch) {
+    const candidate = actionMatch[1].trim().replace(STRIP_PREFIX, '').slice(0, 50);
+    if (candidate) return candidate;
+  }
 
-  // 3. Short message (≤ 3 words) that doesn't start with a question word
+  // 3. Short message (1-4 words) that isn't a conceptual question
   const words = trimmed.split(/\s+/);
   const firstWord = words[0]?.toLowerCase() ?? '';
-  if (words.length <= 3 && !QUESTION_STARTERS.has(firstWord) && !trimmed.endsWith('?')) {
-    return trimmed;
+  if (
+    words.length <= 4 &&
+    !QUESTION_STARTERS.has(firstWord) &&
+    !trimmed.endsWith('?') &&
+    !/\d/.test(trimmed)   // avoid pure numbers
+  ) {
+    // Strip leading article ("la Telefónica" → "Telefónica")
+    return trimmed.replace(STRIP_PREFIX, '').trim() || trimmed;
   }
 
-  // 4. Embedded ticker in longer message (uppercase 2-5 letters with optional .XX)
+  // 4. Explicit ticker embedded in longer message (ALL-CAPS 2-5 letters + optional .XX)
   const tickerMatch = trimmed.match(/\b([A-Z]{2,5}(?:\.[A-Z]{1,3})?(?:\/[A-Z]{2,4})?)\b/);
   if (tickerMatch && !SKIP_TOKENS.has(tickerMatch[1])) {
     return tickerMatch[1];

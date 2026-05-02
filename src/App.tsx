@@ -20,6 +20,7 @@ import EpicHero from './components/EpicHero';
 import LiveClock from './components/LiveClock';
 import OperationAnalyzer from './components/OperationAnalyzer';
 import { useAuth } from './contexts/AuthContext';
+import { supabase } from './lib/supabase';
 import { useAnalyses } from './hooks/useAnalyses';
 import { useAlerts } from './hooks/useAlerts';
 import { useWatchlist } from './hooks/useWatchlist';
@@ -38,7 +39,8 @@ interface ImageFile {
 const App: React.FC = () => {
   const { user, signOut } = useAuth();
   const { history, save: saveAnalysis, remove: removeAnalysis, clear: clearHistory } = useAnalyses();
-  const { alerts, add: addAlert, remove: removeAlert } = useAlerts();
+  const { alerts, add: addAlert, remove: removeAlert, reload: reloadAlerts } = useAlerts();
+  const [isCheckingAlerts, setIsCheckingAlerts] = useState(false);
   const { watchlist, loading: watchlistLoading, add: addToWatchlist, remove: removeFromWatchlist, has: isInWatchlist } = useWatchlist();
 
   const [ticker, setTicker] = useState('');
@@ -411,7 +413,14 @@ const App: React.FC = () => {
 
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} onSettingsChange={setSettings} />
       <HistorySidebar isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} history={history} onSelect={selectHistoryItem} onDelete={removeAnalysis} onClearAll={clearHistory} />
-      <AlertsSidebar isOpen={isAlertsOpen} onClose={() => setIsAlertsOpen(false)} alerts={alerts} onAddAlert={(t: string, c: AlertCondition) => addAlert(t, c)} onDeleteAlert={removeAlert} onCheckAll={() => {}} isChecking={false} />
+      <AlertsSidebar isOpen={isAlertsOpen} onClose={() => setIsAlertsOpen(false)} alerts={alerts} onAddAlert={(t: string, c: AlertCondition) => addAlert(t, c)} onDeleteAlert={removeAlert} onCheckAll={async () => {
+        setIsCheckingAlerts(true);
+        try {
+          await supabase.functions.invoke('check-alerts', { body: {} });
+          await reloadAlerts();
+        } catch (e) { console.error(e); }
+        finally { setIsCheckingAlerts(false); }
+      }} isChecking={isCheckingAlerts} />
       <WatchlistSidebar
         isOpen={isWatchlistOpen}
         onClose={() => setIsWatchlistOpen(false)}

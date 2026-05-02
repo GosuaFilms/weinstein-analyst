@@ -33,9 +33,22 @@ Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
+  // Accept either the cron secret (pg_cron) or a valid user JWT (manual trigger from UI)
   const cronSecret = Deno.env.get('CRON_SECRET');
-  if (cronSecret && req.headers.get('x-cron-secret') !== cronSecret) {
-    return jsonResponse({ error: 'unauthorized' }, 401);
+  const providedCronSecret = req.headers.get('x-cron-secret');
+  const authHeader = req.headers.get('Authorization');
+
+  if (cronSecret && providedCronSecret !== cronSecret) {
+    // Not a valid cron call — check if it's an authenticated user
+    if (!authHeader?.startsWith('Bearer ')) {
+      return jsonResponse({ error: 'unauthorized' }, 401);
+    }
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const token = authHeader.slice(7);
+    const { error: authError } = await createClient(supabaseUrl, anonKey)
+      .auth.getUser(token);
+    if (authError) return jsonResponse({ error: 'unauthorized' }, 401);
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;

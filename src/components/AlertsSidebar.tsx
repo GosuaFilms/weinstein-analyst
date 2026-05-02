@@ -12,9 +12,12 @@ interface Props {
   isChecking: boolean;
 }
 
+const NEEDS_LEVEL = new Set([AlertCondition.RESISTANCE_BREAKOUT, AlertCondition.SUPPORT_BREAKDOWN]);
+
 const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, onDeleteAlert, onCheckAll, isChecking }) => {
   const [newTicker, setNewTicker] = useState('');
   const [newCondition, setNewCondition] = useState<AlertCondition>(AlertCondition.PRICE_CROSS_SMA30_UP);
+  const [newLevel, setNewLevel] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -23,11 +26,17 @@ const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, o
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTicker.trim()) return;
+    if (NEEDS_LEVEL.has(newCondition) && !newLevel.trim()) {
+      setError('Indica el nivel de precio de referencia.');
+      return;
+    }
     setError(null);
     setSubmitting(true);
     try {
-      await onAddAlert(newTicker.toUpperCase(), newCondition);
+      const level = newLevel ? parseFloat(newLevel) : undefined;
+      await onAddAlert(newTicker.toUpperCase(), newCondition, level);
       setNewTicker('');
+      setNewLevel('');
     } catch (err) {
       setError((err as Error).message || 'No se pudo crear la alerta.');
     } finally {
@@ -85,12 +94,22 @@ const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, o
             <select
               className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-sm outline-none"
               value={newCondition}
-              onChange={(e) => setNewCondition(e.target.value as AlertCondition)}
+              onChange={(e) => { setNewCondition(e.target.value as AlertCondition); setNewLevel(''); }}
             >
               {Object.values(AlertCondition).map((cond) => (
                 <option key={cond} value={cond}>{ALERT_CONDITION_LABELS[cond]}</option>
               ))}
             </select>
+            {NEEDS_LEVEL.has(newCondition) && (
+              <input
+                type="number"
+                step="0.01"
+                placeholder={newCondition === AlertCondition.RESISTANCE_BREAKOUT ? 'Nivel de resistencia (precio)' : 'Nivel de soporte (precio)'}
+                className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500/50 outline-none"
+                value={newLevel}
+                onChange={(e) => setNewLevel(e.target.value)}
+              />
+            )}
             <button
               type="submit"
               disabled={submitting}

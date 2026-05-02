@@ -6,7 +6,7 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   alerts: Alert[];
-  onAddAlert: (ticker: string, condition: AlertCondition) => Promise<void> | void;
+  onAddAlert: (ticker: string, condition: AlertCondition, referenceLevel?: number) => Promise<void> | void;
   onDeleteAlert: (id: string) => Promise<void> | void;
   onCheckAll: () => void;
   isChecking: boolean;

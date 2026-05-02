@@ -114,6 +114,57 @@ const ScreenerPanel: React.FC<Props> = ({ language, onAnalyze, onClose }) => {
   const [stageFilter, setStageFilter] = useState<StageFilter>('ALL');
   const [expandedReason, setExpandedReason] = useState<string | null>(null);
 
+  const exportCSV = () => {
+    if (!result) return;
+    const rows = filtered.length > 0 ? filtered : result.results;
+
+    const headers = [
+      'Símbolo', 'Nombre', 'Moneda', 'Precio', 'Etapa', 'Confianza',
+      'SMA30', 'Dist.SMA30%', 'Tendencia SMA30',
+      'RS Mansfield', 'Tendencia RS',
+      'Ratio Volumen', 'Stage2 Extendido',
+      'Stop Sugerido', 'Riesgo Stop%',
+      'Razonamiento',
+    ];
+
+    const escape = (v: string | number | boolean | null | undefined): string => {
+      if (v === null || v === undefined) return '';
+      const s = String(v);
+      return s.includes(',') || s.includes('"') || s.includes('\n')
+        ? `"${s.replace(/"/g, '""')}"`
+        : s;
+    };
+
+    const lines = rows.map(r => [
+      r.symbol,
+      r.name,
+      r.currency,
+      r.currentPrice,
+      r.stage,
+      r.confidence,
+      r.sma30 ?? '',
+      r.distanceFromSMA30Pct ?? '',
+      r.sma30Trend ?? '',
+      r.mansfieldRS ?? '',
+      r.mansfieldRSTrend ?? '',
+      r.volumeRatio ?? '',
+      r.extendedStage2 ? 'Sí' : 'No',
+      r.suggestedStopLoss ?? '',
+      r.stopLossRiskPct ?? '',
+      r.reasoning,
+    ].map(escape).join(','));
+
+    const bom = '﻿'; // UTF-8 BOM for Excel
+    const csv = bom + [headers.join(','), ...lines].join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `screener_${result.index}_${result.scannedAt.slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const runScan = async () => {
     setScanning(true);
     setError(null);
@@ -266,6 +317,16 @@ const ScreenerPanel: React.FC<Props> = ({ language, onAnalyze, onClose }) => {
                   <span className="text-rose-500 text-xs">· {result.failed.length} {es ? 'con error' : 'failed'}</span>
                 )}
               </div>
+
+              {/* Export CSV */}
+              <button
+                onClick={exportCSV}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all shadow-sm"
+                title={es ? 'Exportar a Excel/CSV' : 'Export to Excel/CSV'}
+              >
+                <i className="fas fa-file-csv text-emerald-500"></i>
+                {es ? 'Exportar CSV' : 'Export CSV'}
+              </button>
 
               {/* Stage filter pills */}
               <div className="ml-auto flex flex-wrap gap-1.5">

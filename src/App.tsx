@@ -26,6 +26,7 @@ import { useAnalyses } from './hooks/useAnalyses';
 import { useAlerts } from './hooks/useAlerts';
 import { useWatchlist } from './hooks/useWatchlist';
 import WatchlistSidebar from './components/WatchlistSidebar';
+import ScreenerPanel from './components/ScreenerPanel';
 
 const THEME_KEY = 'weinstein_theme';
 const LANG_KEY = 'weinstein_language';
@@ -71,6 +72,7 @@ const App: React.FC = () => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isAlertsOpen, setIsAlertsOpen] = useState(false);
   const [isWatchlistOpen, setIsWatchlistOpen] = useState(false);
+  const [isScreenerOpen, setIsScreenerOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
@@ -227,6 +229,11 @@ const App: React.FC = () => {
               {watchlist.length > 0 && (
                 <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">{watchlist.length > 9 ? '9+' : watchlist.length}</span>
               )}
+            </button>
+
+            <button onClick={() => { if (!user) { setIsAuthOpen(true); return; } setIsScreenerOpen(true); }} className="relative px-3 h-10 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/30 dark:border-emerald-500/30 flex items-center justify-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold text-xs transition-all" title="Screener">
+              <i className="fas fa-radar text-sm"></i>
+              <span className="hidden sm:inline">Screener</span>
             </button>
 
             <button onClick={() => setIsHistoryOpen(true)} className="relative w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
@@ -480,6 +487,19 @@ const App: React.FC = () => {
         onAddAlert={(t, c) => addAlert(t, c)}
         onRemove={removeFromWatchlist}
       />
+
+      {isScreenerOpen && (
+        <ScreenerPanel
+          language={language}
+          onAnalyze={(symbol) => {
+            setTicker(symbol);
+            setActiveTab('scan');
+            setIsChartOpen(false);
+            setTimeout(() => startAnalysis(), 50);
+          }}
+          onClose={() => setIsScreenerOpen(false)}
+        />
+      )}
 
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
       <UserProfileSidebar

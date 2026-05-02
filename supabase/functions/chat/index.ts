@@ -1,8 +1,9 @@
 // POST /functions/v1/chat
 // Body: { history: Array<{role, parts}>, userMessage: string, context?: AnalysisResult, language: 'es'|'en' }
+// Response: NDJSON stream — each line is {"chunk":"..."} or {"done":true} or {"error":"..."}
 
-import { handleCors, jsonResponse } from '../_shared/cors.ts';
-import { generate, MODEL_CHAT, type AnthropicMessage } from '../_shared/anthropic.ts';
+import { handleCors, corsHeaders } from '../_shared/cors.ts';
+import { generateStream, MODEL_CHAT, type AnthropicMessage } from '../_shared/anthropic.ts';
 import { getTechnicalSnapshot } from '../_shared/marketData.ts';
 import { classifyStage } from '../_shared/weinstein.ts';
 
@@ -23,8 +24,6 @@ function toAnthropicHistory(history: GeminiMessage[], userMessage: string): Anth
 }
 
 // ─── Asset detection ───────────────────────────────────────────────────────
-// Tries to extract a ticker or company name from the user message.
-// Returns null if the message looks like a conceptual question (no asset implied).
 
 const QUESTION_STARTERS = new Set([
   'qué', 'que', 'cómo', 'como', 'cuál', 'cual', 'cuándo', 'cuando',
@@ -33,7 +32,6 @@ const QUESTION_STARTERS = new Set([
   'does', 'define', 'cuéntame', 'describe',
 ]);
 
-// Pure noise: articles, prepositions, common abbreviations that look like tickers
 const SKIP_TOKENS = new Set([
   'MM', 'RS', 'SMA', 'EMA', 'ATH', 'ETF', 'IPO', 'FAQ',
   'EU', 'US', 'UK', 'SA', 'SL', 'PLC', 'AG', 'NV',
@@ -42,19 +40,15 @@ const SKIP_TOKENS = new Set([
   'CON', 'DEL', 'LOS', 'LAS', 'AL', 'MAS', 'MUY',
 ]);
 
-// Spanish/English articles and prepositions to strip before the company name
 const STRIP_PREFIX = /^(?:el|la|los|las|un|una|the|a|an)\s+/i;
 
 function extractAssetQuery(message: string): string | null {
   const trimmed = message.trim();
 
-  // 1. Bare ticker or pair (case-insensitive): aapl  AMP.MC  btc/usd  EUR/USD
   if (/^[A-Za-z]{1,5}(?:\.[A-Za-z]{1,3})?(?:\/[A-Za-z]{2,4})?$/.test(trimmed)) {
     return trimmed.toUpperCase();
   }
 
-  // 2. Action phrase → extract the asset name that follows
-  //    "analiza Amper", "cómo está tesla", "etapa de Santander", "mira NVDA", etc.
   const actionMatch = trimmed.match(
     /(?:analiza(?:r)?|mira(?:r)?|busca(?:r)?|dame|hazme|háblame de|cuéntame de|qué tal(?: está)?|cómo (?:está|va)|etapa de|info(?:rmación)? de|datos de|análisis de)\s+(.+?)(?:\s*[?!,.]|$)/i
   );
@@ -63,20 +57,17 @@ function extractAssetQuery(message: string): string | null {
     if (candidate) return candidate;
   }
 
-  // 3. Short message (1-4 words) that isn't a conceptual question
   const words = trimmed.split(/\s+/);
   const firstWord = words[0]?.toLowerCase() ?? '';
   if (
     words.length <= 4 &&
     !QUESTION_STARTERS.has(firstWord) &&
     !trimmed.endsWith('?') &&
-    !/\d/.test(trimmed)   // avoid pure numbers
+    !/\d/.test(trimmed)
   ) {
-    // Strip leading article ("la Telefónica" → "Telefónica")
     return trimmed.replace(STRIP_PREFIX, '').trim() || trimmed;
   }
 
-  // 4. Explicit ticker embedded in longer message (ALL-CAPS 2-5 letters + optional .XX)
   const tickerMatch = trimmed.match(/\b([A-Z]{2,5}(?:\.[A-Z]{1,3})?(?:\/[A-Z]{2,4})?)\b/);
   if (tickerMatch && !SKIP_TOKENS.has(tickerMatch[1])) {
     return tickerMatch[1];
@@ -84,8 +75,6 @@ function extractAssetQuery(message: string): string | null {
 
   return null;
 }
-
-// ─── Live market data fetch ────────────────────────────────────────────────
 
 async function tryFetchMarketData(userMessage: string, language: 'es' | 'en'): Promise<string | null> {
   const query = extractAssetQuery(userMessage);
@@ -96,11 +85,10 @@ async function tryFetchMarketData(userMessage: string, language: 'es' | 'en'): P
     if (!snap?.currentPrice || isNaN(snap.currentPrice)) return null;
 
     const cls = classifyStage(snap);
-    const lang = language === 'es';
     const currency = snap.currency === 'USD' ? '$' : snap.currency + ' ';
     const price = `${currency}${snap.currentPrice.toFixed(2)}`;
     const ts = new Date(snap.priceTimestamp).toLocaleString(
-      lang ? 'es-ES' : 'en-US',
+      language === 'es' ? 'es-ES' : 'en-US',
       { dateStyle: 'short', timeStyle: 'medium' }
     );
 
@@ -115,9 +103,63 @@ async function tryFetchMarketData(userMessage: string, language: 'es' | 'en'): P
 • Volumen ratio: ${snap.volumeRatio?.toFixed(2) ?? 'N/A'}x vs MM30
 • Máx/Mín 52 semanas: ${snap.weekly52High?.toFixed(2) ?? 'N/A'} / ${snap.weekly52Low?.toFixed(2) ?? 'N/A'}`;
   } catch {
-    // Symbol not found or data unavailable — proceed without live data
     return null;
   }
+}
+
+// ─── Stream helpers ────────────────────────────────────────────────────────
+
+function ndjsonStream(
+  anthropicRes: Response,
+  encoder: TextEncoder
+): ReadableStream<Uint8Array> {
+  const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+  const writer = writable.getWriter();
+
+  (async () => {
+    const reader = anthropicRes.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const dataStr = line.slice(6).trim();
+          if (!dataStr || dataStr === '[DONE]') continue;
+
+          try {
+            const event = JSON.parse(dataStr) as {
+              type: string;
+              delta?: { type: string; text: string };
+            };
+            if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+              await writer.write(
+                encoder.encode(JSON.stringify({ chunk: event.delta.text }) + '\n')
+              );
+            }
+          } catch { /* skip malformed SSE */ }
+        }
+      }
+
+      await writer.write(encoder.encode(JSON.stringify({ done: true }) + '\n'));
+    } catch (err) {
+      await writer.write(
+        encoder.encode(JSON.stringify({ error: (err as Error).message }) + '\n')
+      );
+    } finally {
+      await writer.close();
+    }
+  })();
+
+  return readable;
 }
 
 // ─── Main handler ──────────────────────────────────────────────────────────
@@ -125,6 +167,8 @@ async function tryFetchMarketData(userMessage: string, language: 'es' | 'en'): P
 Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
+
+  const encoder = new TextEncoder();
 
   try {
     const { history, userMessage, context, language } = await req.json() as {
@@ -136,29 +180,39 @@ Deno.serve(async (req) => {
 
     const langName = language === 'es' ? 'Spanish' : 'English';
 
-    // Fetch live market data in parallel with building the history
+    // Fetch live market data (may take 1-3 s) before opening the AI stream
     const liveData = await tryFetchMarketData(userMessage, language);
 
-    let system = `You are Alpha Stage's AI assistant, expert in Stan Weinstein's Stage Analysis. Respond in ${langName}. Be concise and precise.`;
+    let system = `You are Alpha Stage's AI assistant, expert in Stan Weinstein's Stage Analysis. Respond in ${langName}. Be concise and precise. Format your response with markdown — use **bold** for key figures, bullet lists where appropriate.`;
 
     if (liveData) {
-      system += `\n\n${liveData}\n\nYou have REAL-TIME data above — do NOT say you lack information. Apply Weinstein's full framework: stage verdict, MM30 slope, Mansfield RS vs benchmark, volume confirmation, stop-loss, and market filter (if benchmark is in Stage 3/4, avoid longs). If Stage 2 is extended >15% above MM30, warn about partial exit.`;
+      system += `\n\n${liveData}\n\nYou have REAL-TIME data above — do NOT say you lack information. Apply Weinstein's full framework: stage verdict, MM30 slope, Mansfield RS vs benchmark, volume confirmation, stop-loss, and market filter. If benchmark is in Stage 3/4, warn against opening longs. If Stage 2 is extended >15% above MM30, warn about partial exit.`;
     }
 
     if (context) {
       system += `\n\nCurrent analysis context:\n${JSON.stringify(context).slice(0, 2000)}`;
     }
 
-    const raw = await generate({
+    const anthropicRes = await generateStream({
       system,
       messages: toAnthropicHistory(history, userMessage),
       model: MODEL_CHAT,
       maxTokens: 1024,
     });
 
-    return jsonResponse({ text: raw });
+    return new Response(ndjsonStream(anthropicRes, encoder), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/x-ndjson',
+        'Transfer-Encoding': 'chunked',
+        'X-Content-Type-Options': 'nosniff',
+      },
+    });
   } catch (err) {
     console.error('chat error:', err);
-    return jsonResponse({ error: (err as Error).message }, 500);
+    return new Response(
+      JSON.stringify({ error: (err as Error).message }) + '\n',
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/x-ndjson' } }
+    );
   }
 });

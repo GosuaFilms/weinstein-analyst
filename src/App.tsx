@@ -22,6 +22,8 @@ import OperationAnalyzer from './components/OperationAnalyzer';
 import { useAuth } from './contexts/AuthContext';
 import { useAnalyses } from './hooks/useAnalyses';
 import { useAlerts } from './hooks/useAlerts';
+import { useWatchlist } from './hooks/useWatchlist';
+import WatchlistSidebar from './components/WatchlistSidebar';
 
 const THEME_KEY = 'weinstein_theme';
 const LANG_KEY = 'weinstein_language';
@@ -37,6 +39,7 @@ const App: React.FC = () => {
   const { user, signOut } = useAuth();
   const { history, save: saveAnalysis, remove: removeAnalysis, clear: clearHistory } = useAnalyses();
   const { alerts, add: addAlert, remove: removeAlert } = useAlerts();
+  const { watchlist, loading: watchlistLoading, add: addToWatchlist, remove: removeFromWatchlist, has: isInWatchlist } = useWatchlist();
 
   const [ticker, setTicker] = useState('');
   const [tickerError, setTickerError] = useState<string | null>(null);
@@ -63,6 +66,7 @@ const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isAlertsOpen, setIsAlertsOpen] = useState(false);
+  const [isWatchlistOpen, setIsWatchlistOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
@@ -214,6 +218,13 @@ const App: React.FC = () => {
               )}
             </button>
 
+            <button onClick={() => setIsWatchlistOpen(true)} className="relative w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400" title="Watchlist">
+              <i className="fas fa-star"></i>
+              {watchlist.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">{watchlist.length > 9 ? '9+' : watchlist.length}</span>
+              )}
+            </button>
+
             <button onClick={() => setIsHistoryOpen(true)} className="relative w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
               <i className="fas fa-history"></i>
               {history.length > 0 && (
@@ -355,7 +366,37 @@ const App: React.FC = () => {
             )}
 
             {analysis.result && (
-              <AnalysisDisplay data={analysis.result} isSaved={isSaved} ticker={ticker} language={language} images={images} theme={theme} />
+              <>
+                {/* Watchlist shortcut bar */}
+                {ticker && (
+                  <div className="max-w-3xl mx-auto mb-4 flex justify-end">
+                    <button
+                      onClick={async () => {
+                        if (!user) { setIsAuthOpen(true); return; }
+                        try {
+                          if (isInWatchlist(ticker)) {
+                            const item = watchlist.find(w => w.symbol === ticker.toUpperCase());
+                            if (item) await removeFromWatchlist(item.id);
+                          } else {
+                            await addToWatchlist(ticker, analysis.result?.companyName);
+                          }
+                        } catch (e) { console.error(e); }
+                      }}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all border shadow-sm ${
+                        isInWatchlist(ticker)
+                          ? 'bg-amber-500 text-slate-900 border-amber-400 hover:bg-amber-400'
+                          : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-amber-400 hover:text-amber-500'
+                      }`}
+                    >
+                      <i className={`fas fa-star ${isInWatchlist(ticker) ? '' : 'opacity-60'}`}></i>
+                      {isInWatchlist(ticker)
+                        ? (language === Language.ES ? 'En Watchlist' : 'In Watchlist')
+                        : (language === Language.ES ? 'Añadir a Watchlist' : 'Add to Watchlist')}
+                    </button>
+                  </div>
+                )}
+                <AnalysisDisplay data={analysis.result} isSaved={isSaved} ticker={ticker} language={language} images={images} theme={theme} />
+              </>
             )}
           </>
         ) : (
@@ -371,6 +412,15 @@ const App: React.FC = () => {
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} onSettingsChange={setSettings} />
       <HistorySidebar isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} history={history} onSelect={selectHistoryItem} onDelete={removeAnalysis} onClearAll={clearHistory} />
       <AlertsSidebar isOpen={isAlertsOpen} onClose={() => setIsAlertsOpen(false)} alerts={alerts} onAddAlert={(t: string, c: AlertCondition) => addAlert(t, c)} onDeleteAlert={removeAlert} onCheckAll={() => {}} isChecking={false} />
+      <WatchlistSidebar
+        isOpen={isWatchlistOpen}
+        onClose={() => setIsWatchlistOpen(false)}
+        watchlist={watchlist}
+        loading={watchlistLoading}
+        onAnalyze={(symbol) => { setTicker(symbol); setActiveTab('scan'); setTimeout(() => startAnalysis(), 50); }}
+        onAddAlert={(t, c) => addAlert(t, c)}
+        onRemove={removeFromWatchlist}
+      />
 
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
       <UserProfileSidebar

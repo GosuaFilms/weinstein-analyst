@@ -75,6 +75,7 @@ export function analyzeOperation(input: {
   return invoke<OperationAnalysisResult>('analyze-operation', input);
 }
 
+// Legacy non-streaming chat (kept for back-compat; prefer chatStream)
 export function chat(input: {
   history: ChatMessage[];
   userMessage: string;
@@ -82,4 +83,60 @@ export function chat(input: {
   language: 'es' | 'en';
 }) {
   return invoke<{ text: string }>('chat', input);
+}
+
+// Streaming chat — calls onChunk with each text delta as it arrives.
+export async function chatStream(
+  input: {
+    history: ChatMessage[];
+    userMessage: string;
+    context?: AnalysisResult | null;
+    language: 'es' | 'en';
+  },
+  onChunk: (text: string) => void
+): Promise<void> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(body.error ?? `Chat error ${res.status}`);
+  }
+
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const json = JSON.parse(line) as { chunk?: string; done?: boolean; error?: string };
+        if (json.error) throw new Error(json.error);
+        if (json.chunk) onChunk(json.chunk);
+        if (json.done) return;
+      } catch (e) {
+        if (e instanceof SyntaxError) continue; // malformed line — skip
+        throw e;
+      }
+    }
+  }
 }

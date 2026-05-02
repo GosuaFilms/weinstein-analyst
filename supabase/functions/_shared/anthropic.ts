@@ -74,6 +74,39 @@ export async function generate(req: AnthropicRequest): Promise<string> {
   return text;
 }
 
+// ─── Streaming ────────────────────────────────────────────────────────────
+// Returns the raw Anthropic SSE Response. The caller is responsible for
+// piping / transforming the body.
+
+export async function generateStream(req: AnthropicRequest): Promise<Response> {
+  const model = req.model ?? MODEL_ANALYSIS;
+
+  const body: Record<string, unknown> = {
+    model,
+    max_tokens: req.maxTokens ?? 4096,
+    messages: req.messages,
+    stream: true,
+  };
+  if (req.system) body.system = req.system;
+
+  const res = await fetch(`${API_BASE}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': getKey(),
+      'anthropic-version': ANTHROPIC_VERSION,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Anthropic API error ${res.status}: ${errText.slice(0, 300)}`);
+  }
+
+  return res;
+}
+
 // ─── Utilidad JSON ─────────────────────────────────────────────────────────
 
 export function extractJson<T>(text: string): T {

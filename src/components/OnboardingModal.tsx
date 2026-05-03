@@ -34,7 +34,7 @@ const STEPS = [
     tip: '💡 Activa las notificaciones push o conecta Telegram para recibir avisos aunque no estés en la app.',
   },
   {
-    icon: 'fa-radar',
+    icon: 'fa-filter',
     iconColor: 'text-blue-400',
     iconBg: 'bg-blue-500/10',
     title: 'Screener de mercado',

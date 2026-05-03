@@ -129,7 +129,7 @@ const SECTIONS: Section[] = [
   },
   {
     id: 'screener',
-    icon: 'fa-radar',
+    icon: 'fa-filter',
     iconColor: 'text-blue-500',
     title: 'Screener de mercado',
     content: (

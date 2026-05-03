@@ -11,6 +11,7 @@ import { getTechnicalSnapshot } from '../_shared/marketData.ts';
 import { evaluateAlert } from '../_shared/weinstein.ts';
 import { sendAlertEmail } from '../_shared/email.ts';
 import { sendWebPush, type PushSub } from '../_shared/webpush.ts';
+import { sendTelegramMessage } from '../_shared/telegram.ts';
 
 interface AlertRow {
   id: string;
@@ -78,10 +79,15 @@ Deno.serve(async (req) => {
   const userIds = [...new Set((alerts as AlertRow[]).map(a => a.user_id))];
   const { data: profiles } = await supabase
     .from('profiles')
-    .select('id, email')
+    .select('id, email, telegram_chat_id')
     .in('id', userIds);
   const emailByUser = new Map<string, string>(
     (profiles ?? []).map((p: { id: string; email: string }) => [p.id, p.email])
+  );
+  const telegramByUser = new Map<string, number>(
+    (profiles ?? [])
+      .filter((p: { telegram_chat_id: number | null }) => p.telegram_chat_id)
+      .map((p: { id: string; telegram_chat_id: number }) => [p.id, p.telegram_chat_id])
   );
 
   const { data: pushSubs } = await supabase
@@ -99,6 +105,7 @@ Deno.serve(async (req) => {
   const vapidPublicKey  = Deno.env.get('VAPID_PUBLIC_KEY')  ?? '';
   const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY') ?? '';
   const vapidSubject    = Deno.env.get('VAPID_SUBJECT')     ?? 'mailto:info@example.com';
+  const telegramBotToken = Deno.env.get('TELEGRAM_BOT_TOKEN') ?? '';
 
   // Group alerts by ticker to minimise market-data API calls
   const byTicker = new Map<string, AlertRow[]>();
@@ -166,7 +173,23 @@ Deno.serve(async (req) => {
           }).catch(err => console.error(`Email failed for ${alert.ticker}:`, err));
         }
 
-        // 4. Send push notifications (fire-and-forget)
+        // 4. Send Telegram notification (fire-and-forget)
+        const telegramChatId = telegramByUser.get(alert.user_id);
+        if (telegramBotToken && telegramChatId) {
+          const price = snap.currentPrice.toFixed(2);
+          const currency = snap.currency ?? '';
+          const companyLabel = snap.name && snap.name !== alert.ticker
+            ? ` · ${snap.name}` : '';
+          const msg =
+            `🔔 <b>Alerta: ${alert.ticker}</b>${companyLabel}\n\n` +
+            `${evalResult.message}\n\n` +
+            `💰 Precio actual: <b>${price} ${currency}</b>\n` +
+            `<a href="${appUrl}">Ver en Weinstein Analyst →</a>`;
+          sendTelegramMessage(telegramChatId, msg, telegramBotToken)
+            .catch(err => console.error(`Telegram failed for ${alert.ticker}:`, err));
+        }
+
+        // 5. Send push notifications (fire-and-forget)
         if (vapidPublicKey && vapidPrivateKey) {
           const subs = subsByUser.get(alert.user_id) ?? [];
           for (const sub of subs) {

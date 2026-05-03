@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Alert, AlertCondition, ALERT_CONDITION_LABELS } from '../types';
 import { usePushNotifications } from '../hooks/usePushNotifications';
+import TelegramConnect from './TelegramConnect';
 
 interface Props {
   isOpen: boolean;
@@ -245,6 +246,14 @@ const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, o
               <><i className="fas fa-radar"></i> ESCANEAR ALERTAS ACTIVAS</>
             )}
           </button>
+
+          {/* Telegram / notification channels */}
+          <div className="pt-1 border-t border-slate-200 dark:border-slate-700/60">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1">
+              <i className="fas fa-bell text-[9px]"></i> Canales de notificación
+            </p>
+            <TelegramConnect />
+          </div>
         </div>
       </div>
     </div>

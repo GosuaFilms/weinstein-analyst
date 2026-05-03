@@ -19,6 +19,7 @@ import EpicHero from './components/EpicHero';
 import LiveClock from './components/LiveClock';
 import { useAuth } from './contexts/AuthContext';
 import { supabase } from './lib/supabase';
+import { uploadAnalysisImage } from './lib/imageStorage';
 import { useAnalyses } from './hooks/useAnalyses';
 import { useAlerts } from './hooks/useAlerts';
 import { useWatchlist } from './hooks/useWatchlist';
@@ -155,7 +156,19 @@ const App: React.FC = () => {
         settings,
       });
       setAnalysis({ isAnalyzing: false, result, error: null });
-      await saveAnalysis('scan', ticker || `${images.length} Graphics`, result, images.map(i => i.url));
+
+      // Upload images to Supabase Storage; fall back to base64 data URLs if upload fails
+      let previewUrls: string[] = [];
+      if (images.length > 0 && user) {
+        previewUrls = await Promise.all(
+          images.map(img =>
+            uploadAnalysisImage(user.id, img.data, img.mimeType)
+              .then(url => url ?? img.url)  // fallback to base64 if upload fails
+          )
+        );
+      }
+
+      await saveAnalysis('scan', ticker || `${images.length} Graphics`, result, previewUrls.length > 0 ? previewUrls : images.map(i => i.url));
       setIsSaved(true);
     } catch (err) {
       setAnalysis({ isAnalyzing: false, result: null, error: (err as Error).message || 'Error connecting to analysis engine.' });

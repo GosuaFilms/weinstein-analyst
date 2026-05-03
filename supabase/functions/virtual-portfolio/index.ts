@@ -150,6 +150,7 @@ const RISK_PER_POSITION = 0.015; // 1.5% of portfolio per position
 const MAX_POSITION_PCT = 0.12;   // 12% cap
 const MIN_POSITION_PCT = 0.03;   // 3% floor
 const CASH_RESERVE_TARGET = 0.15; // Keep ~15% in cash
+const MIN_STOCK_PRICE = 2.0;      // Exclude penny stocks below this price
 
 function buildPortfolio(
   candidates: CandidateStock[],
@@ -206,23 +207,29 @@ function buildPortfolio(
     const posRisk = c.stopLossRiskPct
       ? amount * (c.stopLossRiskPct / 100)
       : amount * 0.08; // fallback: assume 8% stop
+    const r2 = (v: number | null) => v !== null ? Math.round(v * 100) / 100 : null;
     return {
       symbol: c.symbol,
       name: c.name,
       nativeCurrency: c.currency,
-      currentPrice: c.currentPrice,
+      currentPrice: r2(c.currentPrice) ?? 0,
       confidence: c.confidence,
-      mansfieldRS: c.mansfieldRS,
-      stopLoss: c.stopLoss,
-      stopLossRiskPct: c.stopLossRiskPct,
-      distanceFromSMA30Pct: c.distanceFromSMA30Pct,
+      // All percentages and prices rounded to 2 decimals
+      mansfieldRS: r2(c.mansfieldRS),
+      stopLoss: r2(c.stopLoss),
+      stopLossRiskPct: r2(c.stopLossRiskPct),
+      distanceFromSMA30Pct: r2(c.distanceFromSMA30Pct),
       extendedStage2: c.extendedStage2,
       region: c.region,
       allocationPct: Math.round(pct * 1000) / 10,
       allocationAmount: Math.round(amount * 100) / 100,
-      approxShares: Math.floor(approxShares * 1000) / 1000,
+      // Integer shares for normal stocks, 2 decimals for sub-1 prices
+      approxShares: c.currentPrice >= 1
+        ? Math.floor(amount / c.currentPrice)
+        : Math.round((amount / c.currentPrice) * 100) / 100,
       positionRisk: Math.round(posRisk * 100) / 100,
-      positionRiskPct: Math.round((posRisk / portfolioAmount) * 1000) / 10,
+      // 2 decimal places for risk % (0.59 instead of 0.6)
+      positionRiskPct: Math.round((posRisk / portfolioAmount) * 10000) / 100,
     };
   });
 }
@@ -286,6 +293,8 @@ Deno.serve(async (req) => {
       if (cls.stage !== 'STAGE_2') continue;
       if (cls.confidence === 'low') continue;
       if (snap.currentPrice <= 0) continue;
+      // Exclude penny stocks — minimum price filter
+      if (snap.currentPrice < MIN_STOCK_PRICE) continue;
 
       const c: CandidateStock = {
         symbol: snap.symbol,

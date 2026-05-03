@@ -86,12 +86,17 @@ function fmtMoney(n: number, currency: string) {
   }
 }
 
+function r2(v: number | null | undefined): string {
+  if (v === null || v === undefined) return '';
+  return (Math.round(v * 100) / 100).toFixed(2);
+}
+
 function exportCSV(result: VirtualPortfolioResult) {
   const headers = [
     'Símbolo','Nombre','Moneda nativa','Precio actual',
     'Asignación %','Importe asignado','Acciones aprox.',
-    'Stop Loss','Riesgo stop %','Riesgo posición','Riesgo cartera %',
-    'RS Mansfield','Dist. SMA30 %','Confianza','Region',
+    'Stop Loss','Riesgo stop %','Riesgo posición (abs)','Riesgo posición (% cartera)',
+    'RS Mansfield','Dist. SMA30 %','Confianza','Región',
     'Stage2 Extendido',
   ];
   const esc = (v: unknown): string => {
@@ -99,10 +104,22 @@ function exportCSV(result: VirtualPortfolioResult) {
     return s.includes(',') || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const lines = result.positions.map(p => [
-    p.symbol, p.name, p.nativeCurrency, p.currentPrice,
-    p.allocationPct, p.allocationAmount, p.approxShares,
-    p.stopLoss ?? '', p.stopLossRiskPct ?? '', p.positionRisk, p.positionRiskPct,
-    p.mansfieldRS ?? '', p.distanceFromSMA30Pct ?? '', p.confidence, p.region,
+    p.symbol,
+    p.name,
+    p.nativeCurrency,
+    r2(p.currentPrice),
+    p.allocationPct.toFixed(1),
+    p.allocationAmount.toFixed(2),
+    // Integer shares for normal stocks
+    p.approxShares,
+    r2(p.stopLoss),
+    r2(p.stopLossRiskPct),
+    r2(p.positionRisk),
+    p.positionRiskPct.toFixed(2),
+    r2(p.mansfieldRS),
+    r2(p.distanceFromSMA30Pct),
+    p.confidence,
+    p.region,
     p.extendedStage2 ? 'Sí' : 'No',
   ].map(esc).join(','));
 

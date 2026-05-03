@@ -10,6 +10,7 @@ import { handleCors, jsonResponse } from '../_shared/cors.ts';
 import { getTechnicalSnapshot } from '../_shared/marketData.ts';
 import { evaluateAlert } from '../_shared/weinstein.ts';
 import { sendAlertEmail } from '../_shared/email.ts';
+import { sendWebPush, type PushSub } from '../_shared/webpush.ts';
 
 interface AlertRow {
   id: string;
@@ -73,7 +74,7 @@ Deno.serve(async (req) => {
   if (error) return jsonResponse({ error: error.message }, 500);
   if (!alerts || alerts.length === 0) return jsonResponse({ checked: 0 });
 
-  // Pre-fetch user emails in one query to avoid N+1 calls
+  // Pre-fetch user emails + push subscriptions in one pass
   const userIds = [...new Set((alerts as AlertRow[]).map(a => a.user_id))];
   const { data: profiles } = await supabase
     .from('profiles')
@@ -82,6 +83,22 @@ Deno.serve(async (req) => {
   const emailByUser = new Map<string, string>(
     (profiles ?? []).map((p: { id: string; email: string }) => [p.id, p.email])
   );
+
+  const { data: pushSubs } = await supabase
+    .from('push_subscriptions')
+    .select('user_id, endpoint, p256dh, auth')
+    .in('user_id', userIds);
+  // Map: user_id → PushSub[]
+  const subsByUser = new Map<string, PushSub[]>();
+  for (const s of pushSubs ?? []) {
+    const list = subsByUser.get(s.user_id) ?? [];
+    list.push({ endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth });
+    subsByUser.set(s.user_id, list);
+  }
+
+  const vapidPublicKey  = Deno.env.get('VAPID_PUBLIC_KEY')  ?? '';
+  const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY') ?? '';
+  const vapidSubject    = Deno.env.get('VAPID_SUBJECT')     ?? 'mailto:info@example.com';
 
   // Group alerts by ticker to minimise market-data API calls
   const byTicker = new Map<string, AlertRow[]>();
@@ -147,6 +164,33 @@ Deno.serve(async (req) => {
             currency: snap.currency,
             appUrl,
           }).catch(err => console.error(`Email failed for ${alert.ticker}:`, err));
+        }
+
+        // 4. Send push notifications (fire-and-forget)
+        if (vapidPublicKey && vapidPrivateKey) {
+          const subs = subsByUser.get(alert.user_id) ?? [];
+          for (const sub of subs) {
+            sendWebPush(
+              sub,
+              {
+                title: `🔔 Alerta: ${alert.ticker}`,
+                body: evalResult.message,
+                icon: '/icon-192.png',
+                tag: `alert-${alert.id}`,
+                url: appUrl,
+              },
+              vapidPublicKey,
+              vapidPrivateKey,
+              vapidSubject,
+            ).then(r => {
+              // 410 Gone = subscription expired; remove it
+              if (r.status === 410) {
+                supabase.from('push_subscriptions')
+                  .delete().eq('endpoint', sub.endpoint)
+                  .then(() => {});
+              }
+            }).catch(err => console.error(`Push failed for ${alert.ticker}:`, err));
+          }
         }
       } else {
         await supabase.from('alerts').update({ last_checked_at: now }).eq('id', alert.id);

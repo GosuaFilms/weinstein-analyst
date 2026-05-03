@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Alert, AlertCondition, ALERT_CONDITION_LABELS } from '../types';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 
 interface Props {
   isOpen: boolean;
@@ -21,6 +22,7 @@ const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, o
   const [newLevel, setNewLevel] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const { state: pushState, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushNotifications();
 
   if (!isOpen) return null;
 
@@ -78,9 +80,40 @@ const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, o
               <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Auto-check: 5m</span>
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
-            <i className="fas fa-times text-xl"></i>
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Push notification toggle */}
+            {pushState !== 'unsupported' && (
+              <button
+                onClick={pushState === 'subscribed' ? pushUnsubscribe : pushSubscribe}
+                disabled={pushState === 'loading' || pushState === 'denied'}
+                title={
+                  pushState === 'subscribed' ? 'Desactivar notificaciones push'
+                  : pushState === 'denied' ? 'Notificaciones bloqueadas en el navegador'
+                  : pushState === 'loading' ? 'Cargando…'
+                  : 'Activar notificaciones push'
+                }
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all text-sm
+                  ${pushState === 'subscribed'
+                    ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-500/30'
+                    : pushState === 'denied'
+                      ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-white'
+                  } disabled:opacity-50`}
+              >
+                {pushState === 'loading'
+                  ? <i className="fas fa-circle-notch animate-spin text-xs"></i>
+                  : pushState === 'subscribed'
+                    ? <i className="fas fa-bell"></i>
+                    : pushState === 'denied'
+                      ? <i className="fas fa-bell-slash"></i>
+                      : <i className="far fa-bell"></i>
+                }
+              </button>
+            )}
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
+              <i className="fas fa-times text-xl"></i>
+            </button>
+          </div>
         </div>
 
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">

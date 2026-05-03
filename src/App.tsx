@@ -256,8 +256,7 @@ const App: React.FC = () => {
           <LiveClock language={language} />
 
           <div className="flex items-center gap-1.5 sm:gap-4">
-            <button onClick={toggleLanguage} aria-label={`Cambiar idioma a ${language === Language.ES ? 'inglés' : 'español'}`} className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 hover:text-amber-500 flex items-center gap-2">
-              <i className="fas fa-globe"></i>
+            <button onClick={toggleLanguage} aria-label={`Cambiar idioma a ${language === Language.ES ? 'inglés' : 'español'}`} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 hover:text-amber-500">
               {language.toUpperCase()}
             </button>
 

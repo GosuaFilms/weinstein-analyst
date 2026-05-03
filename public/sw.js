@@ -1,8 +1,82 @@
-// Service Worker — handles Web Push notifications for Weinstein Analyst
-// Located at /sw.js (registered from root scope)
+// Service Worker — Weinstein Analyst
+// Handles: PWA installability (fetch + cache), Web Push, notification clicks
 
-self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+const CACHE_NAME = 'weinstein-shell-v1';
+
+// App shell assets to pre-cache on install
+const PRECACHE = [
+  '/',
+  '/manifest.webmanifest',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/apple-touch-icon.png',
+];
+
+// ── Install: pre-cache shell ──────────────────────────────────────────────────
+self.addEventListener('install', (e) => {
+  e.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => cache.addAll(PRECACHE))
+      .then(() => self.skipWaiting())
+  );
+});
+
+// ── Activate: clean old caches ────────────────────────────────────────────────
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches.keys()
+      .then(keys => Promise.all(
+        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+      ))
+      .then(() => self.clients.claim())
+  );
+});
+
+// ── Fetch: network-first, fall back to cache for navigation ──────────────────
+// API calls and edge functions always go to network.
+// HTML navigation requests fall back to cached '/' if offline.
+self.addEventListener('fetch', (e) => {
+  const { request } = e;
+  const url = new URL(request.url);
+
+  // Never intercept Supabase API / edge functions / external resources
+  if (
+    url.origin !== self.location.origin ||
+    url.pathname.startsWith('/functions/') ||
+    url.pathname.startsWith('/rest/') ||
+    url.pathname.startsWith('/auth/')
+  ) {
+    return; // let browser handle it normally
+  }
+
+  // For same-origin navigation: network-first, fall back to cached index
+  if (request.mode === 'navigate') {
+    e.respondWith(
+      fetch(request)
+        .catch(() => caches.match('/').then(r => r ?? fetch(request)))
+    );
+    return;
+  }
+
+  // For static assets (JS/CSS/images): cache-first
+  if (
+    url.pathname.match(/\.(js|css|png|svg|ico|webmanifest|woff2?)$/)
+  ) {
+    e.respondWith(
+      caches.match(request).then(cached => {
+        if (cached) return cached;
+        return fetch(request).then(response => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(c => c.put(request, clone));
+          }
+          return response;
+        });
+      })
+    );
+    return;
+  }
+});
 
 // ── Push event ────────────────────────────────────────────────────────────────
 self.addEventListener('push', (event) => {

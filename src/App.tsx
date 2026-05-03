@@ -27,6 +27,7 @@ import { useAlerts } from './hooks/useAlerts';
 import { useWatchlist } from './hooks/useWatchlist';
 import WatchlistSidebar from './components/WatchlistSidebar';
 import ScreenerPanel from './components/ScreenerPanel';
+import PortfolioPanel from './components/PortfolioPanel';
 
 const THEME_KEY = 'weinstein_theme';
 const LANG_KEY = 'weinstein_language';
@@ -73,6 +74,7 @@ const App: React.FC = () => {
   const [isAlertsOpen, setIsAlertsOpen] = useState(false);
   const [isWatchlistOpen, setIsWatchlistOpen] = useState(false);
   const [isScreenerOpen, setIsScreenerOpen] = useState(false);
+  const [isPortfolioOpen, setIsPortfolioOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
@@ -229,6 +231,11 @@ const App: React.FC = () => {
               {watchlist.length > 0 && (
                 <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">{watchlist.length > 9 ? '9+' : watchlist.length}</span>
               )}
+            </button>
+
+            <button onClick={() => { if (!user) { setIsAuthOpen(true); return; } setIsPortfolioOpen(true); }} className="relative px-3 h-10 rounded-full bg-blue-500/10 hover:bg-blue-500/20 border border-blue-400/30 dark:border-blue-500/30 flex items-center justify-center gap-1.5 text-blue-600 dark:text-blue-400 font-bold text-xs transition-all" title="Portfolio">
+              <i className="fas fa-briefcase text-sm"></i>
+              <span className="hidden sm:inline">Portfolio</span>
             </button>
 
             <button onClick={() => { if (!user) { setIsAuthOpen(true); return; } setIsScreenerOpen(true); }} className="relative px-3 h-10 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/30 dark:border-emerald-500/30 flex items-center justify-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold text-xs transition-all" title="Screener">
@@ -487,6 +494,19 @@ const App: React.FC = () => {
         onAddAlert={(t, c) => addAlert(t, c)}
         onRemove={removeFromWatchlist}
       />
+
+      {isPortfolioOpen && (
+        <PortfolioPanel
+          language={language}
+          onAnalyze={(symbol) => {
+            setTicker(symbol);
+            setActiveTab('scan');
+            setIsChartOpen(false);
+            setTimeout(() => startAnalysis(), 50);
+          }}
+          onClose={() => setIsPortfolioOpen(false)}
+        />
+      )}
 
       {isScreenerOpen && (
         <ScreenerPanel

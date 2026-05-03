@@ -4,6 +4,7 @@ import { AnalysisResult, Verdict, Language } from '../types';
 // html2canvas and jspdf are loaded on-demand to keep the initial bundle small
 import TradingViewWidget from './TradingViewWidget';
 import { useTickerNews } from '../hooks/useTickerNews';
+import { useBacktest } from '../hooks/useBacktest';
 
 interface Props {
   data: AnalysisResult;
@@ -21,6 +22,7 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
   const displayRef = useRef<HTMLDivElement>(null);
   const { articles: news, loading: newsLoading } = useTickerNews(ticker, language === Language.ES ? 'es' : 'en');
+  const { data: backtest, loading: backtestLoading } = useBacktest(ticker);
 
   const getVerdictStyles = (type: string | undefined) => {
     if (!type) return 'bg-slate-700 text-white shadow-slate-500/30 ring-2 ring-slate-500/20';
@@ -380,6 +382,97 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
           </div>
         )}
       </div>
+
+      {/* ── Backtest section ── */}
+      {ticker && (backtestLoading || backtest) && (
+        <div className="mt-8 px-1" data-html2canvas-ignore="true">
+          <div className="flex items-center gap-2 mb-3">
+            <i className="fas fa-chart-line text-slate-400 text-xs"></i>
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              {language === Language.ES ? 'Backtest Stage 2' : 'Stage 2 Backtest'} · {ticker.toUpperCase()}
+            </span>
+            <span className="text-[9px] text-slate-400 ml-1">— últimos 2 años</span>
+          </div>
+
+          {backtestLoading ? (
+            <div className="flex gap-2 items-center text-xs text-slate-400 py-2">
+              <i className="fas fa-circle-notch animate-spin text-[10px]"></i>
+              {language === Language.ES ? 'Calculando backtest…' : 'Running backtest…'}
+            </div>
+          ) : backtest && backtest.periods.length > 0 ? (
+            <div className="space-y-3">
+              {/* Summary stats */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3 text-center">
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wider">Entradas S2</p>
+                  <p className="text-lg font-black text-slate-900 dark:text-white">{backtest.periods.length}</p>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3 text-center">
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wider">Win rate</p>
+                  <p className={`text-lg font-black ${backtest.winRate >= 50 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                    {backtest.winRate}%
+                  </p>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3 text-center">
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wider">Retorno medio</p>
+                  <p className={`text-lg font-black ${backtest.avgReturn >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                    {backtest.avgReturn >= 0 ? '+' : ''}{backtest.avgReturn}%
+                  </p>
+                </div>
+              </div>
+
+              {/* Active entry highlight */}
+              {backtest.activeEntry && (
+                <div className="flex items-center gap-3 p-3 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-xl">
+                  <span className="relative flex h-2 w-2 flex-shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                      {language === Language.ES ? 'Actualmente en Stage 2' : 'Currently in Stage 2'}
+                      {' · '}{backtest.activeEntry.weeksInStage2} sem.
+                    </p>
+                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400">
+                      Entrada {backtest.activeEntry.entryDate} a {backtest.activeEntry.entryPrice.toFixed(2)}
+                      {' → '}
+                      <span className={`font-bold ${backtest.activeEntry.returnPct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>
+                        {backtest.activeEntry.returnPct >= 0 ? '+' : ''}{backtest.activeEntry.returnPct}%
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Historical periods */}
+              {backtest.periods.filter(p => !p.active).length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-2">
+                    {language === Language.ES ? 'Periodos anteriores' : 'Previous periods'}
+                  </p>
+                  {backtest.periods.filter(p => !p.active).slice(-5).reverse().map((p, i) => (
+                    <div key={i} className="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700/40">
+                      <div>
+                        <span className="text-[10px] text-slate-500">{p.entryDate}</span>
+                        <span className="text-[10px] text-slate-300 dark:text-slate-600 mx-1">→</span>
+                        <span className="text-[10px] text-slate-500">{p.exitDate ?? '–'}</span>
+                        <span className="text-[10px] text-slate-400 ml-2">({p.weeksInStage2} sem.)</span>
+                      </div>
+                      <span className={`text-xs font-bold ${p.returnPct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                        {p.returnPct >= 0 ? '+' : ''}{p.returnPct}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : backtest && backtest.periods.length === 0 ? (
+            <p className="text-xs text-slate-400 italic">
+              {language === Language.ES ? 'Sin entradas en Stage 2 en los últimos 2 años.' : 'No Stage 2 entries in the last 2 years.'}
+            </p>
+          ) : null}
+        </div>
+      )}
 
       {/* ── News section ── */}
       {ticker && (newsLoading || news.length > 0) && (

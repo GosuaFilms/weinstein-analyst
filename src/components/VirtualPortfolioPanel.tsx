@@ -199,6 +199,22 @@ const AllocationBar: React.FC<{ positions: VirtualPosition[]; cashReservePct: nu
 
 // ─── Saved Portfolio Detail ───────────────────────────────────────────────────
 
+interface RescanItem {
+  symbol: string;
+  currentStage: string;
+  exitedStage2: boolean;
+  currentPrice: number;
+  mansfieldRS: number | null;
+  error?: string;
+}
+
+const STAGE_BADGE: Record<string, { label: string; cls: string }> = {
+  STAGE_1: { label: 'Stage 1', cls: 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300' },
+  STAGE_2: { label: 'Stage 2 ✓', cls: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' },
+  STAGE_3: { label: 'Stage 3 ⚠', cls: 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300' },
+  STAGE_4: { label: 'Stage 4 ✕', cls: 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300' },
+};
+
 const SavedPortfolioDetail: React.FC<{
   portfolio: SavedVirtualPortfolio;
   es: boolean;
@@ -210,6 +226,9 @@ const SavedPortfolioDetail: React.FC<{
   const [livePrices, setLivePrices] = useState<Record<string, LivePrice>>({});
   const [refreshing, setRefreshing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [rescanData, setRescanData] = useState<Record<string, RescanItem>>({});
+  const [rescanning, setRescanning] = useState(false);
+  const [rescanDone, setRescanDone] = useState(false);
 
   const positions: VirtualPosition[] = portfolio.positions;
 
@@ -225,6 +244,32 @@ const SavedPortfolioDetail: React.FC<{
   }, [positions]);
 
   useEffect(() => { fetchPrices(); }, [fetchPrices]);
+
+  const handleRescan = useCallback(async () => {
+    setRescanning(true);
+    setRescanDone(false);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const symbols = [...new Set(positions.map(p => p.symbol))];
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/portfolio-rescan`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ symbols }),
+        }
+      );
+      if (!res.ok) return;
+      const json = await res.json();
+      const map: Record<string, RescanItem> = {};
+      for (const item of (json.items ?? []) as RescanItem[]) map[item.symbol] = item;
+      setRescanData(map);
+      setRescanDone(true);
+    } finally {
+      setRescanning(false);
+    }
+  }, [positions]);
 
   // Portfolio-level P&L
   const totalCost = positions.reduce((s, p) => s + p.allocationAmount, 0);
@@ -250,7 +295,11 @@ const SavedPortfolioDetail: React.FC<{
         </div>
         <button onClick={fetchPrices} disabled={refreshing} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 hover:text-blue-500 hover:border-blue-400 transition-all disabled:opacity-50">
           <i className={`fas fa-rotate-right text-[10px] ${refreshing ? 'animate-spin' : ''}`}></i>
-          {es ? 'Actualizar P&L' : 'Update P&L'}
+          {es ? 'P&L' : 'P&L'}
+        </button>
+        <button onClick={handleRescan} disabled={rescanning} title={es ? 'Verificar si los valores siguen en Stage 2' : 'Check if holdings are still Stage 2'} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 hover:text-violet-500 hover:border-violet-400 transition-all disabled:opacity-50">
+          <i className={`fas fa-radar text-[10px] ${rescanning ? 'animate-pulse text-violet-500' : ''}`}></i>
+          {rescanning ? (es ? 'Escaneando…' : 'Scanning…') : (es ? 'Etapas' : 'Stages')}
         </button>
         <button onClick={() => exportCSV(portfolio, livePrices)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 hover:text-emerald-500 hover:border-emerald-400 transition-all">
           <i className="fas fa-file-csv text-emerald-500 text-[10px]"></i>
@@ -282,6 +331,38 @@ const SavedPortfolioDetail: React.FC<{
           </div>
         )}
 
+        {/* Rescan banner */}
+        {rescanDone && (() => {
+          const exited = Object.values(rescanData).filter(r => r.exitedStage2 && !r.error);
+          if (exited.length === 0) {
+            return (
+              <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30">
+                <i className="fas fa-circle-check text-emerald-500"></i>
+                <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">
+                  {es ? 'Todas las posiciones siguen en Stage 2 ✓' : 'All positions are still in Stage 2 ✓'}
+                </p>
+              </div>
+            );
+          }
+          return (
+            <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/40">
+              <i className="fas fa-triangle-exclamation text-amber-500 flex-shrink-0 mt-0.5"></i>
+              <div>
+                <p className="text-sm font-bold text-amber-800 dark:text-amber-300">
+                  {es
+                    ? `⚠️ ${exited.length} posición${exited.length > 1 ? 'es han' : ' ha'} salido de Stage 2`
+                    : `⚠️ ${exited.length} position${exited.length > 1 ? 's have' : ' has'} exited Stage 2`}
+                </p>
+                <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+                  {exited.map(r => r.symbol).join(', ')}
+                  {es ? ' — revisa tus stops' : ' — review your stops'}
+                </p>
+                {es && <p className="text-[10px] text-amber-600 dark:text-amber-500 mt-1">Se ha enviado alerta por Telegram si tienes el bot conectado.</p>}
+              </div>
+            </div>
+          );
+        })()}
+
         <AllocationBar positions={positions} cashReservePct={portfolio.cashReservePct} />
 
         {/* Position rows */}
@@ -302,6 +383,11 @@ const SavedPortfolioDetail: React.FC<{
                 <div className="w-28 flex-shrink-0">
                   <p className="text-sm font-black text-slate-900 dark:text-white">{p.symbol}</p>
                   <p className="text-[10px] text-slate-500 truncate">{REGION_LABELS[p.region] ?? p.region}</p>
+                  {rescanDone && rescanData[p.symbol] && (
+                    <span className={`inline-block mt-1 text-[9px] font-bold px-1.5 py-0.5 rounded ${(STAGE_BADGE[rescanData[p.symbol].currentStage] ?? STAGE_BADGE.STAGE_1).cls}`}>
+                      {(STAGE_BADGE[rescanData[p.symbol].currentStage] ?? { label: rescanData[p.symbol].currentStage }).label}
+                    </span>
+                  )}
                 </div>
 
                 {/* Allocation */}

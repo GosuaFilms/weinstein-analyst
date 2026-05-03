@@ -11,6 +11,22 @@ export interface Stage2Period {
   active: boolean;
 }
 
+export interface PriceTargets {
+  baseHigh: number;
+  baseLow: number;
+  baseHeight: number;
+  baseWidthWeeks: number;
+  stopProxy: number;
+  target1: number;
+  target2: number;
+  target3: number;
+  rrT1: number;
+  progressPct: number;
+  reachedT1: boolean;
+  reachedT2: boolean;
+  reachedT3: boolean;
+}
+
 export interface BacktestResult {
   ticker: string;
   currentPrice: number;
@@ -18,6 +34,7 @@ export interface BacktestResult {
   winRate: number;
   avgReturn: number;
   activeEntry: Stage2Period | null;
+  priceTargets: PriceTargets | null;
 }
 
 export function useBacktest(ticker: string | undefined) {

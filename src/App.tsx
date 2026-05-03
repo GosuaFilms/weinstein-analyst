@@ -24,6 +24,8 @@ import { useAnalyses } from './hooks/useAnalyses';
 import { useAlerts } from './hooks/useAlerts';
 import { useWatchlist } from './hooks/useWatchlist';
 import WatchlistSidebar from './components/WatchlistSidebar';
+import { usePlan } from './hooks/usePlan';
+import { PricingModal } from './components/PricingModal';
 
 // Heavy panels — loaded lazily so they don't bloat the initial bundle
 const ChatBot           = lazy(() => import('./components/ChatBot'));
@@ -45,6 +47,8 @@ interface ImageFile {
 
 const App: React.FC = () => {
   const { user, signOut } = useAuth();
+  const { isPro } = usePlan();
+  const [isPricingOpen, setIsPricingOpen] = useState(false);
   const { history, save: saveAnalysis, remove: removeAnalysis, clear: clearHistory } = useAnalyses();
   const { alerts, add: addAlert, remove: removeAlert, reload: reloadAlerts } = useAlerts();
   const [isCheckingAlerts, setIsCheckingAlerts] = useState(false);
@@ -281,6 +285,29 @@ const App: React.FC = () => {
               <button onClick={() => setIsAuthOpen(true)} className="w-10 h-10 rounded-full bg-amber-500 text-slate-900 flex items-center justify-center shadow-lg shadow-amber-500/20">
                 <i className="fas fa-user"></i>
               </button>
+            )}
+
+            {/* Pro / Upgrade button */}
+            {user && (
+              isPro ? (
+                <button
+                  onClick={() => setIsPricingOpen(true)}
+                  className="hidden sm:flex items-center gap-1.5 px-3 h-10 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-black text-[10px] uppercase tracking-widest shadow-lg shadow-violet-500/30 hover:from-violet-500 hover:to-indigo-500 transition-all"
+                  title="Plan Pro"
+                >
+                  <i className="fas fa-crown text-yellow-300 text-xs"></i>
+                  Pro
+                </button>
+              ) : (
+                <button
+                  onClick={() => setIsPricingOpen(true)}
+                  className="hidden sm:flex items-center gap-1.5 px-3 h-10 rounded-xl border-2 border-violet-400/60 dark:border-violet-500/50 text-violet-600 dark:text-violet-400 font-black text-[10px] uppercase tracking-widest hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-all"
+                  title="Upgrade to Pro"
+                >
+                  <i className="fas fa-crown text-[10px]"></i>
+                  {language === Language.ES ? 'Mejorar' : 'Upgrade'}
+                </button>
+              )
             )}
 
             <button onClick={() => setIsSettingsOpen(true)} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
@@ -584,6 +611,9 @@ const App: React.FC = () => {
       </Suspense>
 
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
+      {isPricingOpen && (
+        <PricingModal language={language} onClose={() => setIsPricingOpen(false)} />
+      )}
       <UserProfileSidebar
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}

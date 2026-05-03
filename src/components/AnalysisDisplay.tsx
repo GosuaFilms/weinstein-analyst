@@ -5,6 +5,7 @@ import { AnalysisResult, Verdict, Language } from '../types';
 import TradingViewWidget from './TradingViewWidget';
 import { useTickerNews } from '../hooks/useTickerNews';
 import { useBacktest } from '../hooks/useBacktest';
+import { usePlan } from '../hooks/usePlan';
 
 interface Props {
   data: AnalysisResult;
@@ -23,6 +24,7 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
   const displayRef = useRef<HTMLDivElement>(null);
   const { articles: news, loading: newsLoading } = useTickerNews(ticker, language === Language.ES ? 'es' : 'en');
   const { data: backtest, loading: backtestLoading } = useBacktest(ticker);
+  const { isPro } = usePlan();
 
   const getVerdictStyles = (type: string | undefined) => {
     if (!type) return 'bg-slate-700 text-white shadow-slate-500/30 ring-2 ring-slate-500/20';
@@ -383,7 +385,7 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
         )}
       </div>
 
-      {/* ── Backtest section ── */}
+      {/* ── Backtest + Price Targets section ── */}
       {ticker && (backtestLoading || backtest) && (
         <div className="mt-8 px-1" data-html2canvas-ignore="true">
           <div className="flex items-center gap-2 mb-3">
@@ -391,10 +393,44 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
               {language === Language.ES ? 'Backtest Stage 2' : 'Stage 2 Backtest'} · {ticker.toUpperCase()}
             </span>
-            <span className="text-[9px] text-slate-400 ml-1">— últimos 2 años</span>
+            <span className="text-[9px] text-slate-400 ml-1">— {language === Language.ES ? 'últimos 2 años' : 'last 2 years'}</span>
+            {!isPro && (
+              <span className="ml-auto flex items-center gap-1 text-[9px] font-black text-violet-500 uppercase tracking-widest bg-violet-50 dark:bg-violet-500/10 px-2 py-0.5 rounded-full">
+                <i className="fas fa-crown text-yellow-400"></i> Pro
+              </span>
+            )}
           </div>
 
-          {backtestLoading ? (
+          {/* Pro gate */}
+          {!isPro ? (
+            <div className="relative">
+              {/* Blurred preview */}
+              <div className="space-y-3 pointer-events-none select-none" style={{ filter: 'blur(6px)', opacity: 0.4 }}>
+                <div className="grid grid-cols-3 gap-2">
+                  {['S2', '75%', '+18%'].map((v, i) => (
+                    <div key={i} className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3 text-center">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wider">——</p>
+                      <p className="text-lg font-black text-slate-900 dark:text-white">{v}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="h-20 bg-slate-50 dark:bg-slate-800/40 rounded-xl" />
+                <div className="h-14 bg-slate-50 dark:bg-slate-800/40 rounded-xl" />
+              </div>
+              {/* Overlay */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl">
+                <i className="fas fa-lock text-violet-400 text-2xl"></i>
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                  {language === Language.ES ? 'Backtest y objetivos de precio' : 'Backtest & price targets'}
+                </p>
+                <p className="text-xs text-slate-500 text-center max-w-xs px-4">
+                  {language === Language.ES
+                    ? 'Disponible en el plan Pro. Desbloquea análisis histórico, win rate y objetivos Weinstein.'
+                    : 'Available in the Pro plan. Unlock historical analysis, win rate and Weinstein targets.'}
+                </p>
+              </div>
+            </div>
+          ) : backtestLoading ? (
             <div className="flex gap-2 items-center text-xs text-slate-400 py-2">
               <i className="fas fa-circle-notch animate-spin text-[10px]"></i>
               {language === Language.ES ? 'Calculando backtest…' : 'Running backtest…'}
@@ -404,7 +440,7 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
               {/* Summary stats */}
               <div className="grid grid-cols-3 gap-2">
                 <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3 text-center">
-                  <p className="text-[10px] text-slate-400 uppercase tracking-wider">Entradas S2</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wider">{language === Language.ES ? 'Entradas S2' : 'S2 entries'}</p>
                   <p className="text-lg font-black text-slate-900 dark:text-white">{backtest.periods.length}</p>
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3 text-center">
@@ -414,33 +450,135 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
                   </p>
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3 text-center">
-                  <p className="text-[10px] text-slate-400 uppercase tracking-wider">Retorno medio</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wider">{language === Language.ES ? 'Retorno medio' : 'Avg return'}</p>
                   <p className={`text-lg font-black ${backtest.avgReturn >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                     {backtest.avgReturn >= 0 ? '+' : ''}{backtest.avgReturn}%
                   </p>
                 </div>
               </div>
 
-              {/* Active entry highlight */}
+              {/* Active entry + price targets */}
               {backtest.activeEntry && (
-                <div className="flex items-center gap-3 p-3 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-xl">
-                  <span className="relative flex h-2 w-2 flex-shrink-0">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                  </span>
-                  <div>
-                    <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
-                      {language === Language.ES ? 'Actualmente en Stage 2' : 'Currently in Stage 2'}
-                      {' · '}{backtest.activeEntry.weeksInStage2} sem.
-                    </p>
-                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400">
-                      Entrada {backtest.activeEntry.entryDate} a {backtest.activeEntry.entryPrice.toFixed(2)}
-                      {' → '}
-                      <span className={`font-bold ${backtest.activeEntry.returnPct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>
-                        {backtest.activeEntry.returnPct >= 0 ? '+' : ''}{backtest.activeEntry.returnPct}%
-                      </span>
-                    </p>
+                <div className="border border-emerald-200 dark:border-emerald-500/30 rounded-2xl overflow-hidden">
+                  {/* Active entry header */}
+                  <div className="flex items-center gap-3 px-4 py-3 bg-emerald-50 dark:bg-emerald-500/10">
+                    <span className="relative flex h-2 w-2 flex-shrink-0">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <div className="flex-grow">
+                      <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                        {language === Language.ES ? 'Actualmente en Stage 2' : 'Currently in Stage 2'}
+                        {' · '}{backtest.activeEntry.weeksInStage2} {language === Language.ES ? 'sem.' : 'wks'}
+                      </p>
+                      <p className="text-[10px] text-emerald-600 dark:text-emerald-400">
+                        {language === Language.ES ? 'Entrada' : 'Entry'} {backtest.activeEntry.entryDate} @ {backtest.activeEntry.entryPrice.toFixed(2)}
+                        {' → '}
+                        <span className={`font-bold ${backtest.activeEntry.returnPct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>
+                          {backtest.activeEntry.returnPct >= 0 ? '+' : ''}{backtest.activeEntry.returnPct}%
+                        </span>
+                      </p>
+                    </div>
                   </div>
+
+                  {/* Price targets */}
+                  {backtest.priceTargets && (() => {
+                    const pt = backtest.priceTargets!;
+                    const fmt = (n: number) => n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    return (
+                      <div className="px-4 py-4 space-y-4 bg-white dark:bg-slate-900">
+                        {/* Targets header */}
+                        <div className="flex items-center gap-2">
+                          <i className="fas fa-bullseye text-violet-500 text-xs"></i>
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            {language === Language.ES ? 'Objetivos de precio Weinstein' : 'Weinstein price targets'}
+                          </span>
+                          <span className="text-[9px] text-slate-400 ml-auto">
+                            {language === Language.ES ? 'Base' : 'Base'}: {fmt(pt.baseLow)} → {fmt(pt.baseHigh)} ({pt.baseWidthWeeks} {language === Language.ES ? 'sem.' : 'wks'})
+                          </span>
+                        </div>
+
+                        {/* Progress bar + target markers */}
+                        <div className="relative">
+                          {/* Labels row */}
+                          <div className="flex justify-between text-[9px] font-bold text-slate-400 mb-1">
+                            <span className="flex items-center gap-1">
+                              <i className="fas fa-shield text-rose-400 text-[8px]"></i>
+                              Stop {fmt(pt.stopProxy)}
+                            </span>
+                            <span className="text-slate-500">
+                              {language === Language.ES ? 'Precio actual' : 'Current'}: <span className="font-black text-slate-700 dark:text-slate-200">{fmt(backtest.currentPrice)}</span>
+                            </span>
+                            <span className={pt.reachedT3 ? 'text-emerald-500' : ''}>T3 {fmt(pt.target3)}</span>
+                          </div>
+
+                          {/* Bar */}
+                          <div className="h-3 rounded-full bg-slate-100 dark:bg-slate-800 relative overflow-visible">
+                            {/* Filled progress */}
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-violet-500 transition-all"
+                              style={{ width: `${pt.progressPct}%` }}
+                            />
+                            {/* T1 marker */}
+                            <div className="absolute top-0 h-full flex flex-col items-center" style={{ left: '33.3%' }}>
+                              <div className="w-0.5 h-full bg-amber-400" />
+                            </div>
+                            {/* T2 marker */}
+                            <div className="absolute top-0 h-full flex flex-col items-center" style={{ left: '61.8%' }}>
+                              <div className="w-0.5 h-full bg-orange-400" />
+                            </div>
+                            {/* T3 marker */}
+                            <div className="absolute top-0 h-full flex flex-col items-center" style={{ left: '100%' }}>
+                              <div className="w-0.5 h-full bg-violet-500" />
+                            </div>
+                          </div>
+
+                          {/* Target price row */}
+                          <div className="grid grid-cols-3 gap-2 mt-3">
+                            {[
+                              { label: 'T1 ×1', price: pt.target1, reached: pt.reachedT1, color: 'amber' },
+                              { label: 'T2 ×1.6', price: pt.target2, reached: pt.reachedT2, color: 'orange' },
+                              { label: 'T3 ×2', price: pt.target3, reached: pt.reachedT3, color: 'violet' },
+                            ].map(({ label, price, reached, color }) => (
+                              <div key={label} className={`rounded-lg p-2 text-center border ${reached ? `bg-${color}-50 dark:bg-${color}-500/10 border-${color}-200 dark:border-${color}-500/30` : 'bg-slate-50 dark:bg-slate-800/40 border-slate-100 dark:border-slate-700/40'}`}>
+                                <p className={`text-[9px] font-black uppercase tracking-wide ${reached ? `text-${color}-600 dark:text-${color}-400` : 'text-slate-400'}`}>
+                                  {label} {reached ? '✓' : ''}
+                                </p>
+                                <p className={`text-sm font-black ${reached ? `text-${color}-700 dark:text-${color}-300` : 'text-slate-700 dark:text-slate-300'}`}>
+                                  {fmt(price)}
+                                </p>
+                                <p className="text-[9px] text-slate-400">
+                                  +{(((price - backtest.activeEntry!.entryPrice) / backtest.activeEntry!.entryPrice) * 100).toFixed(1)}%
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* R/R + base metrics */}
+                        <div className="flex items-center gap-4 pt-1 border-t border-slate-100 dark:border-slate-800">
+                          <div>
+                            <p className="text-[9px] text-slate-400 uppercase tracking-wide">R/R (T1)</p>
+                            <p className={`text-sm font-black ${pt.rrT1 >= 2 ? 'text-emerald-600 dark:text-emerald-400' : pt.rrT1 >= 1 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                              {pt.rrT1.toFixed(1)}:1
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[9px] text-slate-400 uppercase tracking-wide">{language === Language.ES ? 'Altura base' : 'Base height'}</p>
+                            <p className="text-sm font-black text-slate-700 dark:text-slate-300">{fmt(pt.baseHeight)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[9px] text-slate-400 uppercase tracking-wide">{language === Language.ES ? 'Stop ref.' : 'Stop ref.'}</p>
+                            <p className="text-sm font-black text-rose-600 dark:text-rose-400">{fmt(pt.stopProxy)}</p>
+                          </div>
+                          <div className="ml-auto">
+                            <p className="text-[9px] text-slate-400 uppercase tracking-wide">{language === Language.ES ? 'Progreso → T1' : 'Progress → T1'}</p>
+                            <p className="text-sm font-black text-violet-600 dark:text-violet-400">{pt.progressPct}%</p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -456,7 +594,7 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
                         <span className="text-[10px] text-slate-500">{p.entryDate}</span>
                         <span className="text-[10px] text-slate-300 dark:text-slate-600 mx-1">→</span>
                         <span className="text-[10px] text-slate-500">{p.exitDate ?? '–'}</span>
-                        <span className="text-[10px] text-slate-400 ml-2">({p.weeksInStage2} sem.)</span>
+                        <span className="text-[10px] text-slate-400 ml-2">({p.weeksInStage2} {language === Language.ES ? 'sem.' : 'wks'})</span>
                       </div>
                       <span className={`text-xs font-bold ${p.returnPct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                         {p.returnPct >= 0 ? '+' : ''}{p.returnPct}%

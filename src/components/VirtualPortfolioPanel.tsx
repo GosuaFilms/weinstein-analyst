@@ -74,10 +74,14 @@ const PALETTE = [
 ];
 
 const INDEX_OPTIONS = [
-  { id: 'IBEX35',   label: 'IBEX 35',   flag: '🇪🇸' },
-  { id: 'DAX40',    label: 'DAX 40',    flag: '🇩🇪' },
-  { id: 'SP100',    label: 'S&P 100',   flag: '🇺🇸' },
-  { id: 'NASDAQ50', label: 'NASDAQ 50', flag: '🇺🇸' },
+  { id: 'IBEX35',      label: 'IBEX 35',       flag: '🇪🇸' },
+  { id: 'DAX40',       label: 'DAX 40',        flag: '🇩🇪' },
+  { id: 'CAC40',       label: 'CAC 40',        flag: '🇫🇷' },
+  { id: 'FTSE100',     label: 'FTSE 100',      flag: '🇬🇧' },
+  { id: 'EUROSTOXX50', label: 'Euro Stoxx 50', flag: '🇪🇺' },
+  { id: 'SP100',       label: 'S&P 100',       flag: '🇺🇸' },
+  { id: 'SP500',       label: 'S&P 500',       flag: '🇺🇸' },
+  { id: 'NASDAQ50',    label: 'NASDAQ 50',     flag: '🇺🇸' },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

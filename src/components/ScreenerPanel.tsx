@@ -37,10 +37,14 @@ interface ScreenerResult {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const INDICES = [
-  { id: 'IBEX35', label: 'IBEX 35', flag: '🇪🇸', count: 35 },
-  { id: 'SP100', label: 'S&P 100', flag: '🇺🇸', count: 50 },
-  { id: 'NASDAQ50', label: 'NASDAQ 50', flag: '🇺🇸', count: 50 },
-  { id: 'DAX40', label: 'DAX 40', flag: '🇩🇪', count: 40 },
+  { id: 'IBEX35',      label: 'IBEX 35',       flag: '🇪🇸', count: 35  },
+  { id: 'SP100',       label: 'S&P 100',       flag: '🇺🇸', count: 50  },
+  { id: 'SP500',       label: 'S&P 500',       flag: '🇺🇸', count: 160 },
+  { id: 'NASDAQ50',    label: 'NASDAQ 50',     flag: '🇺🇸', count: 50  },
+  { id: 'DAX40',       label: 'DAX 40',        flag: '🇩🇪', count: 40  },
+  { id: 'CAC40',       label: 'CAC 40',        flag: '🇫🇷', count: 40  },
+  { id: 'FTSE100',     label: 'FTSE 100',      flag: '🇬🇧', count: 80  },
+  { id: 'EUROSTOXX50', label: 'Euro Stoxx 50', flag: '🇪🇺', count: 50  },
 ];
 
 const STAGE_CONFIG = {

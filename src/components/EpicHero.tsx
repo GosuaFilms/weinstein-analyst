@@ -1,14 +1,21 @@
 
 import React from 'react';
+import { Language } from '../types';
 
-const EpicHero: React.FC = () => {
+interface Props { language?: Language }
+
+const EpicHero: React.FC<Props> = ({ language = Language.ES }) => {
+  const es = language === Language.ES;
   return (
     <div className="relative w-full rounded-[2rem] overflow-hidden mb-12 shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in duration-1000">
       {/* Background Image with Cinematic Filter */}
       <div className="absolute inset-0 z-0">
-        <img 
-          src="https://images.unsplash.com/photo-1642388691910-602958742880?q=80&w=2070&auto=format&fit=crop" 
-          alt="Epic Bull vs Bear Fight" 
+        <img
+          src="https://images.unsplash.com/photo-1642388691910-602958742880?q=80&w=2070&auto=format&fit=crop"
+          alt="Bull vs Bear financial markets"
+          width="2070"
+          height="1380"
+          loading="lazy"
           className="w-full h-full object-cover scale-110 filter contrast-150 brightness-[0.4] grayscale-[0.2] dark:brightness-[0.25]"
         />
         {/* Layered Overlays for Depth */}
@@ -34,14 +41,15 @@ const EpicHero: React.FC = () => {
           </div>
         </div>
 
-        {/* Reverted Header: EL DINERO NUNCA DUERME */}
         <h2 className="text-6xl sm:text-8xl font-[1000] text-white leading-[0.9] tracking-[-0.05em] mb-8 uppercase drop-shadow-2xl">
-          EL DINERO <br/>
-          <span className="text-transparent bg-clip-text bg-gradient-to-b from-amber-200 via-amber-400 to-amber-600 drop-shadow-[0_0_25px_rgba(251,191,36,0.5)]">NUNCA DUERME</span>
+          {es ? <>EL DINERO <br/><span className="text-transparent bg-clip-text bg-gradient-to-b from-amber-200 via-amber-400 to-amber-600 drop-shadow-[0_0_25px_rgba(251,191,36,0.5)]">NUNCA DUERME</span></> : <>MONEY NEVER<br/><span className="text-transparent bg-clip-text bg-gradient-to-b from-amber-200 via-amber-400 to-amber-600 drop-shadow-[0_0_25px_rgba(251,191,36,0.5)]">SLEEPS</span></>}
         </h2>
-        
+
         <p className="max-w-2xl text-slate-200 text-xl sm:text-2xl font-bold mb-10 leading-tight italic drop-shadow-md">
-          "La única cosa que se interpone entre tú y tu meta es la historia de <span className="text-amber-400">mierda</span> que te sigues contando sobre por qué no puedes lograrla."
+          {es
+            ? <>"La única cosa que se interpone entre tú y tu meta es la historia de <span className="text-amber-400">mierda</span> que te sigues contando sobre por qué no puedes lograrla."</>
+            : <>"The only thing standing between you and your goal is the <span className="text-amber-400">story</span> you keep telling yourself about why you can't achieve it."</>
+          }
           <br/>
           <span className="text-slate-400 text-sm font-black mt-4 block uppercase tracking-[0.3em]">— Weinstein Strategy Terminal —</span>
         </p>

@@ -26,6 +26,7 @@ import { useWatchlist } from './hooks/useWatchlist';
 import WatchlistSidebar from './components/WatchlistSidebar';
 import { usePlan } from './hooks/usePlan';
 import { PricingModal } from './components/PricingModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Heavy panels — loaded lazily so they don't bloat the initial bundle
 const ChatBot           = lazy(() => import('./components/ChatBot'));
@@ -91,6 +92,7 @@ const App: React.FC = () => {
   const [analysis, setAnalysis] = useState<AnalysisState>({ isAnalyzing: false, result: null, error: null });
   const [isSaved, setIsSaved] = useState(true);
   const [images, setImages] = useState<ImageFile[]>([]);
+  const [imageError, setImageError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<'scan' | 'operation'>('scan');
   const [operationResult, setOperationResult] = useState<OperationAnalysisResult | null>(null);
@@ -126,7 +128,7 @@ const App: React.FC = () => {
     const files = Array.from(e.target.files || []) as File[];
     if (files.length === 0) return;
     if (images.length + files.length > MAX_IMAGES) {
-      alert(`Max ${MAX_IMAGES} images.`);
+      setImageError(`Máximo ${MAX_IMAGES} imágenes por análisis.`);
       return;
     }
     const newImages: ImageFile[] = [];
@@ -152,7 +154,12 @@ const App: React.FC = () => {
 
   const removeImage = (index: number) => setImages(prev => prev.filter((_, i) => i !== index));
 
-  const startAnalysis = async () => {
+  const triggeredAlertsCount = React.useMemo(
+    () => alerts.filter(a => a.status === 'triggered').length,
+    [alerts]
+  );
+
+  const startAnalysis = useCallback(async () => {
     if (!ticker && images.length === 0) return;
     if (!user) { setIsAuthOpen(true); return; }
 
@@ -184,7 +191,8 @@ const App: React.FC = () => {
       setAnalysis({ isAnalyzing: false, result: null, error: (err as Error).message || 'Error connecting to analysis engine.' });
       setIsSaved(true);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticker, images, settings, user]);
 
   const selectHistoryItem = (item: SavedAnalysis) => {
     if (item.label.startsWith('[Operation]')) {
@@ -242,45 +250,45 @@ const App: React.FC = () => {
           <LiveClock language={language} />
 
           <div className="flex items-center gap-1.5 sm:gap-4">
-            <button onClick={toggleLanguage} className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 hover:text-amber-500 flex items-center gap-2">
+            <button onClick={toggleLanguage} aria-label={`Cambiar idioma a ${language === Language.ES ? 'inglés' : 'español'}`} className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 hover:text-amber-500 flex items-center gap-2">
               <i className="fas fa-globe"></i>
               {language.toUpperCase()}
             </button>
 
-            <button onClick={toggleTheme} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
+            <button onClick={toggleTheme} aria-label={theme === 'light' ? 'Activar modo oscuro' : 'Activar modo claro'} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
               <i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
             </button>
 
-            <button onClick={() => setIsAlertsOpen(true)} className="relative w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
+            <button onClick={() => setIsAlertsOpen(true)} aria-label={`Alertas${triggeredAlertsCount > 0 ? ` — ${triggeredAlertsCount} disparadas` : ''}`} className="relative w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
               <i className="fas fa-bell"></i>
-              {alerts.filter(a => a.status === 'triggered').length > 0 && (
+              {triggeredAlertsCount > 0 && (
                 <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center animate-pulse">!</span>
               )}
             </button>
 
-            <button onClick={() => setIsWatchlistOpen(true)} className="relative w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400" title="Watchlist">
+            <button onClick={() => setIsWatchlistOpen(true)} aria-label={`Watchlist — ${watchlist.length} valores`} className="relative w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
               <i className="fas fa-star"></i>
               {watchlist.length > 0 && (
                 <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">{watchlist.length > 9 ? '9+' : watchlist.length}</span>
               )}
             </button>
 
-            <button onClick={() => { if (!user) { setIsAuthOpen(true); return; } setIsPortfolioOpen(true); }} className="relative px-3 h-10 rounded-full bg-blue-500/10 hover:bg-blue-500/20 border border-blue-400/30 dark:border-blue-500/30 flex items-center justify-center gap-1.5 text-blue-600 dark:text-blue-400 font-bold text-xs transition-all" title="Portfolio">
+            <button onClick={() => { if (!user) { setIsAuthOpen(true); return; } setIsPortfolioOpen(true); }} aria-label="Portfolio de operaciones" className="relative px-3 h-10 rounded-full bg-blue-500/10 hover:bg-blue-500/20 border border-blue-400/30 dark:border-blue-500/30 flex items-center justify-center gap-1.5 text-blue-600 dark:text-blue-400 font-bold text-xs transition-all">
               <i className="fas fa-briefcase text-sm"></i>
               <span className="hidden sm:inline">Portfolio</span>
             </button>
 
-            <button onClick={() => { if (!user) { setIsAuthOpen(true); return; } setIsVirtualPortfolioOpen(true); }} className="relative px-3 h-10 rounded-full bg-violet-500/10 hover:bg-violet-500/20 border border-violet-400/30 dark:border-violet-500/30 flex items-center justify-center gap-1.5 text-violet-600 dark:text-violet-400 font-bold text-xs transition-all" title="Cartera Virtual">
+            <button onClick={() => { if (!user) { setIsAuthOpen(true); return; } setIsVirtualPortfolioOpen(true); }} aria-label="Cartera virtual IA Weinstein" className="relative px-3 h-10 rounded-full bg-violet-500/10 hover:bg-violet-500/20 border border-violet-400/30 dark:border-violet-500/30 flex items-center justify-center gap-1.5 text-violet-600 dark:text-violet-400 font-bold text-xs transition-all">
               <i className="fas fa-chart-pie text-sm"></i>
               <span className="hidden sm:inline">{language === Language.ES ? 'Cartera IA' : 'AI Portfolio'}</span>
             </button>
 
-            <button onClick={() => { if (!user) { setIsAuthOpen(true); return; } setIsScreenerOpen(true); }} className="relative px-3 h-10 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/30 dark:border-emerald-500/30 flex items-center justify-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold text-xs transition-all" title="Screener">
+            <button onClick={() => { if (!user) { setIsAuthOpen(true); return; } setIsScreenerOpen(true); }} aria-label="Screener de mercado Weinstein" className="relative px-3 h-10 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/30 dark:border-emerald-500/30 flex items-center justify-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold text-xs transition-all">
               <i className="fas fa-radar text-sm"></i>
               <span className="hidden sm:inline">Screener</span>
             </button>
 
-            <button onClick={() => setIsHistoryOpen(true)} className="relative w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
+            <button onClick={() => setIsHistoryOpen(true)} aria-label={`Historial de análisis — ${history.length} guardados`} className="relative w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
               <i className="fas fa-history"></i>
               {history.length > 0 && (
                 <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">{history.length > 9 ? '9+' : history.length}</span>
@@ -288,11 +296,11 @@ const App: React.FC = () => {
             </button>
 
             {user ? (
-              <button onClick={() => setIsProfileOpen(true)} className="w-10 h-10 rounded-xl bg-amber-500 text-slate-900 font-black text-xs flex items-center justify-center shadow-lg border-2 border-white dark:border-slate-700">
+              <button onClick={() => setIsProfileOpen(true)} aria-label={`Perfil de ${user.name}`} className="w-10 h-10 rounded-xl bg-amber-500 text-slate-900 font-black text-xs flex items-center justify-center shadow-lg border-2 border-white dark:border-slate-700">
                 {userInitials}
               </button>
             ) : (
-              <button onClick={() => setIsAuthOpen(true)} className="w-10 h-10 rounded-full bg-amber-500 text-slate-900 flex items-center justify-center shadow-lg shadow-amber-500/20">
+              <button onClick={() => setIsAuthOpen(true)} aria-label="Iniciar sesión" className="w-10 h-10 rounded-full bg-amber-500 text-slate-900 flex items-center justify-center shadow-lg shadow-amber-500/20">
                 <i className="fas fa-user"></i>
               </button>
             )}
@@ -343,7 +351,7 @@ const App: React.FC = () => {
 
         {activeTab === 'scan' ? (
           <>
-            {!analysis.result && !analysis.isAnalyzing && <EpicHero />}
+            {!analysis.result && !analysis.isAnalyzing && <EpicHero language={language} />}
 
             <div className="max-w-3xl mx-auto mb-12 text-center">
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-500 rounded-full text-[10px] font-black uppercase tracking-widest mb-6 border border-amber-500/20">
@@ -397,7 +405,15 @@ const App: React.FC = () => {
                 </form>
               </div>
 
-              <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" multiple className="hidden" />
+              <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" multiple className="hidden" aria-label="Subir gráficos para analizar" />
+
+              {imageError && (
+                <p className="mt-3 text-center text-xs font-bold text-rose-500 flex items-center justify-center gap-1.5">
+                  <i className="fas fa-triangle-exclamation"></i>
+                  {imageError}
+                  <button onClick={() => setImageError(null)} className="ml-1 underline hover:no-underline">Cerrar</button>
+                </p>
+              )}
 
               {images.length > 0 && (
                 <div className="mt-8 flex flex-wrap justify-center gap-4">
@@ -581,6 +597,7 @@ const App: React.FC = () => {
 
       <Suspense fallback={null}>
         {isVirtualPortfolioOpen && (
+          <ErrorBoundary label="Error en Cartera Virtual">
           <VirtualPortfolioPanel
             language={language}
             onAnalyze={(symbol) => {
@@ -591,9 +608,11 @@ const App: React.FC = () => {
             }}
             onClose={() => setIsVirtualPortfolioOpen(false)}
           />
+          </ErrorBoundary>
         )}
 
         {isPortfolioOpen && (
+          <ErrorBoundary label="Error en Portfolio">
           <PortfolioPanel
             language={language}
             onAnalyze={(symbol) => {
@@ -604,9 +623,11 @@ const App: React.FC = () => {
             }}
             onClose={() => setIsPortfolioOpen(false)}
           />
+          </ErrorBoundary>
         )}
 
         {isScreenerOpen && (
+          <ErrorBoundary label="Error en Screener">
           <ScreenerPanel
             language={language}
             onAnalyze={(symbol) => {
@@ -617,6 +638,7 @@ const App: React.FC = () => {
             }}
             onClose={() => setIsScreenerOpen(false)}
           />
+          </ErrorBoundary>
         )}
       </Suspense>
 
@@ -637,10 +659,28 @@ const App: React.FC = () => {
         <ChatBot currentAnalysis={analysis.result} language={language} />
       </Suspense>
 
-      <footer className="bg-slate-900 border-t border-slate-800 py-12 px-4 mt-auto">
-        <div className="container mx-auto text-center space-y-6">
+      <footer className="bg-slate-900 border-t border-slate-800 py-10 px-4 mt-auto">
+        <div className="container mx-auto text-center space-y-4">
           <p className="text-[11px] text-slate-500 tracking-[0.3em] font-black uppercase">
             &copy; {new Date().getFullYear()} ALPHA STAGE TERMINAL — WEINSTEIN STRATEGY CERTIFIED
+          </p>
+          <div className="flex items-center justify-center gap-6 text-[10px] text-slate-600 dark:text-slate-500">
+            <a href="/legal/terms" className="hover:text-slate-400 transition-colors">
+              {language === Language.ES ? 'Términos de uso' : 'Terms of Service'}
+            </a>
+            <span>·</span>
+            <a href="/legal/privacy" className="hover:text-slate-400 transition-colors">
+              {language === Language.ES ? 'Política de privacidad' : 'Privacy Policy'}
+            </a>
+            <span>·</span>
+            <a href="mailto:juantxu@gosua.com" className="hover:text-slate-400 transition-colors">
+              {language === Language.ES ? 'Contacto' : 'Contact'}
+            </a>
+          </div>
+          <p className="text-[10px] text-slate-700 max-w-lg mx-auto leading-relaxed">
+            {language === Language.ES
+              ? '⚠️ Herramienta educativa basada en el método Weinstein. No constituye asesoramiento financiero. Los mercados conllevan riesgo de pérdida de capital.'
+              : '⚠️ Educational tool based on the Weinstein method. Not financial advice. Markets involve risk of capital loss.'}
           </p>
         </div>
       </footer>

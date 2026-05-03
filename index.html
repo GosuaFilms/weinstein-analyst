@@ -20,8 +20,13 @@
     <meta property="og:title" content="Weinstein Pro — Stage Analysis Terminal" />
     <meta property="og:description" content="Análisis de etapas Weinstein con datos de mercado en tiempo real." />
     <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <meta property="og:image" content="https://weinstein-analyst.vercel.app/icon-512.png" />
+    <meta property="og:url" content="https://weinstein-analyst.vercel.app" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://weinstein-analyst.vercel.app/icon-512.png" />
+    <!-- Font Awesome — non-blocking load to avoid render-blocking CSS -->
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" /></noscript>
   </head>
   <body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-50">
     <div id="root"></div>

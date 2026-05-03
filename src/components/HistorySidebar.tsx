@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { SavedAnalysis } from '../types';
 
 interface Props {
@@ -12,6 +12,7 @@ interface Props {
 }
 
 const HistorySidebar: React.FC<Props> = ({ isOpen, onClose, history, onSelect, onDelete, onClearAll }) => {
+  const [confirmClear, setConfirmClear] = useState(false);
   if (!isOpen) return null;
 
   // Update to accept string to match AnalysisResult.verdictType literals ('BUY', 'SELL', 'WAIT', 'CLOSE')
@@ -96,12 +97,30 @@ const HistorySidebar: React.FC<Props> = ({ isOpen, onClose, history, onSelect, o
 
         {history.length > 0 && (
           <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 transition-colors">
-            <button 
-              onClick={() => { if(confirm('¿Seguro que quieres borrar todo el historial?')) onClearAll(); }}
-              className="w-full py-2 text-xs font-bold text-slate-500 hover:text-rose-500 transition-colors flex items-center justify-center gap-2"
-            >
-              <i className="fas fa-trash-sweep"></i> BORRAR TODO EL HISTORIAL
-            </button>
+            {confirmClear ? (
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-xs text-slate-500">¿Borrar todo el historial?</span>
+                <button
+                  onClick={() => { onClearAll(); setConfirmClear(false); }}
+                  className="px-3 py-1.5 text-xs font-black bg-rose-500 text-white rounded-lg hover:bg-rose-400 transition-colors"
+                >
+                  Sí, borrar
+                </button>
+                <button
+                  onClick={() => setConfirmClear(false)}
+                  className="px-3 py-1.5 text-xs font-black bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmClear(true)}
+                className="w-full py-2 text-xs font-bold text-slate-500 hover:text-rose-500 transition-colors flex items-center justify-center gap-2"
+              >
+                <i className="fas fa-trash-sweep"></i> BORRAR TODO EL HISTORIAL
+              </button>
+            )}
           </div>
         )}
       </div>

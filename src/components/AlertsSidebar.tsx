@@ -23,6 +23,7 @@ const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, o
   const [newLevel, setNewLevel] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const { state: pushState, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushNotifications();
 
   if (!isOpen) return null;
@@ -188,12 +189,30 @@ const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, o
                       </p>
                     )}
                   </div>
-                  <button
-                    onClick={() => onDeleteAlert(alert.id)}
-                    className="text-slate-400 hover:text-rose-500 transition-colors p-1"
-                  >
-                    <i className="fas fa-trash-alt text-xs"></i>
-                  </button>
+                  {confirmDeleteId === alert.id ? (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => { onDeleteAlert(alert.id); setConfirmDeleteId(null); }}
+                        className="text-[9px] font-black px-2 py-1 bg-rose-500 text-white rounded-lg hover:bg-rose-400 transition-colors"
+                      >
+                        Borrar
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="text-[9px] font-black px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                      >
+                        No
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDeleteId(alert.id)}
+                      className="text-slate-400 hover:text-rose-500 transition-colors p-1"
+                      aria-label="Eliminar alerta"
+                    >
+                      <i className="fas fa-trash-alt text-xs"></i>
+                    </button>
+                  )}
                 </div>
                 <div className="mt-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">

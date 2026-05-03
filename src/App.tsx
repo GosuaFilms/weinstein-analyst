@@ -305,28 +305,7 @@ const App: React.FC = () => {
               </button>
             )}
 
-            {/* Pro / Upgrade button */}
-            {user && (
-              isPro ? (
-                <button
-                  onClick={() => setIsPricingOpen(true)}
-                  className="hidden sm:flex items-center gap-1.5 px-3 h-10 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-black text-[10px] uppercase tracking-widest shadow-lg shadow-violet-500/30 hover:from-violet-500 hover:to-indigo-500 transition-all"
-                  title="Plan Pro"
-                >
-                  <i className="fas fa-crown text-yellow-300 text-xs"></i>
-                  Pro
-                </button>
-              ) : (
-                <button
-                  onClick={() => setIsPricingOpen(true)}
-                  className="hidden sm:flex items-center gap-1.5 px-3 h-10 rounded-xl border-2 border-violet-400/60 dark:border-violet-500/50 text-violet-600 dark:text-violet-400 font-black text-[10px] uppercase tracking-widest hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-all"
-                  title="Upgrade to Pro"
-                >
-                  <i className="fas fa-crown text-[10px]"></i>
-                  {language === Language.ES ? 'Mejorar' : 'Upgrade'}
-                </button>
-              )
-            )}
+            {/* Pro / Upgrade button — hidden during beta (Stripe not active) */}
 
             <button onClick={() => setIsSettingsOpen(true)} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
               <i className="fas fa-cog"></i>

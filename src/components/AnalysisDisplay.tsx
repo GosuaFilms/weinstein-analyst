@@ -1,8 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { AnalysisResult, Verdict, Language } from '../types';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
+// html2canvas and jspdf are loaded on-demand to keep the initial bundle small
 import TradingViewWidget from './TradingViewWidget';
 
 interface Props {
@@ -75,6 +74,10 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
       const isDark = document.documentElement.classList.contains('dark');
       // scale=3 + PNG produces ~45MB PDFs. scale=2 + JPEG q=0.82 keeps sharpness
       // but brings typical reports under ~3MB.
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
       const canvas = await html2canvas(displayRef.current, {
         backgroundColor: isDark ? '#0f172a' : '#ffffff',
         scale: 2,

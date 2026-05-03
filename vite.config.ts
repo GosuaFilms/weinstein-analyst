@@ -12,4 +12,22 @@ export default defineConfig({
   server: {
     port: 5173,
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Core React — always needed
+          'vendor-react': ['react', 'react-dom'],
+          // Supabase client — always needed (auth, realtime)
+          'vendor-supabase': ['@supabase/supabase-js'],
+          // PDF / canvas — loaded on demand via dynamic import,
+          // but Rollup still needs a chunk boundary here
+          'vendor-pdf': ['jspdf', 'html2canvas'],
+        },
+      },
+    },
+    // Raise warning threshold — individual chunks over 400 kB
+    // (jspdf + html2canvas) are intentional lazy chunks
+    chunkSizeWarningLimit: 600,
+  },
 });

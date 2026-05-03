@@ -52,6 +52,99 @@ const INDICES: Record<string, { label: string; tickers: string[] }> = {
       'ENR.DE','HNR1.DE','1COV.DE','SY1.DE','AFX.DE',
     ],
   },
+  CAC40: {
+    label: 'CAC 40',
+    tickers: [
+      'AI.PA','AIR.PA','ACA.PA','ALO.PA','BN.PA','BNP.PA','CA.PA','CAP.PA',
+      'CS.PA','DG.PA','DSY.PA','ENGI.PA','ERF.PA','FP.PA','GLE.PA','HO.PA',
+      'KER.PA','LR.PA','MC.PA','ML.PA','MT.PA','OR.PA','ORA.PA','PUB.PA',
+      'RMS.PA','RNO.PA','SAF.PA','SAN.PA','SGO.PA','SU.PA','STM.PA',
+      'VIE.PA','VIV.PA','WLN.PA','EL.PA','SW.PA','TTE.PA','STLAM.MI',
+      'URW.AS','BVI.PA',
+    ],
+  },
+  FTSE100: {
+    label: 'FTSE 100',
+    tickers: [
+      'AAL.L','ABF.L','ADM.L','AHT.L','ANTO.L','AV.L','AZN.L','BA.L',
+      'BARC.L','BATS.L','BEZ.L','BHP.L','BP.L','BRBY.L','BT-A.L','CCH.L',
+      'CPG.L','CRH.L','DGE.L','ENT.L','EXPN.L','FRES.L','GLEN.L','GSK.L',
+      'HL.L','HLMA.L','HSBA.L','IAG.L','IHG.L','III.L','IMB.L','INF.L',
+      'ITRK.L','ITV.L','JD.L','KGF.L','LAND.L','LGEN.L','LLOY.L','LSE.L',
+      'MKS.L','MNDI.L','MNG.L','NG.L','NWG.L','OCDO.L','PHNX.L','PRU.L',
+      'PSN.L','REL.L','RIO.L','RKT.L','RMV.L','RR.L','SBRY.L','SGE.L',
+      'SGRO.L','SHEL.L','SMDS.L','SMIN.L','SMT.L','SN.L','SPX.L','SSE.L',
+      'STJ.L','TSCO.L','TW.L','ULVR.L','UU.L','VOD.L','WPP.L','WTB.L',
+      'AUTO.L','AVST.L','BME.L','BNZL.L','BOO.L','CHG.L','CNA.L','DPLM.L',
+      'DRX.L','ECM.L','EMG.L','FCIT.L','FLTR.L','FLTRF.L','GFTU.L','HWDN.L',
+      'IMI.L','JMAT.L','MCRO.L','MGGT.L','MRCH.L','NXT.L','PETS.L','POLY.L',
+      'RCP.L','SDR.L','SKG.L','SVT.L',
+    ],
+  },
+  EUROSTOXX50: {
+    label: 'Euro Stoxx 50',
+    tickers: [
+      // France
+      'AI.PA','AIR.PA','BN.PA','BNP.PA','CS.PA','DG.PA','EL.PA','ENGI.PA',
+      'FP.PA','GLE.PA','KER.PA','MC.PA','OR.PA','RMS.PA','SAF.PA','SAN.PA',
+      'SGO.PA','SU.PA',
+      // Germany
+      'ALV.DE','BAS.DE','BAYN.DE','BMW.DE','DTE.DE','EOAN.DE','IFX.DE',
+      'MBG.DE','MUV2.DE','SAP.DE','SIE.DE','VOW3.DE',
+      // Netherlands
+      'ADYEN.AS','ASML.AS','ING.AS','PHIA.AS','PRX.AS',
+      // Spain
+      'BBVA.MC','IBE.MC','ITX.MC','SAN.MC',
+      // Italy
+      'ENI.MI','ENEL.MI','ISP.MI','UCG.MI','STM.MI',
+      // Belgium
+      'ABI.BR',
+      // Finland
+      'NOKIA.HE',
+    ],
+  },
+  SP500: {
+    label: 'S&P 500',
+    tickers: [
+      // Mega-cap tech
+      'AAPL','MSFT','NVDA','AMZN','GOOGL','GOOG','META','TSLA','AVGO','ORCL',
+      'AMD','ADBE','CRM','INTU','QCOM','TXN','AMAT','MU','LRCX','KLAC',
+      'MRVL','PANW','CRWD','FTNT','SNPS','CDNS','ADI','MCHP','NXPI','MPWR',
+      'INTC','HPQ','HPE','DELL','IBM','ACN','CTSH','IT','EPAM','GDDY',
+      // Financials
+      'JPM','BAC','WFC','GS','MS','BLK','SCHW','AXP','V','MA','PYPL','COF',
+      'USB','PNC','TFC','AIG','MET','PRU','AFL','ALL','CB','TRV','MMC',
+      'AON','SPGI','MCO','ICE','CME','CBOE','NDAQ','BX','KKR','APO','CG',
+      // Healthcare
+      'LLY','UNH','JNJ','ABBV','MRK','PFE','BMY','AMGN','GILD','BIIB',
+      'VRTX','REGN','ISRG','SYK','BSX','MDT','ABT','DHR','TMO','IDXX',
+      'IQV','DXCM','HUM','CVS','CI','ELV','MOH','CNC','ZBH','BAX',
+      // Consumer
+      'AMZN','WMT','COST','TGT','HD','LOW','MCD','SBUX','NKE','YUM',
+      'CMG','DPZ','QSR','MKC','GIS','K','CPB','HSY','MDLZ','PEP','KO',
+      'PM','MO','BTI','CL','PG','KMB','CHD','CLX','EL','ULTA','LULU',
+      // Energy
+      'XOM','CVX','COP','SLB','EOG','PSX','VLO','MPC','OXY','DVN',
+      'HAL','BKR','FANG','PXD','HES','APA','MRO','CTRA','EQT','OKE',
+      // Industrials
+      'GE','CAT','DE','HON','MMM','RTX','LMT','NOC','GD','BA','TDG',
+      'TT','CARR','OTIS','EMR','ETN','PH','ROK','IR','PCAR','CMI',
+      'CSX','UNP','NSC','CP','CNI','FDX','UPS','JBHT','XPO','SAIA',
+      // Real Estate / Utilities
+      'AMT','PLD','EQIX','CCI','SBAC','DLR','PSA','EXR','AVB','EQR',
+      'NEE','DUK','SO','D','AEP','EXC','SRE','PCG','XEL','ES',
+      // Communications
+      'NFLX','GOOGL','META','DIS','CMCSA','T','VZ','CHTR','TMUS',
+      'WBD','FOX','FOXA','IPG','OMC','TTWO','EA','ATVI','RBLX','U',
+      // Materials
+      'LIN','APD','ECL','SHW','PPG','NEM','FCX','NUE','STLD','CMC',
+      'VMC','MLM','MOS','CF','FMC','ALB','CTVA','DD','DOW','LYB',
+      // Other notable
+      'BRK-B','BKNG','ABNB','MAR','HLT','HES','ORLY','AZO','DLTR',
+      'ROST','TJX','VFC','PVH','RL','TPR','CPRT','CTAS','PAYX','ADP',
+      'VRSK','MSCI','FDS','BR','WEX','TROW','BEN','IVZ','STT','BK',
+    ],
+  },
 };
 
 // ─── Types ─────────────────────────────────────────────────────────────────

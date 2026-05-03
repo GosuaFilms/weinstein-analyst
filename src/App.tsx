@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, Suspense, lazy } from 'react';
 import { analyzeMarket } from './services/geminiService';
 import {
   AnalysisState,
@@ -13,22 +13,24 @@ import StageInfo from './components/StageInfo';
 import SettingsModal from './components/SettingsModal';
 import HistorySidebar from './components/HistorySidebar';
 import AlertsSidebar from './components/AlertsSidebar';
-import ChatBot from './components/ChatBot';
 import AuthModal from './components/AuthModal';
 import UserProfileSidebar from './components/UserProfileSidebar';
 import EpicHero from './components/EpicHero';
 import LiveClock from './components/LiveClock';
-import OperationAnalyzer from './components/OperationAnalyzer';
-import TradingViewWidget from './components/TradingViewWidget';
 import { useAuth } from './contexts/AuthContext';
 import { supabase } from './lib/supabase';
 import { useAnalyses } from './hooks/useAnalyses';
 import { useAlerts } from './hooks/useAlerts';
 import { useWatchlist } from './hooks/useWatchlist';
 import WatchlistSidebar from './components/WatchlistSidebar';
-import ScreenerPanel from './components/ScreenerPanel';
-import PortfolioPanel from './components/PortfolioPanel';
-import VirtualPortfolioPanel from './components/VirtualPortfolioPanel';
+
+// Heavy panels — loaded lazily so they don't bloat the initial bundle
+const ChatBot           = lazy(() => import('./components/ChatBot'));
+const OperationAnalyzer = lazy(() => import('./components/OperationAnalyzer'));
+const TradingViewWidget = lazy(() => import('./components/TradingViewWidget'));
+const ScreenerPanel     = lazy(() => import('./components/ScreenerPanel'));
+const PortfolioPanel    = lazy(() => import('./components/PortfolioPanel'));
+const VirtualPortfolioPanel = lazy(() => import('./components/VirtualPortfolioPanel'));
 
 const THEME_KEY = 'weinstein_theme';
 const LANG_KEY = 'weinstein_language';
@@ -466,7 +468,9 @@ const App: React.FC = () => {
                           <i className="fas fa-times"></i>
                         </button>
                       </div>
-                      <TradingViewWidget symbol={ticker} theme={theme} />
+                      <Suspense fallback={<div className="h-96 flex items-center justify-center text-slate-400"><i className="fas fa-circle-notch animate-spin mr-2"></i>Cargando gráfico…</div>}>
+                    <TradingViewWidget symbol={ticker} theme={theme} />
+                  </Suspense>
                     </div>
                   </div>
                 )}
@@ -474,12 +478,14 @@ const App: React.FC = () => {
             )}
           </>
         ) : (
-          <OperationAnalyzer
-            language={language}
-            settings={settings}
-            onSave={async (result, t) => { await saveAnalysis('operation', `[Operation] ${t}`, result); }}
-            initialResult={operationResult}
-          />
+          <Suspense fallback={<div className="flex items-center justify-center py-20 text-slate-400"><i className="fas fa-circle-notch animate-spin mr-2"></i>Cargando…</div>}>
+            <OperationAnalyzer
+              language={language}
+              settings={settings}
+              onSave={async (result, t) => { await saveAnalysis('operation', `[Operation] ${t}`, result); }}
+              initialResult={operationResult}
+            />
+          </Suspense>
         )}
       </main>
 
@@ -523,44 +529,46 @@ const App: React.FC = () => {
         onRemove={removeFromWatchlist}
       />
 
-      {isVirtualPortfolioOpen && (
-        <VirtualPortfolioPanel
-          language={language}
-          onAnalyze={(symbol) => {
-            setTicker(symbol);
-            setActiveTab('scan');
-            setIsChartOpen(false);
-            setTimeout(() => startAnalysis(), 50);
-          }}
-          onClose={() => setIsVirtualPortfolioOpen(false)}
-        />
-      )}
+      <Suspense fallback={null}>
+        {isVirtualPortfolioOpen && (
+          <VirtualPortfolioPanel
+            language={language}
+            onAnalyze={(symbol) => {
+              setTicker(symbol);
+              setActiveTab('scan');
+              setIsChartOpen(false);
+              setTimeout(() => startAnalysis(), 50);
+            }}
+            onClose={() => setIsVirtualPortfolioOpen(false)}
+          />
+        )}
 
-      {isPortfolioOpen && (
-        <PortfolioPanel
-          language={language}
-          onAnalyze={(symbol) => {
-            setTicker(symbol);
-            setActiveTab('scan');
-            setIsChartOpen(false);
-            setTimeout(() => startAnalysis(), 50);
-          }}
-          onClose={() => setIsPortfolioOpen(false)}
-        />
-      )}
+        {isPortfolioOpen && (
+          <PortfolioPanel
+            language={language}
+            onAnalyze={(symbol) => {
+              setTicker(symbol);
+              setActiveTab('scan');
+              setIsChartOpen(false);
+              setTimeout(() => startAnalysis(), 50);
+            }}
+            onClose={() => setIsPortfolioOpen(false)}
+          />
+        )}
 
-      {isScreenerOpen && (
-        <ScreenerPanel
-          language={language}
-          onAnalyze={(symbol) => {
-            setTicker(symbol);
-            setActiveTab('scan');
-            setIsChartOpen(false);
-            setTimeout(() => startAnalysis(), 50);
-          }}
-          onClose={() => setIsScreenerOpen(false)}
-        />
-      )}
+        {isScreenerOpen && (
+          <ScreenerPanel
+            language={language}
+            onAnalyze={(symbol) => {
+              setTicker(symbol);
+              setActiveTab('scan');
+              setIsChartOpen(false);
+              setTimeout(() => startAnalysis(), 50);
+            }}
+            onClose={() => setIsScreenerOpen(false)}
+          />
+        )}
+      </Suspense>
 
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
       <UserProfileSidebar
@@ -572,7 +580,9 @@ const App: React.FC = () => {
         onLogout={handleLogout}
       />
 
-      <ChatBot currentAnalysis={analysis.result} language={language} />
+      <Suspense fallback={null}>
+        <ChatBot currentAnalysis={analysis.result} language={language} />
+      </Suspense>
 
       <footer className="bg-slate-900 border-t border-slate-800 py-12 px-4 mt-auto">
         <div className="container mx-auto text-center space-y-6">

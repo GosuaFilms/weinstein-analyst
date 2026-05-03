@@ -1,8 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Language, OperationAnalysisResult, Settings } from '../types';
 import { analyzeOperation } from '../services/geminiService';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
+// html2canvas and jspdf are loaded on-demand to keep the initial bundle small
 
 interface Props {
   language: Language;
@@ -105,6 +104,10 @@ const OperationAnalyzer: React.FC<Props> = ({ language, settings, onSave, initia
 
     try {
       const isDark = document.documentElement.classList.contains('dark');
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
       const canvas = await html2canvas(displayRef.current, {
         backgroundColor: isDark ? '#0f172a' : '#ffffff',
         scale: 3,

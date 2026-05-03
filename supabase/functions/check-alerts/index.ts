@@ -38,6 +38,9 @@ Deno.serve(async (req) => {
   const providedCronSecret = req.headers.get('x-cron-secret');
   const authHeader = req.headers.get('Authorization');
 
+  // Distinguish cron vs manual UI trigger — manual triggers bypass market hours
+  let isManualTrigger = false;
+
   if (cronSecret && providedCronSecret !== cronSecret) {
     // Not a valid cron call — check if it's an authenticated user
     if (!authHeader?.startsWith('Bearer ')) {
@@ -49,14 +52,16 @@ Deno.serve(async (req) => {
     const { error: authError } = await createClient(supabaseUrl, anonKey)
       .auth.getUser(token);
     if (authError) return jsonResponse({ error: 'unauthorized' }, 401);
+    isManualTrigger = true; // valid user JWT → manual trigger from UI
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase = createClient(supabaseUrl, serviceKey);
 
+  // Skip market-hours check for manual UI triggers — the user explicitly asked
   const marketOpen = isMarketOpen();
-  if (!marketOpen && !Deno.env.get('CHECK_ALERTS_ALWAYS')) {
+  if (!marketOpen && !isManualTrigger && !Deno.env.get('CHECK_ALERTS_ALWAYS')) {
     return jsonResponse({ skipped: true, reason: 'market closed' });
   }
 

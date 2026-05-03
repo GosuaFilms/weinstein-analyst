@@ -10,11 +10,12 @@ interface Props {
   onDeleteAlert: (id: string) => Promise<void> | void;
   onCheckAll: () => void;
   isChecking: boolean;
+  checkResult?: { checked: number; triggered: number; skipped?: boolean } | null;
 }
 
 const NEEDS_LEVEL = new Set([AlertCondition.RESISTANCE_BREAKOUT, AlertCondition.SUPPORT_BREAKDOWN]);
 
-const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, onDeleteAlert, onCheckAll, isChecking }) => {
+const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, onDeleteAlert, onCheckAll, isChecking, checkResult }) => {
   const [newTicker, setNewTicker] = useState('');
   const [newCondition, setNewCondition] = useState<AlertCondition>(AlertCondition.PRICE_CROSS_SMA30_UP);
   const [newLevel, setNewLevel] = useState('');
@@ -182,7 +183,24 @@ const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, o
           )}
         </div>
 
-        <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80">
+        <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 space-y-2">
+          {/* Result feedback */}
+          {!isChecking && checkResult && (
+            <div className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 ${
+              checkResult.skipped
+                ? 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                : checkResult.triggered > 0
+                  ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30'
+                  : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30'
+            }`}>
+              <i className={`fas ${checkResult.skipped ? 'fa-clock' : checkResult.triggered > 0 ? 'fa-bell' : 'fa-circle-check'}`}></i>
+              {checkResult.skipped
+                ? 'Mercado cerrado — sin cambios en precios'
+                : checkResult.triggered > 0
+                  ? `${checkResult.triggered} alerta${checkResult.triggered > 1 ? 's' : ''} disparada${checkResult.triggered > 1 ? 's' : ''} de ${checkResult.checked} comprobadas`
+                  : `${checkResult.checked} alerta${checkResult.checked !== 1 ? 's' : ''} comprobada${checkResult.checked !== 1 ? 's' : ''} — sin disparos`}
+            </div>
+          )}
           <button
             onClick={onCheckAll}
             disabled={isChecking || alerts.filter(a => a.status === 'active').length === 0}

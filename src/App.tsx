@@ -45,6 +45,7 @@ const App: React.FC = () => {
   const { history, save: saveAnalysis, remove: removeAnalysis, clear: clearHistory } = useAnalyses();
   const { alerts, add: addAlert, remove: removeAlert, reload: reloadAlerts } = useAlerts();
   const [isCheckingAlerts, setIsCheckingAlerts] = useState(false);
+  const [alertCheckResult, setAlertCheckResult] = useState<{ checked: number; triggered: number; skipped?: boolean } | null>(null);
   const [isChartOpen, setIsChartOpen] = useState(false);
   const { watchlist, loading: watchlistLoading, add: addToWatchlist, remove: removeFromWatchlist, has: isInWatchlist } = useWatchlist();
 
@@ -484,14 +485,34 @@ const App: React.FC = () => {
 
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} onSettingsChange={setSettings} />
       <HistorySidebar isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} history={history} onSelect={selectHistoryItem} onDelete={removeAnalysis} onClearAll={clearHistory} />
-      <AlertsSidebar isOpen={isAlertsOpen} onClose={() => setIsAlertsOpen(false)} alerts={alerts} onAddAlert={(t: string, c: AlertCondition) => addAlert(t, c)} onDeleteAlert={removeAlert} onCheckAll={async () => {
-        setIsCheckingAlerts(true);
-        try {
-          await supabase.functions.invoke('check-alerts', { body: {} });
-          await reloadAlerts();
-        } catch (e) { console.error(e); }
-        finally { setIsCheckingAlerts(false); }
-      }} isChecking={isCheckingAlerts} />
+      <AlertsSidebar
+        isOpen={isAlertsOpen}
+        onClose={() => setIsAlertsOpen(false)}
+        alerts={alerts}
+        onAddAlert={(t: string, c: AlertCondition, level?: number) => addAlert(t, c, level)}
+        onDeleteAlert={removeAlert}
+        checkResult={alertCheckResult}
+        onCheckAll={async () => {
+          setIsCheckingAlerts(true);
+          setAlertCheckResult(null);
+          try {
+            const { data, error } = await supabase.functions.invoke('check-alerts', { body: {} });
+            if (error) throw error;
+            await reloadAlerts();
+            setAlertCheckResult({
+              checked: data?.checked ?? 0,
+              triggered: data?.triggered ?? 0,
+              skipped: data?.skipped ?? false,
+            });
+          } catch (e) {
+            console.error(e);
+            setAlertCheckResult({ checked: 0, triggered: 0 });
+          } finally {
+            setIsCheckingAlerts(false);
+          }
+        }}
+        isChecking={isCheckingAlerts}
+      />
       <WatchlistSidebar
         isOpen={isWatchlistOpen}
         onClose={() => setIsWatchlistOpen(false)}

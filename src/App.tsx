@@ -17,6 +17,8 @@ import AuthModal from './components/AuthModal';
 import UserProfileSidebar from './components/UserProfileSidebar';
 import EpicHero from './components/EpicHero';
 import LiveClock from './components/LiveClock';
+import OnboardingModal from './components/OnboardingModal';
+import HelpPanel from './components/HelpPanel';
 import { useAuth } from './contexts/AuthContext';
 import { supabase } from './lib/supabase';
 import { uploadAnalysisImage } from './lib/imageStorage';
@@ -88,6 +90,10 @@ const App: React.FC = () => {
   const [isVirtualPortfolioOpen, setIsVirtualPortfolioOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    return !localStorage.getItem('weinstein_onboarding_done');
+  });
 
   const [analysis, setAnalysis] = useState<AnalysisState>({ isAnalyzing: false, result: null, error: null });
   const [isSaved, setIsSaved] = useState(true);
@@ -307,7 +313,11 @@ const App: React.FC = () => {
 
             {/* Pro / Upgrade button — hidden during beta (Stripe not active) */}
 
-            <button onClick={() => setIsSettingsOpen(true)} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
+            <button onClick={() => setIsHelpOpen(true)} aria-label="Manual de uso" className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center text-blue-500 dark:text-blue-400 font-black text-sm">
+              ?
+            </button>
+
+            <button onClick={() => setIsSettingsOpen(true)} aria-label="Configuración" className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
               <i className="fas fa-cog"></i>
             </button>
           </div>
@@ -637,6 +647,17 @@ const App: React.FC = () => {
       <Suspense fallback={null}>
         <ChatBot currentAnalysis={analysis.result} language={language} />
       </Suspense>
+
+      {/* Help panel */}
+      <HelpPanel isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+
+      {/* Onboarding modal — first visit only */}
+      {showOnboarding && (
+        <OnboardingModal onClose={() => {
+          localStorage.setItem('weinstein_onboarding_done', '1');
+          setShowOnboarding(false);
+        }} />
+      )}
 
       <footer className="bg-slate-900 border-t border-slate-800 py-10 px-4 mt-auto">
         <div className="container mx-auto text-center space-y-5">

@@ -278,20 +278,6 @@ const App: React.FC = () => {
               )}
             </button>
 
-            <button onClick={() => { if (!user) { setIsAuthOpen(true); return; } setIsPortfolioOpen(true); }} aria-label="Portfolio de operaciones" className="relative px-3 h-10 rounded-full bg-blue-500/10 hover:bg-blue-500/20 border border-blue-400/30 dark:border-blue-500/30 flex items-center justify-center gap-1.5 text-blue-600 dark:text-blue-400 font-bold text-xs transition-all">
-              <i className="fas fa-briefcase text-sm"></i>
-              <span className="hidden sm:inline">Portfolio</span>
-            </button>
-
-            <button onClick={() => { if (!user) { setIsAuthOpen(true); return; } setIsVirtualPortfolioOpen(true); }} aria-label="Cartera virtual IA Weinstein" className="relative px-3 h-10 rounded-full bg-violet-500/10 hover:bg-violet-500/20 border border-violet-400/30 dark:border-violet-500/30 flex items-center justify-center gap-1.5 text-violet-600 dark:text-violet-400 font-bold text-xs transition-all">
-              <i className="fas fa-chart-pie text-sm"></i>
-              <span className="hidden sm:inline">{language === Language.ES ? 'Cartera IA' : 'AI Portfolio'}</span>
-            </button>
-
-            <button onClick={() => { if (!user) { setIsAuthOpen(true); return; } setIsScreenerOpen(true); }} aria-label="Screener de mercado Weinstein" className="relative px-3 h-10 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/30 dark:border-emerald-500/30 flex items-center justify-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold text-xs transition-all">
-              <i className="fas fa-radar text-sm"></i>
-              <span className="hidden sm:inline">Screener</span>
-            </button>
 
             <button onClick={() => setIsHistoryOpen(true)} aria-label={`Historial de análisis — ${history.length} guardados`} className="relative w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
               <i className="fas fa-history"></i>
@@ -324,15 +310,41 @@ const App: React.FC = () => {
       </header>
 
       <main className="flex-grow container mx-auto px-4 py-8">
-        <div className="flex justify-center mb-8">
+        <div className="flex flex-wrap justify-center gap-2 mb-8">
+          {/* Main tabs */}
           <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl inline-flex shadow-inner">
             <button onClick={() => { setActiveTab('scan'); setOperationResult(null); }} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'scan' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}>
               <i className="fas fa-search mr-2"></i>
               {language === Language.ES ? 'Escaneo' : 'Scan'}
             </button>
             <button onClick={() => setActiveTab('operation')} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'operation' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}>
-              <i className="fas fa-briefcase mr-2"></i>
+              <i className="fas fa-suitcase mr-2"></i>
               {language === Language.ES ? 'Operaciones' : 'Operations'}
+            </button>
+          </div>
+
+          {/* Tool buttons */}
+          <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl inline-flex shadow-inner gap-1">
+            <button
+              onClick={() => { if (!user) { setIsAuthOpen(true); return; } setIsPortfolioOpen(true); }}
+              className="px-4 py-2 rounded-lg text-sm font-bold transition-all text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 hover:shadow-sm flex items-center gap-2"
+            >
+              <i className="fas fa-briefcase text-blue-500"></i>
+              <span className="hidden sm:inline">{language === Language.ES ? 'Portfolio' : 'Portfolio'}</span>
+            </button>
+            <button
+              onClick={() => { if (!user) { setIsAuthOpen(true); return; } setIsVirtualPortfolioOpen(true); }}
+              className="px-4 py-2 rounded-lg text-sm font-bold transition-all text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700 hover:text-violet-600 dark:hover:text-violet-400 hover:shadow-sm flex items-center gap-2"
+            >
+              <i className="fas fa-chart-pie text-violet-500"></i>
+              <span className="hidden sm:inline">{language === Language.ES ? 'Cartera IA' : 'AI Portfolio'}</span>
+            </button>
+            <button
+              onClick={() => { if (!user) { setIsAuthOpen(true); return; } setIsScreenerOpen(true); }}
+              className="px-4 py-2 rounded-lg text-sm font-bold transition-all text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700 hover:text-emerald-600 dark:hover:text-emerald-400 hover:shadow-sm flex items-center gap-2"
+            >
+              <i className="fas fa-filter text-emerald-500"></i>
+              <span className="hidden sm:inline">Screener</span>
             </button>
           </div>
         </div>

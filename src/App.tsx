@@ -660,10 +660,26 @@ const App: React.FC = () => {
       </Suspense>
 
       <footer className="bg-slate-900 border-t border-slate-800 py-10 px-4 mt-auto">
-        <div className="container mx-auto text-center space-y-4">
+        <div className="container mx-auto text-center space-y-5">
           <p className="text-[11px] text-slate-500 tracking-[0.3em] font-black uppercase">
             &copy; {new Date().getFullYear()} ALPHA STAGE TERMINAL — WEINSTEIN STRATEGY CERTIFIED
           </p>
+
+          {/* Ko-fi donation button */}
+          <div className="flex justify-center">
+            <a
+              href="https://ko-fi.com/weinstein"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#FF5E5B] hover:bg-[#ff4441] text-white text-xs font-black uppercase tracking-widest rounded-full transition-all shadow-lg shadow-[#FF5E5B]/20 hover:shadow-[#FF5E5B]/40 hover:scale-105 active:scale-95"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+              </svg>
+              {language === Language.ES ? 'Apóyanos en Ko-fi' : 'Support us on Ko-fi'}
+            </a>
+          </div>
+
           <div className="flex items-center justify-center gap-6 text-[10px] text-slate-600 dark:text-slate-500">
             <a href="/legal/terms" className="hover:text-slate-400 transition-colors">
               {language === Language.ES ? 'Términos de uso' : 'Terms of Service'}

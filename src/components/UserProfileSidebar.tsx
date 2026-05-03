@@ -150,10 +150,31 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
             Registrado el {new Date(user.joinedDate).toLocaleDateString()}
           </p>
         </div>
+
+        {/* Ko-fi support card */}
+        <a
+          href="https://ko-fi.com/weinstein"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block w-full p-4 rounded-2xl border border-[#FF5E5B]/30 bg-[#FF5E5B]/5 hover:bg-[#FF5E5B]/10 transition-all group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#FF5E5B] flex items-center justify-center shadow-md shadow-[#FF5E5B]/20 flex-shrink-0 transition-transform group-hover:scale-110">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" className="w-5 h-5">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-black text-slate-900 dark:text-white">¿Te es útil?</p>
+              <p className="text-[10px] text-slate-500">Invítanos a un café en Ko-fi ☕</p>
+            </div>
+            <i className="fas fa-external-link-alt text-[10px] text-slate-400 ml-auto"></i>
+          </div>
+        </a>
       </div>
 
       <div className="p-6 border-t border-slate-100 dark:border-slate-800">
-        <button 
+        <button
           onClick={onLogout}
           className="w-full py-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-black rounded-xl transition-all flex items-center justify-center gap-2"
         >

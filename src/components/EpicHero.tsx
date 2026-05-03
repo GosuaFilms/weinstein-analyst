@@ -25,6 +25,20 @@ const EpicHero: React.FC<Props> = ({ language = Language.ES }) => {
 
       {/* Content Container */}
       <div className="relative z-10 p-10 sm:p-20 flex flex-col items-center text-center">
+        {/* Ko-fi button — above the VS */}
+        <a
+          href="https://ko-fi.com/weinstein"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ backgroundColor: '#FF5E5B', boxShadow: '0 4px 20px rgba(255,94,91,0.4)' }}
+          className="mb-6 inline-flex items-center gap-2 px-5 py-2 text-white text-[11px] font-black uppercase tracking-widest rounded-full transition-all hover:scale-105 active:scale-95"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style={{ width: '14px', height: '14px', flexShrink: 0 }}>
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+          </svg>
+          Apóyanos en Ko-fi ☕
+        </a>
+
         {/* Fight Status Indicator */}
         <div className="mb-8 flex gap-6 items-center transform scale-110 sm:scale-125">
           <div className="flex flex-col items-center">

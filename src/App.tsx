@@ -94,6 +94,8 @@ const App: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<'scan' | 'operation'>('scan');
   const [operationResult, setOperationResult] = useState<OperationAnalysisResult | null>(null);
+  // Used to trigger analysis after setting ticker from an external source (screener, watchlist, etc.)
+  const [pendingAnalysis, setPendingAnalysis] = useState<string | null>(null);
 
   useEffect(() => {
     if (theme === 'dark') document.documentElement.classList.add('dark');
@@ -101,11 +103,15 @@ const App: React.FC = () => {
     localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
 
+  // Trigger analysis once ticker state has settled (avoids stale closure race with setTimeout)
   useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  }, []);
+    if (!pendingAnalysis) return;
+    setPendingAnalysis(null);
+    startAnalysis();
+    // startAnalysis is intentionally omitted: we want it to re-run only when pendingAnalysis
+    // changes (i.e. when a new symbol is requested), not on every render cycle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAnalysis]);
 
   const toggleLanguage = () => setLanguage(prev => (prev === Language.ES ? Language.EN : Language.ES));
   const toggleTheme = () => setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
@@ -192,11 +198,15 @@ const App: React.FC = () => {
     setOperationResult(null);
     setTicker(item.label.includes('Graphics') ? '' : item.label);
     if (item.previewUrls) {
-      setImages(item.previewUrls.map(url => ({
-        url,
-        data: url.split(',')[1],
-        mimeType: url.match(/:(.*?);/)?.[1] || 'image/png',
-      })));
+      setImages(item.previewUrls.map(url => {
+        // Supabase Storage URLs (https://...) vs legacy base64 data-URIs
+        const isDataUri = url.startsWith('data:');
+        return {
+          url,
+          data: isDataUri ? url.split(',')[1] : '',
+          mimeType: isDataUri ? (url.match(/:(.*?);/)?.[1] || 'image/png') : 'image/png',
+        };
+      }));
     } else {
       setImages([]);
     }
@@ -564,7 +574,7 @@ const App: React.FC = () => {
         onClose={() => setIsWatchlistOpen(false)}
         watchlist={watchlist}
         loading={watchlistLoading}
-        onAnalyze={(symbol) => { setTicker(symbol); setActiveTab('scan'); setTimeout(() => startAnalysis(), 50); }}
+        onAnalyze={(symbol) => { setTicker(symbol); setActiveTab('scan'); setPendingAnalysis(symbol); }}
         onAddAlert={(t, c) => addAlert(t, c)}
         onRemove={removeFromWatchlist}
       />
@@ -577,7 +587,7 @@ const App: React.FC = () => {
               setTicker(symbol);
               setActiveTab('scan');
               setIsChartOpen(false);
-              setTimeout(() => startAnalysis(), 50);
+              setPendingAnalysis(symbol);
             }}
             onClose={() => setIsVirtualPortfolioOpen(false)}
           />
@@ -590,7 +600,7 @@ const App: React.FC = () => {
               setTicker(symbol);
               setActiveTab('scan');
               setIsChartOpen(false);
-              setTimeout(() => startAnalysis(), 50);
+              setPendingAnalysis(symbol);
             }}
             onClose={() => setIsPortfolioOpen(false)}
           />
@@ -603,7 +613,7 @@ const App: React.FC = () => {
               setTicker(symbol);
               setActiveTab('scan');
               setIsChartOpen(false);
-              setTimeout(() => startAnalysis(), 50);
+              setPendingAnalysis(symbol);
             }}
             onClose={() => setIsScreenerOpen(false)}
           />

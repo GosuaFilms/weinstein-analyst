@@ -9,13 +9,15 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { sendTelegramMessage } from '../_shared/telegram.ts';
 
 Deno.serve(async (req) => {
-  // Verify the request is from Telegram
+  // Verify the request is from Telegram — secret is mandatory
   const webhookSecret = Deno.env.get('TELEGRAM_WEBHOOK_SECRET');
-  if (webhookSecret) {
-    const provided = req.headers.get('X-Telegram-Bot-Api-Secret-Token');
-    if (provided !== webhookSecret) {
-      return new Response('forbidden', { status: 403 });
-    }
+  if (!webhookSecret) {
+    console.error('[telegram-webhook] TELEGRAM_WEBHOOK_SECRET not set — rejecting request');
+    return new Response('forbidden', { status: 403 });
+  }
+  const provided = req.headers.get('X-Telegram-Bot-Api-Secret-Token');
+  if (provided !== webhookSecret) {
+    return new Response('forbidden', { status: 403 });
   }
 
   const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN') ?? '';

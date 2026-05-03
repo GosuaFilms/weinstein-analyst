@@ -49,11 +49,11 @@ self.addEventListener('fetch', (e) => {
     return; // let browser handle it normally
   }
 
-  // For same-origin navigation: network-first, fall back to cached index
+  // For same-origin navigation: network-first, fall back to cached index, then 503
   if (request.mode === 'navigate') {
     e.respondWith(
       fetch(request)
-        .catch(() => caches.match('/').then(r => r ?? fetch(request)))
+        .catch(() => caches.match('/').then(r => r ?? new Response('Offline', { status: 503 })))
     );
     return;
   }

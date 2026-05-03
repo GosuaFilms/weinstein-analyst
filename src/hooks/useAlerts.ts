@@ -25,6 +25,7 @@ function toAlert(row: DbAlert): Alert {
     lastChecked: row.last_checked_at ? new Date(row.last_checked_at).getTime() : undefined,
     triggeredAt: row.triggered_at ? new Date(row.triggered_at).getTime() : undefined,
     triggerMessage: row.trigger_message ?? undefined,
+    referenceLevel: row.reference_level ?? undefined,
   };
 }
 

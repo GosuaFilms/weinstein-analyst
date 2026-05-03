@@ -27,10 +27,13 @@ async function setPlan(
   if (subscriptionId) updates.stripe_subscription_id = subscriptionId;
   if (customerId)     updates.stripe_customer_id     = customerId;
 
-  const query = admin.from('profiles').update(updates);
-  if (userId)    query.eq('id', userId);
-  else if (customerId) query.eq('stripe_customer_id', customerId);
-  await query;
+  // The Supabase builder is immutable — each .eq() returns a new instance.
+  // We must chain all calls together and await the final one.
+  if (userId) {
+    await admin.from('profiles').update(updates).eq('id', userId);
+  } else if (customerId) {
+    await admin.from('profiles').update(updates).eq('stripe_customer_id', customerId);
+  }
 }
 
 Deno.serve(async (req) => {

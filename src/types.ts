@@ -102,6 +102,7 @@ export interface Alert {
   lastChecked?: number;
   triggeredAt?: number;
   triggerMessage?: string;
+  referenceLevel?: number;
 }
 
 export interface AnalysisState {

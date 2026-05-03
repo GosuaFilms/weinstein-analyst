@@ -66,13 +66,15 @@ export function useAnalyses() {
   );
 
   const remove = useCallback(async (id: string) => {
-    await supabase.from('analyses').delete().eq('id', id);
+    const { error } = await supabase.from('analyses').delete().eq('id', id);
+    if (error) throw new Error(error.message);
     setHistory(prev => prev.filter(h => h.id !== id));
   }, []);
 
   const clear = useCallback(async () => {
     if (!user) return;
-    await supabase.from('analyses').delete().eq('user_id', user.id);
+    const { error } = await supabase.from('analyses').delete().eq('user_id', user.id);
+    if (error) throw new Error(error.message);
     setHistory([]);
   }, [user]);
 

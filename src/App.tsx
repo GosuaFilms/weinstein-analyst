@@ -19,6 +19,7 @@ import EpicHero from './components/EpicHero';
 import LiveClock from './components/LiveClock';
 import OnboardingModal from './components/OnboardingModal';
 import HelpPanel from './components/HelpPanel';
+import LandingPage from './components/LandingPage';
 import { useAuth } from './contexts/AuthContext';
 import { supabase } from './lib/supabase';
 import { uploadAnalysisImage } from './lib/imageStorage';
@@ -49,7 +50,7 @@ interface ImageFile {
 }
 
 const App: React.FC = () => {
-  const { user, signOut } = useAuth();
+  const { user, signOut, loading: authLoading } = useAuth();
   const { isPro } = usePlan();
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const { history, save: saveAnalysis, remove: removeAnalysis, clear: clearHistory } = useAnalyses();
@@ -238,6 +239,30 @@ const App: React.FC = () => {
   }, []);
 
   const userInitials = user ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '';
+
+  // Show landing page for non-authenticated visitors
+  if (!authLoading && !user) {
+    return (
+      <>
+        <LandingPage onGetStarted={() => setIsAuthOpen(true)} />
+        {isAuthOpen && (
+          <AuthModal
+            isOpen={isAuthOpen}
+            onClose={() => setIsAuthOpen(false)}
+          />
+        )}
+      </>
+    );
+  }
+
+  // Show nothing while auth state is loading (avoids flash of landing page)
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col font-sans relative">

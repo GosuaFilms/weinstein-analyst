@@ -9,11 +9,13 @@ interface Props {
   historyCount: number;
   alertsCount: number;
   onLogout: () => void;
+  isPro?: boolean;
+  onUpgrade?: () => void;
 }
 
 type ViewState = 'main' | 'security' | 'export';
 
-const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCount, alertsCount, onLogout }) => {
+const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCount, alertsCount, onLogout, isPro = false, onUpgrade }) => {
   const [currentView, setCurrentView] = useState<ViewState>('main');
   
   // Security State
@@ -91,17 +93,25 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
         <button onClick={onClose} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
           <i className="fas fa-times text-xl"></i>
         </button>
-        
-        <div className="w-24 h-24 bg-amber-500 rounded-3xl flex items-center justify-center text-slate-900 text-3xl font-black shadow-xl mb-4 transform -rotate-3">
+
+        {/* Avatar */}
+        <div className={`w-24 h-24 rounded-3xl flex items-center justify-center text-slate-900 text-3xl font-black shadow-xl mb-4 transform -rotate-3 ${isPro ? 'bg-amber-500 ring-4 ring-amber-400/40' : 'bg-slate-300 dark:bg-slate-600'}`}>
           {initials}
         </div>
-        
+
         <h3 className="text-xl font-black text-slate-900 dark:text-white">{user.name}</h3>
         <p className="text-sm text-slate-500">{user.email}</p>
-        
-        <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-full text-[10px] font-black uppercase tracking-widest">
-          <i className="fas fa-crown"></i> Miembro Pro
-        </div>
+
+        {/* Plan badge */}
+        {isPro ? (
+          <div className="mt-3 inline-flex items-center gap-2 px-4 py-1.5 bg-amber-500 text-slate-900 rounded-full text-[11px] font-black uppercase tracking-widest shadow-lg shadow-amber-500/30">
+            <i className="fas fa-crown"></i> Plan Pro
+          </div>
+        ) : (
+          <div className="mt-3 inline-flex items-center gap-2 px-4 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-full text-[11px] font-black uppercase tracking-widest">
+            <i className="fas fa-user"></i> Plan Gratuito
+          </div>
+        )}
       </div>
 
       <div className="flex-grow p-6 space-y-6 overflow-y-auto">
@@ -173,7 +183,27 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
         </a>
       </div>
 
-      <div className="p-6 border-t border-slate-100 dark:border-slate-800">
+      <div className="p-6 border-t border-slate-100 dark:border-slate-800 space-y-3">
+        {/* Upgrade CTA for free users */}
+        {!isPro && (
+          <button
+            onClick={onUpgrade}
+            className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-900 font-black rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2"
+          >
+            <i className="fas fa-crown"></i> Actualizar a Pro
+          </button>
+        )}
+
+        {/* Pro plan management */}
+        {isPro && (
+          <button
+            onClick={onUpgrade}
+            className="w-full py-3 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-black rounded-xl transition-all border border-amber-500/20 flex items-center justify-center gap-2"
+          >
+            <i className="fas fa-crown"></i> Gestionar suscripción Pro
+          </button>
+        )}
+
         <button
           onClick={onLogout}
           className="w-full py-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-black rounded-xl transition-all flex items-center justify-center gap-2"

@@ -739,6 +739,8 @@ const App: React.FC = () => {
         historyCount={history.length}
         alertsCount={alerts.length}
         onLogout={handleLogout}
+        isPro={isPro}
+        onUpgrade={() => { setIsProfileOpen(false); setIsPricingOpen(true); }}
       />
 
       <Suspense fallback={null}>

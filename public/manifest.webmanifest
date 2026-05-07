@@ -1,7 +1,7 @@
 {
-  "name": "Weinstein Pro Terminal",
-  "short_name": "Weinstein",
-  "description": "Análisis de etapas Weinstein con datos de mercado en tiempo real. Screener, alertas y cartera.",
+  "name": "Alpha Stage Terminal",
+  "short_name": "Alpha Stage",
+  "description": "Terminal de análisis técnico con el método Stan Weinstein. Screener Stage 2, alertas automáticas e informe semanal de mercado.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

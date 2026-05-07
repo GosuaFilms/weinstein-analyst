@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#080e1a"/>
+      <stop offset="100%" style="stop-color:#0f1d35"/>
+    </linearGradient>
+    <linearGradient id="amber" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#fbbf24"/>
+      <stop offset="100%" style="stop-color:#f59e0b"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="40" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Ambient glow blobs -->
+  <ellipse cx="600" cy="200" rx="500" ry="250" fill="#f59e0b" opacity="0.04"/>
+  <ellipse cx="200" cy="450" rx="300" ry="200" fill="#10b981" opacity="0.04"/>
+  <ellipse cx="1000" cy="450" rx="300" ry="200" fill="#3b82f6" opacity="0.04"/>
+
+  <!-- Grid lines subtle -->
+  <line x1="0" y1="210" x2="1200" y2="210" stroke="#ffffff" stroke-opacity="0.03" stroke-width="1"/>
+  <line x1="0" y1="420" x2="1200" y2="420" stroke="#ffffff" stroke-opacity="0.03" stroke-width="1"/>
+  <line x1="400" y1="0" x2="400" y2="630" stroke="#ffffff" stroke-opacity="0.03" stroke-width="1"/>
+  <line x1="800" y1="0" x2="800" y2="630" stroke="#ffffff" stroke-opacity="0.03" stroke-width="1"/>
+
+  <!-- Logo icon -->
+  <rect x="80" y="70" width="64" height="64" rx="16" fill="#f59e0b"/>
+  <text x="112" y="113" text-anchor="middle" font-family="Arial Black, Arial" font-weight="900" font-size="32" fill="#0b1220">⚡</text>
+
+  <!-- Brand name -->
+  <text x="162" y="98" font-family="Arial Black, Arial" font-weight="900" font-size="22" fill="#ffffff" letter-spacing="2">ALPHA STAGE</text>
+  <text x="162" y="120" font-family="Arial, sans-serif" font-weight="700" font-size="11" fill="#f59e0b" letter-spacing="4">WEINSTEIN TERMINAL</text>
+
+  <!-- Live badge -->
+  <rect x="80" y="158" width="130" height="26" rx="13" fill="#f59e0b" fill-opacity="0.12" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+  <circle cx="100" cy="171" r="4" fill="#f59e0b"/>
+  <text x="113" y="176" font-family="Arial, sans-serif" font-weight="700" font-size="11" fill="#fbbf24" letter-spacing="2">BETA GRATUITO</text>
+
+  <!-- Main headline -->
+  <text x="80" y="280" font-family="Arial Black, Arial" font-weight="900" font-size="68" fill="#ffffff" letter-spacing="-2">Invierte con</text>
+  <text x="80" y="360" font-family="Arial Black, Arial" font-weight="900" font-size="68" fill="url(#amber)" letter-spacing="-2">disciplina Weinstein</text>
+
+  <!-- Subtitle -->
+  <text x="80" y="415" font-family="Arial, sans-serif" font-size="22" fill="#94a3b8">Identifica el stage de cualquier activo · Screener Stage 2 · Alertas automáticas</text>
+
+  <!-- Stage pills -->
+  <rect x="80" y="465" width="130" height="36" rx="18" fill="#6b7280" fill-opacity="0.2" stroke="#6b7280" stroke-opacity="0.4" stroke-width="1"/>
+  <text x="145" y="488" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="13" fill="#9ca3af">Stage 1 · Base</text>
+
+  <rect x="224" y="465" width="150" height="36" rx="18" fill="#10b981" fill-opacity="0.2" stroke="#10b981" stroke-opacity="0.5" stroke-width="1"/>
+  <text x="299" y="488" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="13" fill="#34d399">Stage 2 · Comprar ✓</text>
+
+  <rect x="388" y="465" width="150" height="36" rx="18" fill="#f59e0b" fill-opacity="0.2" stroke="#f59e0b" stroke-opacity="0.4" stroke-width="1"/>
+  <text x="463" y="488" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="13" fill="#fbbf24">Stage 3 · Techo</text>
+
+  <rect x="552" y="465" width="130" height="36" rx="18" fill="#ef4444" fill-opacity="0.2" stroke="#ef4444" stroke-opacity="0.4" stroke-width="1"/>
+  <text x="617" y="488" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="13" fill="#f87171">Stage 4 · Salir</text>
+
+  <!-- Right side: mock chart -->
+  <rect x="820" y="80" width="300" height="180" rx="16" fill="#0f1d35" stroke="#1e3a5f" stroke-width="1"/>
+  <text x="840" y="108" font-family="Arial, sans-serif" font-weight="700" font-size="12" fill="#64748b" letter-spacing="1">ANÁLISIS · AAPL</text>
+  <rect x="840" y="118" width="60" height="20" rx="10" fill="#10b981" fill-opacity="0.2"/>
+  <text x="870" y="132" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="10" fill="#34d399">STAGE 2</text>
+  <!-- Mini chart bars -->
+  <rect x="840" y="195" width="16" height="40" rx="4" fill="#334155"/>
+  <rect x="862" y="185" width="16" height="50" rx="4" fill="#334155"/>
+  <rect x="884" y="178" width="16" height="57" rx="4" fill="#f59e0b" fill-opacity="0.6"/>
+  <rect x="906" y="165" width="16" height="70" rx="4" fill="#f59e0b" fill-opacity="0.7"/>
+  <rect x="928" y="155" width="16" height="80" rx="4" fill="#f59e0b" fill-opacity="0.8"/>
+  <rect x="950" y="148" width="16" height="87" rx="4" fill="#f59e0b"/>
+  <rect x="972" y="158" width="16" height="77" rx="4" fill="#10b981"/>
+  <rect x="994" y="145" width="16" height="90" rx="4" fill="#10b981"/>
+  <rect x="1016" y="135" width="16" height="100" rx="4" fill="#10b981"/>
+  <!-- SMA line -->
+  <polyline points="848,220 870,210 892,200 914,188 936,178 958,170 980,168 1002,158 1024,148" stroke="#f59e0b" stroke-width="2" fill="none" stroke-dasharray="4,2"/>
+
+  <!-- Mock verdict card -->
+  <rect x="820" y="278" width="300" height="100" rx="16" fill="#0f2d1a" stroke="#10b981" stroke-opacity="0.3" stroke-width="1"/>
+  <text x="840" y="308" font-family="Arial Black, Arial" font-weight="900" font-size="28" fill="#34d399">COMPRAR</text>
+  <text x="840" y="330" font-family="Arial, sans-serif" font-size="12" fill="#64748b">Precio sobre SMA30 · Volumen creciente</text>
+  <text x="840" y="350" font-family="Arial, sans-serif" font-size="12" fill="#64748b">Ruptura de resistencia confirmada</text>
+  <text x="840" y="366" font-family="Arial, sans-serif" font-weight="700" font-size="11" fill="#10b981">Stop: -8% · Objetivo: +35%</text>
+
+  <!-- URL -->
+  <text x="1120" y="590" text-anchor="end" font-family="Arial, sans-serif" font-size="16" fill="#475569" letter-spacing="1">www.alphastage.finance</text>
+</svg>

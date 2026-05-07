@@ -752,9 +752,14 @@ const App: React.FC = () => {
 
       {/* Onboarding modal — first visit only */}
       {showOnboarding && (
-        <OnboardingModal onClose={() => {
+        <OnboardingModal onClose={(firstTicker) => {
           localStorage.setItem('weinstein_onboarding_done', '1');
           setShowOnboarding(false);
+          if (firstTicker) {
+            setTicker(firstTicker);
+            setActiveTab('scan');
+            setPendingAnalysis(firstTicker);
+          }
         }} />
       )}
 

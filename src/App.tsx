@@ -45,6 +45,17 @@ const THEME_KEY = 'weinstein_theme';
 const LANG_KEY = 'weinstein_language';
 const MAX_IMAGES = 3;
 
+// ── Tooltip wrapper ────────────────────────────────────────────────────────────
+const Tip: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <div className="relative group/tip">
+    {children}
+    <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xl opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150 z-[200]">
+      {label}
+      <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900 dark:border-t-white" />
+    </span>
+  </div>
+);
+
 interface ImageFile {
   url: string;
   data: string;
@@ -290,71 +301,89 @@ const App: React.FC = () => {
 
           <LiveClock language={language} />
 
-          <div className="flex items-center gap-1.5 sm:gap-4">
-            <button onClick={toggleLanguage} aria-label={`Cambiar idioma a ${language === Language.ES ? 'inglés' : 'español'}`} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 hover:text-amber-500">
-              {language.toUpperCase()}
-            </button>
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Tip label={language === Language.ES ? 'Cambiar a inglés' : 'Switch to Spanish'}>
+              <button onClick={toggleLanguage} aria-label={`Cambiar idioma a ${language === Language.ES ? 'inglés' : 'español'}`} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 hover:text-amber-500">
+                {language.toUpperCase()}
+              </button>
+            </Tip>
 
-            <button onClick={toggleTheme} aria-label={theme === 'light' ? 'Activar modo oscuro' : 'Activar modo claro'} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
-              <i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
-            </button>
+            <Tip label={theme === 'light' ? 'Modo oscuro' : 'Modo claro'}>
+              <button onClick={toggleTheme} aria-label={theme === 'light' ? 'Activar modo oscuro' : 'Activar modo claro'} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
+                <i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
+              </button>
+            </Tip>
 
-            <button onClick={() => setIsAlertsOpen(true)} aria-label={`Alertas${triggeredAlertsCount > 0 ? ` — ${triggeredAlertsCount} disparadas` : ''}`} className="relative w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
-              <i className="fas fa-bell"></i>
-              {triggeredAlertsCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center animate-pulse">!</span>
-              )}
-            </button>
+            <Tip label={`Alertas técnicas${triggeredAlertsCount > 0 ? ` (${triggeredAlertsCount} disparadas)` : ''}`}>
+              <button onClick={() => setIsAlertsOpen(true)} aria-label="Alertas técnicas" className="relative w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
+                <i className="fas fa-bell"></i>
+                {triggeredAlertsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center animate-pulse">!</span>
+                )}
+              </button>
+            </Tip>
 
-            <button onClick={() => setIsWatchlistOpen(true)} aria-label={`Watchlist — ${watchlist.length} valores`} className="relative w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
-              <i className="fas fa-star"></i>
-              {watchlist.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">{watchlist.length > 9 ? '9+' : watchlist.length}</span>
-              )}
-            </button>
+            <Tip label={`Watchlist (${watchlist.length} valores)`}>
+              <button onClick={() => setIsWatchlistOpen(true)} aria-label="Watchlist" className="relative w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
+                <i className="fas fa-star"></i>
+                {watchlist.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">{watchlist.length > 9 ? '9+' : watchlist.length}</span>
+                )}
+              </button>
+            </Tip>
 
-
-            <button onClick={() => setIsHistoryOpen(true)} aria-label={`Historial de análisis — ${history.length} guardados`} className="relative w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
-              <i className="fas fa-history"></i>
-              {history.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">{history.length > 9 ? '9+' : history.length}</span>
-              )}
-            </button>
+            <Tip label={`Historial (${history.length} análisis)`}>
+              <button onClick={() => setIsHistoryOpen(true)} aria-label="Historial de análisis" className="relative w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
+                <i className="fas fa-history"></i>
+                {history.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">{history.length > 9 ? '9+' : history.length}</span>
+                )}
+              </button>
+            </Tip>
 
             {user ? (
-              <button onClick={() => setIsProfileOpen(true)} aria-label={`Perfil de ${user.name}`} className="w-10 h-10 rounded-xl bg-amber-500 text-slate-900 font-black text-xs flex items-center justify-center shadow-lg border-2 border-white dark:border-slate-700">
-                {userInitials}
-              </button>
+              <Tip label={`Mi perfil (${user.name})`}>
+                <button onClick={() => setIsProfileOpen(true)} aria-label={`Perfil de ${user.name}`} className="w-10 h-10 rounded-xl bg-amber-500 text-slate-900 font-black text-xs flex items-center justify-center shadow-lg border-2 border-white dark:border-slate-700">
+                  {userInitials}
+                </button>
+              </Tip>
             ) : (
-              <button onClick={() => setIsAuthOpen(true)} aria-label="Iniciar sesión" className="w-10 h-10 rounded-full bg-amber-500 text-slate-900 flex items-center justify-center shadow-lg shadow-amber-500/20">
-                <i className="fas fa-user"></i>
-              </button>
+              <Tip label="Iniciar sesión">
+                <button onClick={() => setIsAuthOpen(true)} aria-label="Iniciar sesión" className="w-10 h-10 rounded-full bg-amber-500 text-slate-900 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                  <i className="fas fa-user"></i>
+                </button>
+              </Tip>
             )}
 
-            {/* Pro / Upgrade button — hidden during beta (Stripe not active) */}
+            <Tip label="Señales públicas">
+              <a
+                href="/resultados"
+                className="hidden sm:flex w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/30 items-center justify-center text-emerald-600 dark:text-emerald-400"
+              >
+                <i className="fas fa-trophy text-sm" />
+              </a>
+            </Tip>
 
-            <a
-              href="/resultados"
-              title="Historial de señales"
-              className="hidden sm:flex w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/30 items-center justify-center text-emerald-600 dark:text-emerald-400"
-            >
-              <i className="fas fa-trophy text-sm" />
-            </a>
-            <button
-              onClick={() => setIsPricingOpen(true)}
-              title="Planes y precios"
-              className="hidden sm:flex w-10 h-10 rounded-full bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 border border-amber-200 dark:border-amber-500/30 items-center justify-center text-amber-600 dark:text-amber-400"
-            >
-              <i className="fas fa-crown text-sm" />
-            </button>
+            <Tip label={isPro ? 'Tu plan: Pro ⚡' : 'Actualizar a Pro'}>
+              <button
+                onClick={() => setIsPricingOpen(true)}
+                className="hidden sm:flex w-10 h-10 rounded-full bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 border border-amber-200 dark:border-amber-500/30 items-center justify-center text-amber-600 dark:text-amber-400"
+              >
+                <i className="fas fa-crown text-sm" />
+              </button>
+            </Tip>
 
-            <button onClick={() => setIsHelpOpen(true)} aria-label="Manual de uso" className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center text-blue-500 dark:text-blue-400 font-black text-sm">
-              ?
-            </button>
+            <Tip label="Ayuda y manual">
+              <button onClick={() => setIsHelpOpen(true)} aria-label="Manual de uso" className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center text-blue-500 dark:text-blue-400 font-black text-sm">
+                ?
+              </button>
+            </Tip>
 
-            <button onClick={() => setIsSettingsOpen(true)} aria-label="Configuración" className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
-              <i className="fas fa-cog"></i>
-            </button>
+            <Tip label="Configuración">
+              <button onClick={() => setIsSettingsOpen(true)} aria-label="Configuración" className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
+                <i className="fas fa-cog"></i>
+              </button>
+            </Tip>
           </div>
         </div>
       </header>

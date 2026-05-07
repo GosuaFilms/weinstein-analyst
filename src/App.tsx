@@ -20,6 +20,7 @@ import LiveClock from './components/LiveClock';
 import OnboardingModal from './components/OnboardingModal';
 import HelpPanel from './components/HelpPanel';
 import LandingPage from './components/LandingPage';
+import TrackRecordPage from './components/TrackRecordPage';
 import { useAuth } from './contexts/AuthContext';
 import { supabase } from './lib/supabase';
 import { uploadAnalysisImage } from './lib/imageStorage';
@@ -239,6 +240,11 @@ const App: React.FC = () => {
   }, []);
 
   const userInitials = user ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '';
+
+  // Public route: /resultados — visible without auth
+  if (window.location.pathname === '/resultados') {
+    return <TrackRecordPage />;
+  }
 
   // Show landing page for non-authenticated visitors
   if (!authLoading && !user) {

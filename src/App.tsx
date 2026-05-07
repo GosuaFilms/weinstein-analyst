@@ -329,6 +329,14 @@ const App: React.FC = () => {
 
             {/* Pro / Upgrade button — hidden during beta (Stripe not active) */}
 
+            <a
+              href="/resultados"
+              title="Historial de señales"
+              className="hidden sm:flex w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/30 items-center justify-center text-emerald-600 dark:text-emerald-400"
+            >
+              <i className="fas fa-trophy text-sm" />
+            </a>
+
             <button onClick={() => setIsHelpOpen(true)} aria-label="Manual de uso" className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center text-blue-500 dark:text-blue-400 font-black text-sm">
               ?
             </button>

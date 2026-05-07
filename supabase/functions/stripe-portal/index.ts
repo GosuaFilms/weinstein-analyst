@@ -1,10 +1,7 @@
 // POST /functions/v1/stripe-portal
 // Opens the Stripe Customer Portal so the user can manage their subscription.
-// Body: { returnUrl: string }
-// Returns: { url: string }
-// Auth: standard Supabase JWT.
+// Uses raw Stripe REST API — no SDK, fully Deno-compatible.
 
-import Stripe from 'https://esm.sh/stripe@14.21.0?target=deno';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
 
@@ -16,9 +13,9 @@ Deno.serve(async (req) => {
   if (!authHeader?.startsWith('Bearer ')) return jsonResponse({ error: 'unauthorized' }, 401);
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-  const anonKey    = Deno.env.get('SUPABASE_ANON_KEY')!;
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const stripeKey  = Deno.env.get('STRIPE_SECRET_KEY');
+  const anonKey     = Deno.env.get('SUPABASE_ANON_KEY')!;
+  const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const stripeKey   = Deno.env.get('STRIPE_SECRET_KEY');
 
   if (!stripeKey) return jsonResponse({ error: 'stripe not configured' }, 503);
 
@@ -42,11 +39,18 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'no stripe customer found' }, 404);
   }
 
-  const stripe = new Stripe(stripeKey, { apiVersion: '2023-10-16' });
-  const session = await stripe.billingPortal.sessions.create({
-    customer:   profile.stripe_customer_id,
-    return_url: returnUrl,
+  const res = await fetch('https://api.stripe.com/v1/billing_portal/sessions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${stripeKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      customer:   profile.stripe_customer_id,
+      return_url: returnUrl,
+    }).toString(),
   });
-
+  const session = await res.json();
+  if (session.error) return jsonResponse({ error: session.error.message }, 400);
   return jsonResponse({ url: session.url });
 });

@@ -1,8 +1,34 @@
 import React from 'react';
 import { useTelegramLink } from '../hooks/useTelegramLink';
 
-const TelegramConnect: React.FC = () => {
+interface Props {
+  isPro?: boolean;
+  onUpgrade?: () => void;
+}
+
+const TelegramConnect: React.FC<Props> = ({ isPro = false, onUpgrade }) => {
   const { status, loading, generateToken, disconnect } = useTelegramLink();
+
+  // Free plan — show upgrade lock
+  if (!isPro) {
+    return (
+      <div className="rounded-xl border border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-4 text-center">
+        <div className="w-9 h-9 bg-amber-500/20 rounded-xl flex items-center justify-center mx-auto mb-2">
+          <i className="fab fa-telegram text-amber-500 text-lg"></i>
+        </div>
+        <p className="text-xs font-black text-slate-800 dark:text-white mb-0.5">Alertas por Telegram</p>
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
+          Recibe alertas directamente en Telegram. Función exclusiva del plan Pro.
+        </p>
+        <button
+          onClick={onUpgrade}
+          className="w-full py-2 bg-amber-500 hover:bg-amber-400 text-slate-900 font-black rounded-lg text-xs transition-all shadow-md shadow-amber-500/20 flex items-center justify-center gap-2"
+        >
+          <i className="fas fa-crown"></i> Actualizar a Pro
+        </button>
+      </div>
+    );
+  }
 
   if (!status) {
     return (

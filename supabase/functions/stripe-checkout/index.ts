@@ -25,16 +25,18 @@ Deno.serve(async (req) => {
   if (!authHeader?.startsWith('Bearer ')) return jsonResponse({ error: 'unauthorized' }, 401);
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-  const anonKey     = Deno.env.get('SUPABASE_ANON_KEY')!;
   const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const stripeKey   = Deno.env.get('STRIPE_SECRET_KEY');
 
   if (!stripeKey) return jsonResponse({ error: 'stripe not configured' }, 503);
 
   const token = authHeader.slice(7);
-  const { data: { user }, error: authError } = await createClient(supabaseUrl, anonKey)
-    .auth.getUser(token);
-  if (authError || !user) return jsonResponse({ error: 'unauthorized' }, 401);
+  const admin = createClient(supabaseUrl, serviceKey);
+  const { data: { user }, error: authError } = await admin.auth.getUser(token);
+  if (authError || !user) {
+    console.error('[stripe-checkout] auth error:', authError?.message ?? 'no user');
+    return jsonResponse({ error: 'unauthorized' }, 401);
+  }
 
   const body = await req.json().catch(() => ({}));
   const { priceId, successUrl, cancelUrl } = body as {
@@ -43,8 +45,6 @@ Deno.serve(async (req) => {
   if (!priceId || !successUrl || !cancelUrl) {
     return jsonResponse({ error: 'priceId, successUrl and cancelUrl required' }, 400);
   }
-
-  const admin = createClient(supabaseUrl, serviceKey);
 
   // Fetch or create Stripe customer
   const { data: profile } = await admin

@@ -56,8 +56,8 @@ export function usePlan() {
     return () => { cancelled = true; };
   }, [user]);
 
-  const limits = PLAN_LIMITS['pro']; // All features unlocked during beta
-  const isPro  = true;               // TODO: set to `plan === 'pro'` when monetization is activated
+  const isPro  = plan === 'pro';
+  const limits = PLAN_LIMITS[plan];
 
   return { plan, limits, isPro, loading };
 }

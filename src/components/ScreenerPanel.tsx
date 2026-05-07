@@ -106,11 +106,13 @@ interface Props {
   language: Language;
   onAnalyze: (symbol: string) => void;
   onClose: () => void;
+  isPro?: boolean;
+  onUpgrade?: () => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-const ScreenerPanel: React.FC<Props> = ({ language, onAnalyze, onClose }) => {
+const ScreenerPanel: React.FC<Props> = ({ language, onAnalyze, onClose, isPro = false, onUpgrade }) => {
   const [selectedIndex, setSelectedIndex] = useState('IBEX35');
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<ScreenerResult | null>(null);
@@ -372,8 +374,9 @@ const ScreenerPanel: React.FC<Props> = ({ language, onAnalyze, onClose }) => {
                   <p>{es ? 'Ningún valor en esta etapa.' : 'No stocks in this stage.'}</p>
                 </div>
               ) : (
+                <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {filtered.map(item => {
+                  {(isPro ? filtered : filtered.slice(0, 5)).map(item => {
                     const sc = STAGE_CONFIG[item.stage];
                     const isExpanded = expandedReason === item.symbol;
                     const distPct = item.distanceFromSMA30Pct;
@@ -494,6 +497,44 @@ const ScreenerPanel: React.FC<Props> = ({ language, onAnalyze, onClose }) => {
                     );
                   })}
                 </div>
+
+                {/* Free plan paywall banner */}
+                {!isPro && filtered.length > 5 && (
+                  <div className="relative mt-4 rounded-2xl overflow-hidden border border-amber-500/30">
+                    {/* Blurred preview of hidden cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-4 pointer-events-none select-none blur-sm opacity-40">
+                      {filtered.slice(5, 8).map(item => (
+                        <div key={item.symbol} className={`p-4 rounded-xl border ${STAGE_CONFIG[item.stage].bg} ${STAGE_CONFIG[item.stage].border}`}>
+                          <div className="h-3 bg-slate-300 dark:bg-slate-600 rounded w-16 mb-2" />
+                          <div className="h-5 bg-slate-200 dark:bg-slate-700 rounded w-20 mb-1" />
+                          <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-24" />
+                        </div>
+                      ))}
+                    </div>
+                    {/* Upgrade overlay */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-transparent via-white/80 dark:via-slate-900/80 to-white dark:to-slate-900 p-6 text-center">
+                      <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center mb-3">
+                        <i className="fas fa-lock text-amber-500 text-xl"></i>
+                      </div>
+                      <p className="font-black text-slate-900 dark:text-white text-base mb-1">
+                        {filtered.length - 5} {es ? 'resultados más ocultos' : 'more results hidden'}
+                      </p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 max-w-xs">
+                        {es
+                          ? 'El plan gratuito muestra los primeros 5 resultados. Actualiza a Pro para ver el screener completo.'
+                          : 'The free plan shows the first 5 results. Upgrade to Pro to see the full screener.'}
+                      </p>
+                      <button
+                        onClick={onUpgrade}
+                        className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-900 font-black rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2 text-sm"
+                      >
+                        <i className="fas fa-crown"></i>
+                        {es ? 'Ver todos los resultados — Pro' : 'See all results — Pro'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                </>
               )}
             </div>
           </>

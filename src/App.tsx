@@ -53,7 +53,7 @@ interface ImageFile {
 
 const App: React.FC = () => {
   const { user, signOut, loading: authLoading } = useAuth();
-  const { isPro } = usePlan();
+  const { isPro, limits } = usePlan();
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const { history, save: saveAnalysis, remove: removeAnalysis, clear: clearHistory } = useAnalyses();
   const { alerts, add: addAlert, remove: removeAlert, reload: reloadAlerts } = useAlerts();
@@ -614,6 +614,9 @@ const App: React.FC = () => {
         onAddAlert={(t: string, c: AlertCondition, level?: number) => addAlert(t, c, level)}
         onDeleteAlert={removeAlert}
         checkResult={alertCheckResult}
+        isPro={isPro}
+        maxAlerts={limits.maxAlerts}
+        onUpgrade={() => { setIsAlertsOpen(false); setIsPricingOpen(true); }}
         onCheckAll={async () => {
           setIsCheckingAlerts(true);
           setAlertCheckResult(null);
@@ -650,6 +653,8 @@ const App: React.FC = () => {
           <ErrorBoundary label="Error en Cartera Virtual">
           <VirtualPortfolioPanel
             language={language}
+            isPro={isPro}
+            onUpgrade={() => { setIsVirtualPortfolioOpen(false); setIsPricingOpen(true); }}
             onAnalyze={(symbol) => {
               setTicker(symbol);
               setActiveTab('scan');
@@ -680,6 +685,8 @@ const App: React.FC = () => {
           <ErrorBoundary label="Error en Screener">
           <ScreenerPanel
             language={language}
+            isPro={isPro}
+            onUpgrade={() => { setIsScreenerOpen(false); setIsPricingOpen(true); }}
             onAnalyze={(symbol) => {
               setTicker(symbol);
               setActiveTab('scan');

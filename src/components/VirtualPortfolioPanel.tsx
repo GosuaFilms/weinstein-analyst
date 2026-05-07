@@ -548,9 +548,11 @@ interface Props {
   language: Language;
   onAnalyze: (symbol: string) => void;
   onClose: () => void;
+  isPro?: boolean;
+  onUpgrade?: () => void;
 }
 
-const VirtualPortfolioPanel: React.FC<Props> = ({ language, onAnalyze, onClose }) => {
+const VirtualPortfolioPanel: React.FC<Props> = ({ language, onAnalyze, onClose, isPro = false, onUpgrade }) => {
   const es = language === Language.ES;
   const { portfolios, loading: loadingSaved, save: savePortfolio, remove: removePortfolio } = useVirtualPortfolios();
 
@@ -604,6 +606,52 @@ const VirtualPortfolioPanel: React.FC<Props> = ({ language, onAnalyze, onClose }
     await removePortfolio(id);
     if (viewingPortfolio?.id === id) setViewingPortfolio(null);
   };
+
+  // Free plan paywall
+  if (!isPro) {
+    return (
+      <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={onClose} />
+        <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-2xl p-10 text-center">
+          <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white p-2 transition-colors">
+            <i className="fas fa-times"></i>
+          </button>
+          <div className="w-16 h-16 bg-violet-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <i className="fas fa-chart-pie text-violet-500 text-2xl"></i>
+          </div>
+          <h2 className="text-xl font-black text-slate-900 dark:text-white mb-2">
+            {es ? 'Cartera Virtual Weinstein' : 'Weinstein Virtual Portfolio'}
+          </h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
+            {es
+              ? 'Genera carteras diversificadas con los valores en Stage 2 usando gestión de riesgo profesional. Función exclusiva del plan Pro.'
+              : 'Generate diversified portfolios with Stage 2 stocks using professional risk management. Pro plan exclusive.'}
+          </p>
+          <ul className="text-left space-y-2 mb-6">
+            {[
+              es ? 'Construcción automática de cartera Stage 2' : 'Automatic Stage 2 portfolio builder',
+              es ? 'Gestión de riesgo por posición y total' : 'Per-position and total risk management',
+              es ? 'Guardado y seguimiento de carteras' : 'Portfolio saving and tracking',
+              es ? 'Análisis directo desde cada posición' : 'Direct analysis from each position',
+            ].map(f => (
+              <li key={f} className="flex items-center gap-2.5 text-sm text-slate-600 dark:text-slate-300">
+                <i className="fas fa-check text-violet-500 text-xs flex-shrink-0"></i>
+                {f}
+              </li>
+            ))}
+          </ul>
+          <button
+            onClick={onUpgrade}
+            className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-900 font-black rounded-2xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2"
+          >
+            <i className="fas fa-crown"></i>
+            {es ? 'Actualizar a Pro' : 'Upgrade to Pro'}
+          </button>
+          <p className="text-[10px] text-slate-400 mt-3">{es ? 'Cancela cuando quieras · Sin permanencia' : 'Cancel anytime · No lock-in'}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[110] flex items-start justify-center overflow-y-auto">

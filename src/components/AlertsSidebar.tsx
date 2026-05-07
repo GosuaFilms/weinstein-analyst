@@ -13,11 +13,14 @@ interface Props {
   onCheckAll: () => void;
   isChecking: boolean;
   checkResult?: { checked: number; triggered: number; skipped?: boolean } | null;
+  isPro?: boolean;
+  maxAlerts?: number;
+  onUpgrade?: () => void;
 }
 
 const NEEDS_LEVEL = new Set([AlertCondition.RESISTANCE_BREAKOUT, AlertCondition.SUPPORT_BREAKDOWN]);
 
-const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, onDeleteAlert, onCheckAll, isChecking, checkResult }) => {
+const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, onDeleteAlert, onCheckAll, isChecking, checkResult, isPro = false, maxAlerts = 2, onUpgrade }) => {
   const [newTicker, setNewTicker] = useState('');
   const [newCondition, setNewCondition] = useState<AlertCondition>(AlertCondition.PRICE_CROSS_SMA30_UP);
   const [newLevel, setNewLevel] = useState('');
@@ -119,46 +122,73 @@ const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, o
         </div>
 
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
-          <form onSubmit={handleSubmit} className="space-y-3">
-            <input
-              type="text"
-              placeholder="Símbolo o Empresa (ej. Tesla)"
-              className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500/50 outline-none"
-              value={newTicker}
-              onChange={(e) => setNewTicker(e.target.value)}
-            />
-            <select
-              className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-sm outline-none"
-              value={newCondition}
-              onChange={(e) => { setNewCondition(e.target.value as AlertCondition); setNewLevel(''); }}
-            >
-              {Object.values(AlertCondition).map((cond) => (
-                <option key={cond} value={cond}>{ALERT_CONDITION_LABELS[cond]}</option>
-              ))}
-            </select>
-            {NEEDS_LEVEL.has(newCondition) && (
-              <input
-                type="number"
-                step="0.01"
-                placeholder={newCondition === AlertCondition.RESISTANCE_BREAKOUT ? 'Nivel de resistencia (precio)' : 'Nivel de soporte (precio)'}
-                className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500/50 outline-none"
-                value={newLevel}
-                onChange={(e) => setNewLevel(e.target.value)}
-              />
-            )}
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-bold rounded-lg text-sm transition-all shadow-md disabled:opacity-50"
-            >
-              {submitting ? 'Añadiendo…' : 'Añadir Alerta'}
-            </button>
-            {error && (
-              <p className="text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded px-2 py-1">
-                {error}
+          {/* Plan limit reached — show paywall */}
+          {!isPro && alerts.length >= maxAlerts ? (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-4 text-center">
+              <div className="w-9 h-9 bg-amber-500/20 rounded-xl flex items-center justify-center mx-auto mb-2">
+                <i className="fas fa-lock text-amber-500"></i>
+              </div>
+              <p className="text-xs font-black text-slate-800 dark:text-white mb-0.5">Límite de plan gratuito</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
+                Tienes {maxAlerts} de {maxAlerts} alertas activas. Pro permite hasta 20.
               </p>
-            )}
-          </form>
+              <button
+                onClick={onUpgrade}
+                className="w-full py-2 bg-amber-500 hover:bg-amber-400 text-slate-900 font-black rounded-lg text-xs transition-all shadow-md shadow-amber-500/20 flex items-center justify-center gap-2"
+              >
+                <i className="fas fa-crown"></i> Actualizar a Pro
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-3">
+              {!isPro && (
+                <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 rounded-lg px-2.5 py-1.5">
+                  <span>Alertas activas</span>
+                  <span className={`font-black ${alerts.length >= maxAlerts ? 'text-rose-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                    {alerts.length} / {maxAlerts}
+                  </span>
+                </div>
+              )}
+              <input
+                type="text"
+                placeholder="Símbolo o Empresa (ej. Tesla)"
+                className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500/50 outline-none"
+                value={newTicker}
+                onChange={(e) => setNewTicker(e.target.value)}
+              />
+              <select
+                className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-sm outline-none"
+                value={newCondition}
+                onChange={(e) => { setNewCondition(e.target.value as AlertCondition); setNewLevel(''); }}
+              >
+                {Object.values(AlertCondition).map((cond) => (
+                  <option key={cond} value={cond}>{ALERT_CONDITION_LABELS[cond]}</option>
+                ))}
+              </select>
+              {NEEDS_LEVEL.has(newCondition) && (
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder={newCondition === AlertCondition.RESISTANCE_BREAKOUT ? 'Nivel de resistencia (precio)' : 'Nivel de soporte (precio)'}
+                  className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-500/50 outline-none"
+                  value={newLevel}
+                  onChange={(e) => setNewLevel(e.target.value)}
+                />
+              )}
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-bold rounded-lg text-sm transition-all shadow-md disabled:opacity-50"
+              >
+                {submitting ? 'Añadiendo…' : 'Añadir Alerta'}
+              </button>
+              {error && (
+                <p className="text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded px-2 py-1">
+                  {error}
+                </p>
+              )}
+            </form>
+          )}
         </div>
 
         <div className="flex-grow overflow-y-auto p-4 space-y-3">
@@ -271,7 +301,7 @@ const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, o
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1">
               <i className="fas fa-bell text-[9px]"></i> Canales de notificación
             </p>
-            <TelegramConnect />
+            <TelegramConnect isPro={isPro} onUpgrade={onUpgrade} />
           </div>
         </div>
       </div>

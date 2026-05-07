@@ -340,13 +340,13 @@ const App: React.FC = () => {
             >
               <i className="fas fa-trophy text-sm" />
             </a>
-            <a
-              href="/precios"
+            <button
+              onClick={() => setIsPricingOpen(true)}
               title="Planes y precios"
               className="hidden sm:flex w-10 h-10 rounded-full bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 border border-amber-200 dark:border-amber-500/30 items-center justify-center text-amber-600 dark:text-amber-400"
             >
               <i className="fas fa-crown text-sm" />
-            </a>
+            </button>
 
             <button onClick={() => setIsHelpOpen(true)} aria-label="Manual de uso" className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center text-blue-500 dark:text-blue-400 font-black text-sm">
               ?

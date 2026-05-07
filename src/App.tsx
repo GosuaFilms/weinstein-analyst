@@ -49,9 +49,9 @@ const MAX_IMAGES = 3;
 const Tip: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
   <div className="relative group/tip">
     {children}
-    <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xl opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150 z-[200]">
+    <span className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-2.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-xl opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150 z-[200]">
       {label}
-      <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900 dark:border-t-white" />
+      <span className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-900 dark:border-b-slate-100" />
     </span>
   </div>
 );

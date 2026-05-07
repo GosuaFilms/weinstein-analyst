@@ -21,6 +21,7 @@ import OnboardingModal from './components/OnboardingModal';
 import HelpPanel from './components/HelpPanel';
 import LandingPage from './components/LandingPage';
 import TrackRecordPage from './components/TrackRecordPage';
+import PricingPage from './components/PricingPage';
 import { useAuth } from './contexts/AuthContext';
 import { supabase } from './lib/supabase';
 import { uploadAnalysisImage } from './lib/imageStorage';
@@ -241,9 +242,12 @@ const App: React.FC = () => {
 
   const userInitials = user ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '';
 
-  // Public route: /resultados — visible without auth
+  // Public routes — visible without auth
   if (window.location.pathname === '/resultados') {
     return <TrackRecordPage />;
+  }
+  if (window.location.pathname === '/precios') {
+    return <PricingPage onGetStarted={() => setIsAuthOpen(true)} />;
   }
 
   // Show landing page for non-authenticated visitors
@@ -335,6 +339,13 @@ const App: React.FC = () => {
               className="hidden sm:flex w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/30 items-center justify-center text-emerald-600 dark:text-emerald-400"
             >
               <i className="fas fa-trophy text-sm" />
+            </a>
+            <a
+              href="/precios"
+              title="Planes y precios"
+              className="hidden sm:flex w-10 h-10 rounded-full bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 border border-amber-200 dark:border-amber-500/30 items-center justify-center text-amber-600 dark:text-amber-400"
+            >
+              <i className="fas fa-crown text-sm" />
             </a>
 
             <button onClick={() => setIsHelpOpen(true)} aria-label="Manual de uso" className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center text-blue-500 dark:text-blue-400 font-black text-sm">

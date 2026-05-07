@@ -21,7 +21,10 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
   const [copied, setCopied] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const [showShareMenu, setShowShareMenu] = useState(false);
+  const [isGeneratingCard, setIsGeneratingCard] = useState(false);
   const displayRef = useRef<HTMLDivElement>(null);
+  const shareCardRef = useRef<HTMLDivElement>(null);
   const { articles: news, loading: newsLoading } = useTickerNews(ticker, language === Language.ES ? 'es' : 'en');
   const { data: backtest, loading: backtestLoading } = useBacktest(ticker);
   const { isPro } = usePlan();
@@ -50,23 +53,59 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
     return 'text-blue-600 dark:text-blue-400 bg-blue-500/10 border-blue-500/20';
   };
 
-  const handleShare = async () => {
-    const summary = `📊 Weinstein ${ticker || ''}\n📍 ${data.stage}\n📈 ${data.verdict}\n🛡️ ${data.support}\n🚀 ${data.resistance}`;
-    const encodedData = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-    const shareUrl = `${window.location.origin}${window.location.pathname}#analysis=${encodedData}`;
+  const siteUrl = 'https://www.alphastage.finance';
 
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: `Analysis: ${ticker || data.companyName}`,
-          text: summary,
-          url: shareUrl,
-        });
-      } catch (err) {}
-    } else {
-      await navigator.clipboard.writeText(`${summary}\n\n${shareUrl}`);
+  const getShareText = () => {
+    const sym = ticker ? `$${ticker.toUpperCase()} ` : '';
+    const verdictEmoji = data.verdictType === 'BUY' ? '🟢' : data.verdictType === 'SELL' ? '🔴' : '🟡';
+    return `📊 ${sym}analizado con el método Weinstein\n📍 ${data.stage}\n${verdictEmoji} Veredicto: ${data.verdict}\n\nAnaliza cualquier activo gratis 👇\n${siteUrl}\n\n#Weinstein #Bolsa #Inversión`;
+  };
+
+  const shareVia = async (network: 'twitter' | 'linkedin' | 'whatsapp' | 'copy') => {
+    setShowShareMenu(false);
+    const text = getShareText();
+    const encodedText = encodeURIComponent(text);
+    const encodedUrl = encodeURIComponent(siteUrl);
+
+    const urls: Record<string, string> = {
+      twitter: `https://twitter.com/intent/tweet?text=${encodedText}`,
+      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}&summary=${encodedText}`,
+      whatsapp: `https://wa.me/?text=${encodedText}`,
+    };
+
+    if (network === 'copy') {
+      await navigator.clipboard.writeText(`${text}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    } else {
+      window.open(urls[network], '_blank', 'noopener,noreferrer,width=600,height=500');
+    }
+  };
+
+  const generateShareCard = async () => {
+    if (!shareCardRef.current) return;
+    setShowShareMenu(false);
+    setIsGeneratingCard(true);
+    try {
+      const { default: html2canvas } = await import('html2canvas');
+      // Make visible temporarily for capture
+      shareCardRef.current.style.left = '0';
+      await new Promise(r => setTimeout(r, 100));
+      const canvas = await html2canvas(shareCardRef.current, {
+        backgroundColor: '#080e1a',
+        scale: 2,
+        logging: false,
+        useCORS: true,
+      });
+      shareCardRef.current.style.left = '-9999px';
+      const link = document.createElement('a');
+      link.download = `alphastage-${ticker || 'analysis'}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsGeneratingCard(false);
     }
   };
 
@@ -243,13 +282,76 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
               </div>
 
               <div className="flex items-center gap-3" data-html2canvas-ignore="true">
-                <button
-                  onClick={handleShare}
-                  className="w-12 h-12 flex items-center justify-center bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-xl transition-all border border-slate-200 dark:border-slate-700 shadow-lg"
-                  title="Compartir"
-                >
-                  <i className={`fas ${copied ? 'fa-check text-emerald-500' : 'fa-share-nodes'} text-lg`}></i>
-                </button>
+                {/* Share button + dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => { setShowShareMenu(v => !v); setShowDownloadMenu(false); }}
+                    className="w-12 h-12 flex items-center justify-center bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-xl transition-all border border-slate-200 dark:border-slate-700 shadow-lg"
+                    title="Compartir"
+                  >
+                    <i className={`fas ${copied ? 'fa-check text-emerald-500' : 'fa-share-nodes'} text-lg`}></i>
+                  </button>
+
+                  {showShareMenu && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowShareMenu(false)} />
+                      <div className="absolute right-0 mt-3 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-20 py-2 animate-in fade-in slide-in-from-top-2">
+                        <p className="px-5 pt-2 pb-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Compartir análisis</p>
+
+                        {/* Twitter/X */}
+                        <button onClick={() => shareVia('twitter')}
+                          className="w-full text-left px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-4 transition-colors">
+                          <div className="w-8 h-8 rounded-lg bg-black flex items-center justify-center shrink-0">
+                            <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.253 5.622 5.91-5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                          </div>
+                          <span className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">Twitter / X</span>
+                        </button>
+
+                        {/* LinkedIn */}
+                        <button onClick={() => shareVia('linkedin')}
+                          className="w-full text-left px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-4 transition-colors">
+                          <div className="w-8 h-8 rounded-lg bg-[#0A66C2] flex items-center justify-center shrink-0">
+                            <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                          </div>
+                          <span className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">LinkedIn</span>
+                        </button>
+
+                        {/* WhatsApp */}
+                        <button onClick={() => shareVia('whatsapp')}
+                          className="w-full text-left px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-4 transition-colors">
+                          <div className="w-8 h-8 rounded-lg bg-[#25D366] flex items-center justify-center shrink-0">
+                            <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                          </div>
+                          <span className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">WhatsApp</span>
+                        </button>
+
+                        <div className="my-2 border-t border-slate-100 dark:border-slate-700" />
+
+                        {/* Share card image */}
+                        <button onClick={generateShareCard} disabled={isGeneratingCard}
+                          className="w-full text-left px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-4 transition-colors disabled:opacity-50">
+                          <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center shrink-0">
+                            <i className="fas fa-image text-violet-400 text-sm"></i>
+                          </div>
+                          <span className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">
+                            {isGeneratingCard ? 'Generando…' : 'Descargar tarjeta'}
+                          </span>
+                        </button>
+
+                        {/* Copy link */}
+                        <button onClick={() => shareVia('copy')}
+                          className="w-full text-left px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-4 transition-colors">
+                          <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center shrink-0">
+                            <i className={`fas ${copied ? 'fa-check text-emerald-500' : 'fa-link text-slate-500'} text-sm`}></i>
+                          </div>
+                          <span className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">
+                            {copied ? '¡Copiado!' : 'Copiar texto'}
+                          </span>
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
 
                 <div className="relative">
                   <button
@@ -663,6 +765,97 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
 
       <div className="text-center text-[9px] text-slate-400 dark:text-slate-500 max-w-xs mx-auto italic font-black uppercase tracking-[0.2em] opacity-40 mt-8">
         {labels.disclaimer}
+      </div>
+
+      {/* ── Hidden share card (captured with html2canvas) ── */}
+      <div
+        ref={shareCardRef}
+        style={{
+          position: 'fixed',
+          left: '-9999px',
+          top: '20px',
+          width: '600px',
+          height: '315px',
+          background: 'linear-gradient(135deg, #080e1a 0%, #0f1d35 100%)',
+          borderRadius: '16px',
+          overflow: 'hidden',
+          fontFamily: 'Arial Black, Arial, sans-serif',
+          zIndex: 9999,
+        }}
+      >
+        {/* Top accent line */}
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: 'linear-gradient(90deg, #f59e0b, #fbbf24)' }} />
+
+        {/* Glow blobs */}
+        <div style={{ position: 'absolute', top: '-60px', left: '-60px', width: '200px', height: '200px', borderRadius: '50%', background: '#f59e0b', opacity: 0.05, filter: 'blur(40px)' }} />
+        <div style={{ position: 'absolute', bottom: '-40px', right: '-40px', width: '160px', height: '160px', borderRadius: '50%', background: data.verdictType === 'BUY' ? '#10b981' : data.verdictType === 'SELL' ? '#ef4444' : '#f59e0b', opacity: 0.08, filter: 'blur(40px)' }} />
+
+        <div style={{ padding: '28px 32px', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          {/* Header row */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>⚡</div>
+              <div>
+                <div style={{ color: '#ffffff', fontSize: '13px', fontWeight: 900, letterSpacing: '1px' }}>ALPHA STAGE</div>
+                <div style={{ color: '#f59e0b', fontSize: '9px', fontWeight: 700, letterSpacing: '3px' }}>WEINSTEIN TERMINAL</div>
+              </div>
+            </div>
+            <div style={{ padding: '6px 14px', borderRadius: '20px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', fontSize: '10px', fontWeight: 700, letterSpacing: '2px' }}>
+              MÉTODO WEINSTEIN
+            </div>
+          </div>
+
+          {/* Main content */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+            {/* Left: ticker + stage */}
+            <div style={{ flex: 1 }}>
+              <div style={{ color: '#f59e0b', fontSize: '40px', fontWeight: 900, letterSpacing: '-1px', lineHeight: 1 }}>
+                {ticker ? `$${ticker.toUpperCase()}` : data.companyName || 'Análisis'}
+              </div>
+              {ticker && data.companyName && (
+                <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 700, marginTop: '4px' }}>{data.companyName}</div>
+              )}
+              <div style={{ marginTop: '12px', display: 'inline-block', padding: '5px 14px', borderRadius: '20px', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399', fontSize: '11px', fontWeight: 900, letterSpacing: '2px' }}>
+                {data.stage || 'Stage Analysis'}
+              </div>
+            </div>
+
+            {/* Right: verdict */}
+            <div style={{
+              padding: '18px 28px',
+              borderRadius: '16px',
+              background: data.verdictType === 'BUY' ? 'rgba(16,185,129,0.2)' : data.verdictType === 'SELL' ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)',
+              border: `1px solid ${data.verdictType === 'BUY' ? 'rgba(16,185,129,0.4)' : data.verdictType === 'SELL' ? 'rgba(239,68,68,0.4)' : 'rgba(245,158,11,0.4)'}`,
+              textAlign: 'center',
+              minWidth: '160px',
+            }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: '#64748b', marginBottom: '6px' }}>VEREDICTO</div>
+              <div style={{
+                fontSize: '22px',
+                fontWeight: 900,
+                letterSpacing: '-0.5px',
+                color: data.verdictType === 'BUY' ? '#34d399' : data.verdictType === 'SELL' ? '#f87171' : '#fbbf24',
+              }}>
+                {data.verdict || '—'}
+              </div>
+              {data.stopLoss && (
+                <div style={{ fontSize: '10px', color: '#64748b', marginTop: '6px', fontWeight: 700 }}>
+                  Stop {data.stopLoss}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ color: '#334155', fontSize: '10px', fontWeight: 700, letterSpacing: '1px' }}>
+              Análisis generado con IA · Sólo educativo
+            </div>
+            <div style={{ color: '#f59e0b', fontSize: '12px', fontWeight: 900, letterSpacing: '1px' }}>
+              alphastage.finance
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -137,7 +137,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted }) => {
               Empezar gratis ahora
             </button>
             <button
-              onClick={onGetStarted}
+              onClick={() => document.getElementById('demo-preview')?.scrollIntoView({ behavior: 'smooth' })}
               className="w-full sm:w-auto px-10 py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold text-lg rounded-2xl transition-all flex items-center justify-center gap-3"
             >
               <i className="fas fa-play text-amber-400 text-sm"></i>
@@ -162,7 +162,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted }) => {
       </section>
 
       {/* ── App preview mockup ── */}
-      <section className="px-6 pb-24">
+      <section id="demo-preview" className="px-6 pb-24">
         <div className="max-w-5xl mx-auto">
           <div className="relative rounded-2xl overflow-hidden border border-slate-700/50 shadow-2xl shadow-black/50">
             {/* Fake browser bar */}

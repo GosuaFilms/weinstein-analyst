@@ -147,7 +147,7 @@ export const PricingModal: React.FC<Props> = ({ language = Language.ES, onClose 
               className={`px-5 py-2 rounded-full text-sm font-bold transition-all relative ${billing === 'yearly' ? 'bg-white text-violet-600 shadow-lg' : 'bg-white/20 text-white hover:bg-white/30'}`}
             >
               {es ? 'Anual' : 'Annual'}
-              <span className="absolute -top-2 -right-1 bg-yellow-400 text-yellow-900 text-[8px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full">
+              <span className="pointer-events-none absolute -top-2 -right-1 bg-yellow-400 text-yellow-900 text-[8px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full">
                 −17%
               </span>
             </button>

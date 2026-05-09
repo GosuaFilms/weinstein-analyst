@@ -1,25 +1,25 @@
 // POST /functions/v1/generate-report
 // Body: { ticker: string }
-// Returns: { html: string } or { error: 'no_fundamentals' } if real data unavailable.
+// Returns: { html: string, ticker, name } or { error: string }
 //
-// Data sources (all real, current):
-//   - TwelveData  → live price, 52W range, exchange
-//   - FMP         → company profile, quarterly income statement, analyst estimates
-//   - Claude      → HTML layout + narrative (fed real numbers, NOT its training data)
+// Strategy: Claude (tool use) + Tavily web search → real, current data from the web
+//           TwelveData → reliable real-time price overlay
 //
-// If FMP has no fundamental data for the ticker → returns error, report NOT generated.
+// Claude searches for: latest earnings, analyst estimates, ATH, competitive position.
+// No FMP dependency. Works for US and international stocks.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
 
-const TD_BASE  = 'https://api.twelvedata.com';
-const FMP_BASE = 'https://financialmodelingprep.com/stable';  // new API (post Aug 2025)
-const ANT_API  = 'https://api.anthropic.com/v1/messages';
-const MODEL     = 'claude-sonnet-4-6';
-const MAX_TOKENS = 10000;
+const TD_BASE    = 'https://api.twelvedata.com';
+const ANT_API    = 'https://api.anthropic.com/v1/messages';
+const TAVILY_API = 'https://api.tavily.com/search';
+const MODEL      = 'claude-sonnet-4-6';
+const MAX_TOKENS = 14000;
+const MAX_ITER   = 10; // max tool-use iterations
 
 // ── TwelveData: live price + 52W range ───────────────────────────────────────
-async function fetchQuote(ticker: string, tdKey: string) {
+async function fetchLivePrice(ticker: string, tdKey: string) {
   try {
     const [priceRes, quoteRes] = await Promise.all([
       fetch(`${TD_BASE}/price?symbol=${encodeURIComponent(ticker)}&apikey=${tdKey}`),
@@ -44,284 +44,203 @@ async function fetchQuote(ticker: string, tdKey: string) {
   } catch { return null; }
 }
 
-// ── FMP: resolve ticker to correct symbol (handles ACS → ACS.MC, etc.) ───────
-const PREFERRED_EXCHANGES = ['NASDAQ','NYSE','AMEX','BME','XETRA','LSE','EURONEXT','TSX','ASX','AMS','PAR','ETR','STO','HEL','CPH','OSL','IST'];
-const SKIP_EXCHANGES = ['OTC','CRYPTO','MUTUAL_FUND','ETF','INDEX','PNK','GREY'];
-
-async function resolveSymbol(ticker: string, fmpKey: string): Promise<string> {
-  // Try exact match first (works for US tickers and already-suffixed ones like ACS.MC)
-  const profileRes = await fetch(`${FMP_BASE}/profile?symbol=${encodeURIComponent(ticker)}&apikey=${fmpKey}`);
-  const profileData = await profileRes.json().catch(() => []);
-  if (Array.isArray(profileData) && profileData.length > 0 && profileData[0]?.companyName) {
-    return ticker; // exact match found
-  }
-
-  // Search for alternatives
-  const searchRes = await fetch(`${FMP_BASE}/search-symbol?query=${encodeURIComponent(ticker)}&apikey=${fmpKey}`);
-  const results = await searchRes.json().catch(() => []);
-  if (!Array.isArray(results) || results.length === 0) return ticker;
-
-  // Filter: exact ticker match (case-insensitive, ignoring suffix) or starts with ticker
-  const tickerUpper = ticker.toUpperCase();
-  const candidates = results.filter((r: { symbol: string; exchange: string; name: string }) => {
-    const sym = r.symbol.toUpperCase();
-    const baseSymbol = sym.split('.')[0];
-    if (SKIP_EXCHANGES.includes(r.exchange?.toUpperCase())) return false;
-    return baseSymbol === tickerUpper;
-  });
-
-  if (candidates.length === 0) return ticker;
-
-  // Sort by exchange preference
-  candidates.sort((a: { symbol: string; exchange: string }, b: { symbol: string; exchange: string }) => {
-    const aIdx = PREFERRED_EXCHANGES.indexOf(a.exchange?.toUpperCase() ?? '');
-    const bIdx = PREFERRED_EXCHANGES.indexOf(b.exchange?.toUpperCase() ?? '');
-    const aScore = aIdx === -1 ? 999 : aIdx;
-    const bScore = bIdx === -1 ? 999 : bIdx;
-    return aScore - bScore;
-  });
-
-  const resolved = candidates[0].symbol;
-  console.log(`[generate-report] Resolved ${ticker} → ${resolved} (${candidates[0].exchange})`);
-  return resolved;
-}
-
-// ── FMP: real fundamentals ────────────────────────────────────────────────────
-interface FmpFundamentals {
-  name: string;
-  description: string;
-  sector: string;
-  industry: string;
-  country: string;
-  exchange: string;
-  currency: string;
-  mktCap: string;
-  // Last 4 quarters income
-  quarters: Array<{
-    date: string;
-    revenue: number;
-    revenueYoY: string;
-    netIncome: number;
-    eps: number;
-    epsYoY: string;
-    grossMargin: string;
-  }>;
-  // Analyst estimates (next 2 quarters)
-  estimates: Array<{
-    date: string;
-    revenueEst: number;
-    epsEst: number;
-  }>;
-  // Key metrics
-  peRatio: string;
-  forwardPE: string;
-  priceToSales: string;
-  debtToEquity: string;
-}
-
-async function fetchFundamentals(ticker: string, fmpKey: string): Promise<FmpFundamentals | null> {
+// ── Tavily search ─────────────────────────────────────────────────────────────
+async function tavilySearch(query: string, apiKey: string): Promise<string> {
   try {
-    // New stable API (post Aug 2025) — parallel requests
-    const [profileRes, incomeRes, ratiosRes] = await Promise.all([
-      fetch(`${FMP_BASE}/profile?symbol=${encodeURIComponent(ticker)}&apikey=${fmpKey}`),
-      fetch(`${FMP_BASE}/income-statement?symbol=${encodeURIComponent(ticker)}&period=quarter&limit=5&apikey=${fmpKey}`),
-      fetch(`${FMP_BASE}/ratios-ttm?symbol=${encodeURIComponent(ticker)}&apikey=${fmpKey}`),
-    ]);
+    const res = await fetch(TAVILY_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key:        apiKey,
+        query,
+        search_depth:   'advanced',
+        include_answer: true,
+        max_results:    5,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) return `Search failed: ${data.message ?? res.status}`;
 
-    const [profileData, incomeData, ratiosData] = await Promise.all([
-      profileRes.json(), incomeRes.json(), ratiosRes.json(),
-    ]);
-
-    // Profile must exist and have real data
-    if (!Array.isArray(profileData) || profileData.length === 0 || !profileData[0]?.companyName) {
-      return null;
+    let out = '';
+    if (data.answer) out += `Respuesta directa: ${data.answer}\n\n`;
+    if (data.results?.length) {
+      out += data.results.slice(0, 5)
+        .map((r: { title: string; url: string; content: string }) =>
+          `Fuente: ${r.title}\nURL: ${r.url}\n${(r.content ?? '').slice(0, 600)}`)
+        .join('\n\n---\n\n');
     }
-    const p = profileData[0];
-
-    // Income statements — not available for non-US stocks on free plan (graceful fallback)
-    const hasIncome = Array.isArray(incomeData) && incomeData.length >= 1;
-
-    // Build quarters (up to 4, with YoY vs same quarter prior year when available)
-    const quarters = hasIncome ? incomeData.slice(0, 4).map((q: Record<string, number | string>, i: number) => {
-      const prevYear = incomeData[i + 4]; // same quarter 1 year ago (may not exist in free plan)
-      const revYoY = prevYear && prevYear.revenue
-        ? (((q.revenue as number) - (prevYear.revenue as number)) / Math.abs(prevYear.revenue as number) * 100).toFixed(1) + '%'
-        : '—';
-      const epsYoY = prevYear && prevYear.eps != null
-        ? (((q.eps as number) - (prevYear.eps as number)) / Math.abs(prevYear.eps as number) * 100).toFixed(1) + '%'
-        : '—';
-      const grossMargin = q.revenue && q.grossProfit
-        ? (((q.grossProfit as number) / (q.revenue as number)) * 100).toFixed(1) + '%'
-        : '—';
-      return {
-        date:        q.date as string,
-        revenue:     q.revenue as number,
-        revenueYoY:  revYoY,
-        netIncome:   q.netIncome as number,
-        eps:         q.eps as number,
-        epsYoY,
-        grossMargin,
-      };
-    }) : [];
-
-    // Ratios TTM (available on free plan as single object)
-    const ratios = Array.isArray(ratiosData) ? ratiosData[0] : ratiosData;
-
-    // Format market cap from profile
-    const mc = p.marketCap ?? p.mktCap ?? 0;
-    const currency = p.currency ?? 'USD';
-    const currSymbol = currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$';
-    const mktCap = mc > 1e12 ? `${currSymbol}${(mc / 1e12).toFixed(2)}T`
-                : mc > 1e9  ? `${currSymbol}${(mc / 1e9).toFixed(1)}B`
-                : mc > 1e6  ? `${currSymbol}${(mc / 1e6).toFixed(0)}M`
-                : `${currSymbol}${mc}`;
-
-    return {
-      name:         p.companyName,
-      description:  p.description ?? '',
-      sector:       p.sector ?? '',
-      industry:     p.industry ?? '',
-      country:      p.country ?? '',
-      exchange:     p.exchangeShortName ?? p.exchange ?? '',
-      currency,
-      mktCap,
-      quarters,
-      estimates:    [], // analyst-estimates quarterly not available on free plan
-      peRatio:      p.pe != null ? Number(p.pe).toFixed(1) : (ratios?.peRatioTTM != null ? Number(ratios.peRatioTTM).toFixed(1) : '—'),
-      forwardPE:    '—',
-      priceToSales: ratios?.priceToSalesRatioTTM != null ? Number(ratios.priceToSalesRatioTTM).toFixed(2) : '—',
-      debtToEquity: ratios?.debtEquityRatioTTM != null ? Number(ratios.debtEquityRatioTTM).toFixed(2) : '—',
-    };
+    return out.trim() || 'Sin resultados.';
   } catch (e) {
-    console.error('[generate-report] FMP error:', e);
-    return null;
+    return `Error en búsqueda: ${(e as Error).message}`;
   }
 }
 
-// ── Format number helpers ─────────────────────────────────────────────────────
-function fmtM(n: number): string {
-  if (!n) return '—';
-  if (Math.abs(n) >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
-  if (Math.abs(n) >= 1e9)  return `$${(n / 1e9).toFixed(2)}B`;
-  if (Math.abs(n) >= 1e6)  return `$${(n / 1e6).toFixed(1)}M`;
-  return `$${n.toFixed(0)}`;
-}
-
-function yoyColor(val: string): string {
-  if (val === '—') return '#64748b';
-  return val.startsWith('-') ? '#ef4444' : '#10b981';
-}
-
-// ── Build prompt with real data ───────────────────────────────────────────────
-function buildPrompt(
-  ticker: string,
-  quote: Awaited<ReturnType<typeof fetchQuote>>,
-  fund: FmpFundamentals,
-) {
+// ── Build initial prompt ──────────────────────────────────────────────────────
+function buildInitialPrompt(ticker: string, quote: ReturnType<typeof fetchLivePrice> extends Promise<infer T> ? T : never) {
   const today = new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
-  const exchange = fund.exchange || quote?.exchange || 'NASDAQ';
+  const priceContext = quote
+    ? `Precio actual (TwelveData, ${quote.priceLabel}): ${quote.price} ${quote.currency} | Cambio día: ${quote.changePct}% | Máx 52W: ${quote.high52} | Mín 52W: ${quote.low52} | Exchange: ${quote.exchange}`
+    : 'Precio: buscar en web';
 
-  // Quarters table text
-  const hasQuarters = fund.quarters.length > 0;
-  const quartersText = hasQuarters
-    ? fund.quarters.map(q =>
-        `  ${q.date}: Ingresos ${fmtM(q.revenue)} (${q.revenueYoY} YoY) | EPS ${q.eps?.toFixed(2) ?? '—'} (${q.epsYoY} YoY) | Margen bruto ${q.grossMargin}`
-      ).join('\n')
-    : '  Datos trimestrales detallados no disponibles para este mercado en el plan actual.';
+  return `Actúa como analista bursátil experto. Genera un informe HTML completo para el ticker **${ticker}**.
 
-  const estimatesText = fund.estimates.length > 0
-    ? fund.estimates.map(e =>
-        `  ${e.date}: Ingresos est. ${fmtM(e.revenueEst)} | EPS est. ${e.epsEst?.toFixed(2) ?? '—'}`
-      ).join('\n')
-    : '  Sin estimaciones disponibles';
+DATOS DE PRECIO YA DISPONIBLES (TwelveData — ${today}):
+${priceContext}
 
-  const priceBlock = quote
-    ? `COTIZACIÓN (TwelveData — ${quote.priceLabel}):
-- Precio: ${quote.price} ${quote.currency}
-- Cambio día: ${quote.changePct}%
-- Máx 52W: ${quote.high52} ${quote.currency}
-- Mín 52W: ${quote.low52} ${quote.currency}
-- Exchange: ${exchange}`
-    : `COTIZACIÓN: No disponible`;
+INSTRUCCIONES DE BÚSQUEDA:
+Usa la herramienta web_search para buscar estos datos REALES y ACTUALES (mínimo 4 búsquedas):
 
-  const fundamentalsBlock = `DATOS FUNDAMENTALES REALES (Financial Modeling Prep — ${today}):
-Empresa: ${fund.name}
-Sector: ${fund.sector} · ${fund.industry}
-País: ${fund.country}
-Market Cap: ${fund.mktCap}
-PER: ${fund.peRatio} | P/S: ${fund.priceToSales} | Deuda/Equity: ${fund.debtToEquity}
-Moneda: ${fund.currency}
+1. "${ticker} earnings results latest quarter 2025 2026 revenue EPS YoY" → último trimestre reportado
+2. "${ticker} analyst estimates consensus next quarter revenue EPS 2026" → previsiones analistas
+3. "${ticker} all time high stock price close ATH history" → máximo histórico de cierre
+4. "${ticker} competitors market share sector position 2025 2026" → posición competitiva
+5. "${ticker} company business description segments 2026" → descripción actualizada (si necesitas)
 
-ÚLTIMOS 4 TRIMESTRES (datos reales):
-${quartersText}
+Hoy es: ${today}. Busca primero, luego genera el HTML.
 
-ESTIMACIONES ANALISTAS (próximos trimestres):
-${estimatesText}
+━━━ FORMATO HTML REQUERIDO (secciones A→H en este orden exacto) ━━━
 
-DESCRIPCIÓN OFICIAL:
-${fund.description.slice(0, 600)}`;
-
-  return `Eres un analista bursátil experto. Genera un informe completo en HTML autocontenido para: **${ticker} — ${fund.name}**.
-
-${priceBlock}
-
-${fundamentalsBlock}
-
-INSTRUCCIONES CRÍTICAS:
-- USA ÚNICAMENTE los datos numéricos proporcionados arriba. NO inventes cifras.
-- Para el análisis narrativo (competidores, sector, posición) usa tu conocimiento.
-- Fecha del informe: ${today}
-- Si un dato dice "—" ponlo como "n/d" en el informe.
-
-━━━ ESTRUCTURA HTML REQUERIDA (secciones A→H en este orden exacto) ━━━
-
-A) HERO superior (fondo oscuro con color corporativo):
-- Caja blanca (≈110px, border-radius 16px) con logo SVG INLINE — dibuja el logo con colores de marca (NUNCA uses URLs externas)
+A) HERO superior (fondo oscuro con color corporativo de la empresa):
+- Barra lateral izquierda (~14px) en color de acento
+- Caja blanca (≈110px, border-radius 16px) con logo SVG INLINE — dibuja el logo con colores de marca (NUNCA uses URLs externas ni Clearbit)
 - Nombre completo <h1> Georgia 44px + badge con ticker + exchange
 - Subtítulo "Análisis fundamental y técnico · ${today}"
-- Strip de 5 stat-cards: Cotización (${quote?.price ?? '—'} ${quote?.currency ?? ''}), Market Cap (${fund.mktCap}), Ingresos último trim YoY (${fund.quarters[0]?.revenueYoY ?? '—'}), EPS último trim YoY (${fund.quarters[0]?.epsYoY ?? '—'}), Distancia ATH
+- Strip de 5 stat-cards: Cotización, Market Cap, Ventas Q-último YoY, EPS Q-último YoY, Distancia ATH
 
-B) "¿A qué se dedica?" — tarjeta blanca 3-5 líneas, términos clave en color acento. Basa en la descripción oficial.
+B) "¿A qué se dedica?" — tarjeta blanca 3-5 líneas, términos clave en color acento.
 
 C) "Posición competitiva":
-- Izquierda: 4 tarjetas con borde-izquierdo 6px (sub-sector: ${fund.industry}, posición mercado, rival principal, cuota estimada)
-- Derecha: bloque oscuro "Rival principal" con nombre y bullets
+- Columna izquierda: 4 tarjetas con borde-izquierdo 6px (sub-sectores, posición #1/#2, cuota %, nota sobre competidor)
+- Columna derecha: bloque oscuro "Rival principal" con nombre, eslogan "La mayor amenaza estructural" y bullets
 
-D) "Potencial futuro del sector": 3 tarjetas con borde-top 4px. Bloque oscuro "Riesgos a vigilar"
+D) "Potencial futuro del sector": 3 tarjetas con borde-top 4px y icono unicode (▲ ● ■). Bloque oscuro "Riesgos a vigilar" en línea con riesgos separados por " · "
 
-E) "Datos fundamentales" — USA EXACTAMENTE ESTOS NÚMEROS:
-- Tarjeta grande: Market Cap ${fund.mktCap} | PER ${fund.peRatio} | P/S ${fund.priceToSales}
-- Tabla izquierda "Resultados trimestrales": ${hasQuarters ? `con los ${fund.quarters.length} trimestres reales de arriba (fecha, ingresos, EPS, margen, YoY en verde/rojo)` : `muestra un aviso "Datos trimestrales no disponibles para este mercado" con fondo gris claro y texto explicativo`}
-- Tabla derecha "Estimaciones analistas" con los datos de arriba
-- Pie de tabla: "Fuente: Financial Modeling Prep · ${today}"
+E) "Datos fundamentales":
+- Tarjeta horizontal: Market Cap grande + métricas resumen (PER, P/S, Deuda/Equity si tienes)
+- Dos tablas lado a lado:
+  · Izquierda "Q{último} {año} · Último trimestre reportado" (cabecera oscura): Ventas, YoY, EPS, YoY, Margen bruto, segmentos clave
+  · Derecha "Q{próximo} {año} · Previsión analistas (reporta {fecha})" (cabecera en acento): consenso Ventas, EPS, guidance
+- YoY en verde si positivo, rojo si negativo
+- Pie: "Fuente: búsqueda web · ${today}"
 
-F) "Análisis técnico — Distancia a máximos":
-- Calcula distancia ATH usando precio ${quote?.price ?? '—'} y máx 52W ${quote?.high52 ?? '—'}
-- Bloque oscuro izquierda: porcentaje Georgia 96px + precio actual + máx 52W
-- Tarjeta blanca derecha: lectura técnica con soportes y resistencias
+F) "Análisis técnico — Distancia a máximos históricos":
+- Bloque oscuro izquierda: % distancia ATH en Georgia 96px + precio actual + ATH cierre con fecha + máx 52W
+- Tarjeta blanca derecha: lectura técnica con soportes, resistencias, próximo catalizador
 
-G) "Gráfico de cotización" — usa EXACTAMENTE este bloque HTML sin modificarlo:
+G) "Gráfico de cotización" — usa EXACTAMENTE este HTML sin modificarlo:
 <div id="tv-container" style="position:relative;width:100%;height:560px;background:#f8fafc;border-radius:12px;overflow:hidden;">
-  <iframe id="tv-frame" src="https://s.tradingview.com/widgetembed/?symbol=${exchange}%3A${ticker}&interval=W&theme=light&style=1&locale=es&toolbarbg=F1F3F6&hideideas=1&range=24M&hidetoptoolbar=0&hidesidetoolbar=1&saveimage=0&studies=%5B%5D" style="width:100%;height:100%;border:none;" allowtransparency="true" allowfullscreen="" onerror="document.getElementById('tv-fallback').style.display='flex';this.style.display='none'"></iframe>
+  <iframe id="tv-frame" src="https://s.tradingview.com/widgetembed/?symbol=${quote?.exchange ?? 'NASDAQ'}%3A${ticker}&interval=W&theme=light&style=1&locale=es&toolbarbg=F1F3F6&hideideas=1&range=24M&hidetoptoolbar=0&hidesidetoolbar=1&saveimage=0&studies=%5B%5D" style="width:100%;height:100%;border:none;" allowtransparency="true" allowfullscreen="" onerror="document.getElementById('tv-fallback').style.display='flex';this.style.display='none'"></iframe>
   <div id="tv-fallback" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:#f8fafc;color:#64748b;font-family:system-ui">
     <div style="font-size:48px">📊</div>
-    <div style="font-weight:700;font-size:16px">Gráfico no disponible en TradingView</div>
+    <div style="font-weight:700;font-size:16px">Gráfico no disponible</div>
     <a href="https://finance.yahoo.com/quote/${ticker}/chart" target="_blank" style="margin-top:8px;padding:10px 20px;background:var(--accent);color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px">Ver en Yahoo Finance →</a>
   </div>
 </div>
 
-H) Footer: "Informe generado el ${today}" · Fuentes: Financial Modeling Prep, TwelveData, TradingView · Disclaimer legal
+H) Footer: fecha "${today}" · fuentes consultadas con URLs reales de las búsquedas · disclaimer legal
 
 ━━━ PALETA Y DISEÑO ━━━
-- Colores REALES de marca de la empresa
-- Define: --navy, --accent, --light (#F7F7F7)
-- Georgia para títulos, system-ui para cuerpo
+- Colores REALES de marca de la empresa (ej: Apple navy=#1D1D1F accent=#0071E3, NVIDIA navy=#1a1a2e accent=#76b900, Amazon navy=#232F3E accent=#FF9900)
+- Define --navy, --accent, --light (#F7F7F7)
+- Georgia para títulos, system-ui para cuerpo, 14-15px body
 - CSS en <style> en el <head>, layout responsivo
 
 ━━━ REQUISITOS TÉCNICOS ━━━
 - HTML AUTOCONTENIDO sin librerías externas salvo el iframe TradingView
-- Logo SVG inline obligatorio
+- Logo SVG inline obligatorio — NUNCA dependas de URLs externas
+- USA SOLO datos reales encontrados en las búsquedas — NO inventes cifras
+- Si un dato no lo encuentras, ponlo como "n/d" en el informe
 - DEVUELVE ÚNICAMENTE EL HTML. Sin markdown. El primer carácter debe ser < y el último >.`;
+}
+
+// ── Claude tool-use agentic loop ──────────────────────────────────────────────
+const WEB_SEARCH_TOOL = {
+  name: 'web_search',
+  description: 'Busca información actual en la web sobre empresas cotizadas: resultados trimestrales, estimaciones de analistas, precio, ATH histórico, posición competitiva y sector.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      query: {
+        type: 'string',
+        description: 'Consulta de búsqueda específica. Incluye el ticker/empresa y el dato concreto que buscas.',
+      },
+    },
+    required: ['query'],
+  },
+};
+
+async function runAgenticLoop(
+  initialPrompt: string,
+  anthropicKey: string,
+  tavilyKey: string,
+): Promise<string> {
+  type Message = { role: 'user' | 'assistant'; content: string | unknown[] };
+  const messages: Message[] = [
+    { role: 'user', content: initialPrompt },
+  ];
+
+  for (let i = 0; i < MAX_ITER; i++) {
+    const res = await fetch(ANT_API, {
+      method: 'POST',
+      headers: {
+        'x-api-key':         anthropicKey,
+        'anthropic-version': '2023-06-01',
+        'content-type':      'application/json',
+      },
+      body: JSON.stringify({
+        model:      MODEL,
+        max_tokens: MAX_TOKENS,
+        tools:      [WEB_SEARCH_TOOL],
+        messages,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Anthropic API error ${res.status}: ${err.slice(0, 200)}`);
+    }
+
+    const data = await res.json();
+    const content = data.content ?? [];
+
+    // Add assistant turn
+    messages.push({ role: 'assistant', content });
+
+    if (data.stop_reason === 'end_turn') {
+      // Extract HTML from text block
+      const textBlock = content.find((b: { type: string }) => b.type === 'text');
+      const html: string = textBlock?.text ?? '';
+      if (!html.trim().startsWith('<')) {
+        throw new Error('El modelo no generó HTML válido');
+      }
+      return html;
+    }
+
+    if (data.stop_reason === 'tool_use') {
+      // Execute all tool calls in parallel
+      const toolUseBlocks = content.filter((b: { type: string }) => b.type === 'tool_use');
+
+      const toolResults = await Promise.all(
+        toolUseBlocks.map(async (block: { id: string; name: string; input: { query: string } }) => {
+          console.log(`[generate-report] Searching: ${block.input.query}`);
+          const result = await tavilySearch(block.input.query, tavilyKey);
+          return {
+            type:        'tool_result',
+            tool_use_id: block.id,
+            content:     result,
+          };
+        })
+      );
+
+      messages.push({ role: 'user', content: toolResults });
+      continue;
+    }
+
+    // Unexpected stop reason
+    throw new Error(`Unexpected stop_reason: ${data.stop_reason}`);
+  }
+
+  throw new Error('Se alcanzó el límite de iteraciones sin generar el informe');
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
@@ -335,10 +254,11 @@ Deno.serve(async (req) => {
   const supabaseUrl  = Deno.env.get('SUPABASE_URL')!;
   const serviceKey   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
+  const tavilyKey    = Deno.env.get('TAVILY_API_KEY');
   const tdKey        = Deno.env.get('TWELVEDATA_API_KEY');
-  const fmpKey       = Deno.env.get('FMP_API_KEY');
 
   if (!anthropicKey) return jsonResponse({ error: 'ANTHROPIC_API_KEY not configured' }, 503);
+  if (!tavilyKey)    return jsonResponse({ error: 'TAVILY_API_KEY not configured' }, 503);
 
   const token = authHeader.slice(7);
   const admin = createClient(supabaseUrl, serviceKey);
@@ -348,69 +268,31 @@ Deno.serve(async (req) => {
   const { ticker } = await req.json().catch(() => ({})) as { ticker?: string };
   if (!ticker?.trim()) return jsonResponse({ error: 'ticker required' }, 400);
 
-  const rawSym = ticker.trim().toUpperCase();
+  const sym = ticker.trim().toUpperCase();
 
-  // ── Resolve ticker (e.g. ACS → ACS.MC, ITX → ITX.MC) ────────────────────
-  const sym = fmpKey ? await resolveSymbol(rawSym, fmpKey) : rawSym;
+  // ── Fetch live price (best effort, non-blocking) ──────────────────────────
+  const quote = tdKey ? await fetchLivePrice(sym, tdKey).catch(() => null) : null;
 
-  // ── Fetch all data in parallel ────────────────────────────────────────────
-  const [quote, fund] = await Promise.all([
-    tdKey  ? fetchQuote(sym, tdKey)           : Promise.resolve(null),
-    fmpKey ? fetchFundamentals(sym, fmpKey)   : Promise.resolve(null),
-  ]);
+  // ── Build prompt + run agentic loop ──────────────────────────────────────
+  try {
+    const prompt = buildInitialPrompt(sym, quote as Parameters<typeof buildInitialPrompt>[1]);
+    const html   = await runAgenticLoop(prompt, anthropicKey, tavilyKey);
 
-  // ── Block if no real fundamentals ─────────────────────────────────────────
-  if (!fund) {
-    console.log(`[generate-report] No FMP data for ${sym} — blocking report`);
-    return jsonResponse({
-      error: 'no_fundamentals',
-      message: `No hay datos fundamentales disponibles para <b>${sym}</b>.<br>El Informe Fundamental está disponible para empresas cotizadas en <b>NASDAQ, NYSE y AMEX</b>. Prueba con AAPL, NVDA, MSFT, AMZN o GOOGL.`,
-    }, 422);
+    const companyName = quote?.name ?? sym;
+    return jsonResponse({ html, ticker: sym, name: companyName });
+
+  } catch (e) {
+    const msg = (e as Error).message ?? 'Error desconocido';
+    console.error('[generate-report] Error:', msg);
+
+    // User-facing errors
+    if (msg.includes('no_fundamentals') || msg.includes('not found')) {
+      return jsonResponse({
+        error:   'no_fundamentals',
+        message: `No se encontraron datos para <b>${sym}</b>. Verifica que el ticker sea correcto.`,
+      }, 422);
+    }
+
+    return jsonResponse({ error: msg }, 500);
   }
-
-  // ── Block non-US exchanges (FMP free only covers US fully) ────────────────
-  const US_EXCHANGES = ['NASDAQ','NYSE','AMEX','NYSE ARCA','BATS','CBOE','NYSEARCA','NYSE MKT'];
-  const fundExchange = (fund.exchange ?? '').toUpperCase().replace(/\s+/g, ' ').trim();
-  const isUS = US_EXCHANGES.some(ex => fundExchange === ex || fundExchange.startsWith(ex));
-  if (!isUS) {
-    console.log(`[generate-report] Non-US exchange blocked: ${sym} (${fund.exchange})`);
-    return jsonResponse({
-      error: 'us_only',
-      message: `El Informe Fundamental solo está disponible para empresas de <b>NASDAQ, NYSE y AMEX</b>.<br><b>${fund.name}</b> cotiza en ${fund.exchange}. Próximamente ampliaremos cobertura a mercados europeos.`,
-    }, 422);
-  }
-
-  // ── Generate HTML with Claude ─────────────────────────────────────────────
-  const prompt = buildPrompt(sym, quote, fund);
-
-  const antRes = await fetch(ANT_API, {
-    method: 'POST',
-    headers: {
-      'x-api-key':         anthropicKey,
-      'anthropic-version': '2023-06-01',
-      'content-type':      'application/json',
-    },
-    body: JSON.stringify({
-      model:      MODEL,
-      max_tokens: MAX_TOKENS,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  });
-
-  if (!antRes.ok) {
-    const err = await antRes.text();
-    console.error('[generate-report] Anthropic error:', err);
-    return jsonResponse({ error: `Anthropic API error: ${antRes.status}` }, 502);
-  }
-
-  const antData = await antRes.json();
-  const htmlBlock = antData.content?.find((b: { type: string }) => b.type === 'text');
-  const html: string = htmlBlock?.text ?? '';
-
-  if (!html.trim().startsWith('<')) {
-    console.error('[generate-report] unexpected response:', html.slice(0, 200));
-    return jsonResponse({ error: 'Unexpected response format from AI' }, 502);
-  }
-
-  return jsonResponse({ html, ticker: sym, name: fund.name ?? sym });
 });

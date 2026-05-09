@@ -27,9 +27,9 @@ const LOADING_MESSAGES = [
   'Últimos retoques al informe…',
 ];
 
-const FREE_LIMIT = 2;
-const SESSION_KEY = 'report_count_session';
-const SAVED_LIMIT_FREE = 3;
+const FREE_MONTHLY_LIMIT = 1;   // 1 informe/mes en free
+const PRO_MONTHLY_LIMIT  = 15;  // 15 informes/mes en Pro
+const SAVED_LIMIT_FREE   = 3;
 
 const ReportPanel: React.FC<Props> = ({ isOpen, onClose, isPro, onUpgrade, initialTicker }) => {
   const [ticker, setTicker]           = useState(initialTicker ?? '');
@@ -40,20 +40,28 @@ const ReportPanel: React.FC<Props> = ({ isOpen, onClose, isPro, onUpgrade, initi
   const [msgIdx, setMsgIdx]           = useState(0);
   const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [monthlyCount, setMonthlyCount] = useState(0);
   const msgTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const [sessionCount, setSessionCount] = useState(() => {
-    const v = sessionStorage.getItem(SESSION_KEY);
-    return v ? parseInt(v, 10) : 0;
-  });
+  const monthlyLimit = isPro ? PRO_MONTHLY_LIMIT : FREE_MONTHLY_LIMIT;
+  const canGenerate  = monthlyCount < monthlyLimit;
 
-  const canGenerate = isPro || sessionCount < FREE_LIMIT;
-
-  // Load saved reports on open
+  // Load saved reports + monthly count on open
   useEffect(() => {
     if (!isOpen) return;
     loadSavedReports();
+    loadMonthlyCount();
   }, [isOpen]);
+
+  const loadMonthlyCount = async () => {
+    const start = new Date();
+    start.setDate(1); start.setHours(0, 0, 0, 0);
+    const { count } = await supabase
+      .from('reports')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', start.toISOString());
+    setMonthlyCount(count ?? 0);
+  };
 
   const loadSavedReports = async () => {
     const { data } = await supabase
@@ -153,14 +161,9 @@ const ReportPanel: React.FC<Props> = ({ isOpen, onClose, isPro, onUpgrade, initi
       const name = data.name ?? data.ticker ?? ticker.trim().toUpperCase();
       setReportName(name);
 
-      // Auto-save
+      // Auto-save + refresh monthly count
       await saveReport(data.ticker ?? ticker.trim().toUpperCase(), name, data.html);
-
-      if (!isPro) {
-        const next = sessionCount + 1;
-        setSessionCount(next);
-        sessionStorage.setItem(SESSION_KEY, String(next));
-      }
+      setMonthlyCount(c => c + 1);
     } catch (e) {
       setError((e as Error).message || 'Error generando el informe');
     } finally {
@@ -214,15 +217,15 @@ const ReportPanel: React.FC<Props> = ({ isOpen, onClose, isPro, onUpgrade, initi
         )}
 
         <div className="ml-auto">
-          {!isPro ? (
-            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30">
-              {sessionCount}/{FREE_LIMIT} gratis
-            </span>
-          ) : (
-            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
-              ⚡ Pro — ilimitado
-            </span>
-          )}
+          <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border ${
+            !canGenerate
+              ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-500/30'
+              : isPro
+              ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30'
+              : 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/30'
+          }`}>
+            {monthlyCount}/{monthlyLimit} este mes
+          </span>
         </div>
       </div>
 
@@ -364,14 +367,19 @@ const ReportPanel: React.FC<Props> = ({ isOpen, onClose, isPro, onUpgrade, initi
                 ))}
               </div>
 
-              {!isPro && sessionCount >= FREE_LIMIT && (
+              {!canGenerate && (
                 <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 max-w-sm w-full">
-                  <p className="text-sm font-bold text-amber-700 dark:text-amber-400 mb-3">
-                    Has usado tus {FREE_LIMIT} informes gratuitos
+                  <p className="text-sm font-bold text-amber-700 dark:text-amber-400 mb-1">
+                    {isPro ? `Has alcanzado el límite de ${PRO_MONTHLY_LIMIT} informes este mes` : 'Has usado tu informe gratuito del mes'}
                   </p>
-                  <button onClick={onUpgrade} className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-900 font-black text-sm">
-                    ⚡ Actualizar a Pro — informes ilimitados
-                  </button>
+                  <p className="text-xs text-amber-600/70 dark:text-amber-400/70 mb-3">
+                    {isPro ? 'El contador se reinicia el día 1 del próximo mes.' : `Pro incluye ${PRO_MONTHLY_LIMIT} informes/mes por €14.99.`}
+                  </p>
+                  {!isPro && (
+                    <button onClick={onUpgrade} className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-900 font-black text-sm">
+                      ⚡ Actualizar a Pro — 15 informes/mes
+                    </button>
+                  )}
                 </div>
               )}
             </div>

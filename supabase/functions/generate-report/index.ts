@@ -9,7 +9,7 @@ import { handleCors, jsonResponse } from '../_shared/cors.ts';
 
 const TD_BASE   = 'https://api.twelvedata.com';
 const ANT_API   = 'https://api.anthropic.com/v1/messages';
-const MODEL     = 'claude-opus-4-7';
+const MODEL     = 'claude-sonnet-4-6'; // Sonnet 4.6: same HTML quality as Opus, 42% cheaper
 const MAX_TOKENS = 10000;
 
 // ── Fetch live quote from TwelveData ─────────────────────────────────────────
@@ -137,7 +137,6 @@ Deno.serve(async (req) => {
     body: JSON.stringify({
       model:      MODEL,
       max_tokens: MAX_TOKENS,
-      thinking:   { type: 'adaptive' },
       messages: [
         { role: 'user', content: prompt },
       ],

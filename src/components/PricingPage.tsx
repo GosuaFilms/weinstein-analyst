@@ -56,8 +56,8 @@ const PricingPage: React.FC<Props> = ({ onGetStarted }) => {
   const [billing, setBilling] = useState<'monthly' | 'yearly'>('yearly');
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
-  const monthlyPrice = billing === 'monthly' ? '9.99' : '8.25';
-  const yearlyTotal = '99';
+  const monthlyPrice = billing === 'monthly' ? '14.99' : '10.75';
+  const yearlyTotal = '129';
 
   return (
     <div className="min-h-screen" style={{ background: 'linear-gradient(160deg, #080e1a 0%, #0b1525 60%, #080e1a 100%)' }}>

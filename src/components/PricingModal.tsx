@@ -204,7 +204,7 @@ export const PricingModal: React.FC<Props> = ({ language = Language.ES, onClose 
               <p className="text-xs font-black uppercase tracking-widest text-violet-500 mb-2">Pro</p>
               <div className="flex items-baseline gap-2">
                 <span className="text-4xl font-black text-slate-900 dark:text-white">
-                  {billing === 'monthly' ? '€9.99' : '€99'}
+                  {billing === 'monthly' ? '€14.99' : '€129'}
                 </span>
                 <span className="text-slate-400 text-sm">
                   / {billing === 'monthly' ? (es ? 'mes' : 'month') : (es ? 'año' : 'year')}
@@ -212,7 +212,7 @@ export const PricingModal: React.FC<Props> = ({ language = Language.ES, onClose 
               </div>
               {billing === 'yearly' && (
                 <p className="text-xs text-violet-500 font-bold mt-1">
-                  €8.25 / {es ? 'mes · ahorras €20.88/año' : 'month · save €20.88/year'}
+                  €10.75 / {es ? 'mes · ahorras €50.88/año' : 'month · save €50.88/year'}
                 </p>
               )}
               <p className="text-sm text-slate-500 mt-2">

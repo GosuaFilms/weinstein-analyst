@@ -120,7 +120,7 @@ const ReportPanel: React.FC<Props> = ({ isOpen, onClose, isPro, onUpgrade, initi
 
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-violet-100 dark:bg-violet-500/20 rounded-lg flex items-center justify-center">
-            <i className="fas fa-file-chart-column text-violet-600 dark:text-violet-400 text-sm" />
+            <i className="fas fa-chart-bar text-violet-600 dark:text-violet-400 text-sm" />
           </div>
           <div>
             <h2 className="text-sm font-black text-slate-900 dark:text-white leading-none">Informe Fundamental</h2>
@@ -184,30 +184,62 @@ const ReportPanel: React.FC<Props> = ({ isOpen, onClose, isPro, onUpgrade, initi
 
         {/* Empty state */}
         {!loading && !html && !error && (
-          <div className="flex flex-col items-center justify-center h-full text-center px-6">
-            <div className="w-20 h-20 rounded-3xl bg-violet-100 dark:bg-violet-500/10 flex items-center justify-center mb-6">
-              <i className="fas fa-file-chart-column text-violet-500 text-3xl" />
+          <div className="flex flex-col items-center justify-center h-full text-center px-6 bg-gradient-to-b from-violet-950/20 to-transparent dark:from-violet-950/40">
+
+            {/* Animated icon */}
+            <div className="relative mb-8">
+              <div className="absolute inset-0 rounded-3xl bg-violet-500/20 blur-2xl scale-150" />
+              <div className="relative w-24 h-24 rounded-3xl bg-gradient-to-br from-violet-600 to-violet-800 shadow-2xl shadow-violet-500/30 flex items-center justify-center">
+                <i className="fas fa-chart-bar text-white text-4xl" />
+                <div className="absolute -top-1.5 -right-1.5 w-7 h-7 rounded-full bg-amber-400 flex items-center justify-center shadow-lg">
+                  <i className="fas fa-bolt text-slate-900 text-xs" />
+                </div>
+              </div>
             </div>
-            <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-3 tracking-tight">
-              Informe fundamental completo
+
+            <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-3 tracking-tighter">
+              Informe Fundamental IA
             </h3>
-            <p className="text-slate-500 dark:text-slate-400 text-sm max-w-md mb-6 leading-relaxed">
-              Escribe un ticker y genera un informe HTML con análisis de negocio, posición competitiva,
-              datos financieros y gráfico TradingView — todo con los colores corporativos de la empresa.
+            <p className="text-slate-500 dark:text-slate-400 text-sm max-w-sm mb-8 leading-relaxed">
+              Análisis completo con colores corporativos, datos financieros, posición competitiva y gráfico TradingView — generado por Claude en segundos.
             </p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-lg w-full">
-              {['NVDA', 'AAPL', 'MSFT', 'META'].map(t => (
+
+            {/* Feature pills */}
+            <div className="flex flex-wrap justify-center gap-2 mb-8 max-w-md">
+              {[
+                { icon: 'fa-building', label: 'Negocio & sector' },
+                { icon: 'fa-trophy', label: 'Posición competitiva' },
+                { icon: 'fa-table', label: 'Datos trimestrales' },
+                { icon: 'fa-chart-line', label: 'Análisis técnico' },
+              ].map(f => (
+                <span key={f.label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-violet-100 dark:bg-violet-500/15 text-violet-700 dark:text-violet-300 text-xs font-bold border border-violet-200 dark:border-violet-500/25">
+                  <i className={`fas ${f.icon} text-[10px]`} />
+                  {f.label}
+                </span>
+              ))}
+            </div>
+
+            {/* Quick tickers */}
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Prueba con uno de estos</p>
+            <div className="grid grid-cols-4 gap-2 max-w-xs w-full mb-6">
+              {[
+                { t: 'NVDA', color: 'bg-green-500' },
+                { t: 'AAPL', color: 'bg-slate-700' },
+                { t: 'MSFT', color: 'bg-blue-600' },
+                { t: 'META', color: 'bg-blue-500' },
+              ].map(({ t, color }) => (
                 <button
                   key={t}
-                  onClick={() => { setTicker(t); }}
-                  className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-violet-100 dark:hover:bg-violet-500/20 text-slate-700 dark:text-slate-300 hover:text-violet-700 dark:hover:text-violet-300 font-black text-sm transition-all border border-slate-200 dark:border-slate-700"
+                  onClick={() => setTicker(t)}
+                  className={`py-2.5 rounded-xl ${color} hover:opacity-80 text-white font-black text-sm transition-all shadow-lg`}
                 >
                   {t}
                 </button>
               ))}
             </div>
+
             {!isPro && sessionCount >= FREE_LIMIT && (
-              <div className="mt-6 p-4 rounded-2xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 max-w-sm w-full">
+              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 max-w-sm w-full">
                 <p className="text-sm font-bold text-amber-700 dark:text-amber-400 mb-3">
                   Has usado tus {FREE_LIMIT} informes gratuitos
                 </p>
@@ -215,7 +247,7 @@ const ReportPanel: React.FC<Props> = ({ isOpen, onClose, isPro, onUpgrade, initi
                   onClick={onUpgrade}
                   className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-900 font-black text-sm transition-all"
                 >
-                  Actualizar a Pro — informes ilimitados
+                  ⚡ Actualizar a Pro — informes ilimitados
                 </button>
               </div>
             )}

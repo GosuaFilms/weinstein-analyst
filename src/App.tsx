@@ -431,7 +431,7 @@ const App: React.FC = () => {
               onClick={() => { if (!user) { setIsAuthOpen(true); return; } setIsReportOpen(true); }}
               className="px-4 py-2 rounded-lg text-sm font-bold transition-all text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700 hover:text-violet-600 dark:hover:text-violet-400 hover:shadow-sm flex items-center gap-2"
             >
-              <i className="fas fa-file-chart-column text-violet-500"></i>
+              <i className="fas fa-chart-bar text-violet-500"></i>
               <span className="hidden sm:inline">Informe</span>
             </button>
           </div>

@@ -11,6 +11,7 @@ export interface PlanLimits {
   backtestUnlocked: boolean;
   telegramUnlocked: boolean;
   dailyDigestUnlocked: boolean;
+  maxAnalysesPerMonth: number;        // 999 = unlimited
 }
 
 export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
@@ -21,6 +22,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     backtestUnlocked:       false,
     telegramUnlocked:       false,
     dailyDigestUnlocked:    false,
+    maxAnalysesPerMonth:    10,
   },
   pro: {
     maxAlerts:              20,
@@ -29,6 +31,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     backtestUnlocked:       true,
     telegramUnlocked:       true,
     dailyDigestUnlocked:    true,
+    maxAnalysesPerMonth:    999,
   },
 };
 

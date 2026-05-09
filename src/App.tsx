@@ -64,14 +64,23 @@ interface ImageFile {
 
 const App: React.FC = () => {
   const { user, signOut, loading: authLoading } = useAuth();
-  const { isPro, limits } = usePlan();
+  const { isPro, limits, plan } = usePlan();
   const [isPricingOpen, setIsPricingOpen] = useState(false);
+  const [checkoutSuccess, setCheckoutSuccess] = useState(false);
   const { history, save: saveAnalysis, remove: removeAnalysis, clear: clearHistory } = useAnalyses();
   const { alerts, add: addAlert, remove: removeAlert, reload: reloadAlerts } = useAlerts();
   const [isCheckingAlerts, setIsCheckingAlerts] = useState(false);
   const [alertCheckResult, setAlertCheckResult] = useState<{ checked: number; triggered: number; skipped?: boolean } | null>(null);
   const [isChartOpen, setIsChartOpen] = useState(false);
   const { watchlist, loading: watchlistLoading, add: addToWatchlist, remove: removeFromWatchlist, has: isInWatchlist } = useWatchlist();
+
+  // ── Monthly analysis count (fix #4) ───────────────────────────────────────
+  const monthlyAnalysisCount = React.useMemo(() => {
+    const start = new Date();
+    start.setDate(1); start.setHours(0, 0, 0, 0);
+    return history.filter(h => h.timestamp >= start.getTime()).length;
+  }, [history]);
+  const analysisLimitReached = !isPro && monthlyAnalysisCount >= limits.maxAnalysesPerMonth;
 
   const [ticker, setTicker] = useState('');
   const [tickerError, setTickerError] = useState<string | null>(null);
@@ -124,6 +133,16 @@ const App: React.FC = () => {
     else document.documentElement.classList.remove('dark');
     localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
+
+  // ── Detect post-Stripe checkout redirect (fix #5) ─────────────────────────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('checkout') === 'success') {
+      setCheckoutSuccess(true);
+      // Clean URL without reload
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   // Trigger analysis once ticker state has settled (avoids stale closure race with setTimeout)
   useEffect(() => {
@@ -182,6 +201,7 @@ const App: React.FC = () => {
   const startAnalysis = useCallback(async () => {
     if (!ticker && images.length === 0) return;
     if (!user) { setIsAuthOpen(true); return; }
+    if (analysisLimitReached) { setIsPricingOpen(true); return; }
 
     setAnalysis({ isAnalyzing: true, result: null, error: null });
     setIsSaved(false);
@@ -474,11 +494,21 @@ const App: React.FC = () => {
                     {images.length > 0 ? `${images.length}/${MAX_IMAGES}` : language === Language.ES ? 'Gráficos' : 'Charts'}
                   </button>
 
-                  <button type="submit" disabled={analysis.isAnalyzing || (!ticker && images.length === 0) || !!tickerError} className="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 text-white font-black rounded-xl flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/20">
+                  <button
+                    type="submit"
+                    disabled={analysis.isAnalyzing || (!ticker && images.length === 0) || !!tickerError}
+                    className={`px-8 py-4 font-black rounded-xl flex items-center justify-center gap-2 shadow-xl transition-all ${
+                      analysisLimitReached
+                        ? 'bg-amber-500 hover:bg-amber-400 text-slate-900 shadow-amber-500/20'
+                        : 'bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 text-white shadow-emerald-500/20'
+                    }`}
+                  >
                     {analysis.isAnalyzing ? (
                       <><i className="fas fa-circle-notch animate-spin"></i> {language === Language.ES ? 'CALCULANDO...' : 'CALCULATING...'}</>
+                    ) : analysisLimitReached ? (
+                      <><i className="fas fa-crown"></i> {language === Language.ES ? 'LÍMITE ALCANZADO · PRO' : 'LIMIT REACHED · PRO'}</>
                     ) : (
-                      <><i className="fas fa-chart-simple"></i> {language === Language.ES ? 'ANALIZAR' : 'ANALYZE'}</>
+                      <><i className="fas fa-chart-simple"></i> {language === Language.ES ? `ANALIZAR · ${monthlyAnalysisCount}/${limits.maxAnalysesPerMonth}` : `ANALYZE · ${monthlyAnalysisCount}/${limits.maxAnalysesPerMonth}`}</>
                     )}
                   </button>
                 </form>
@@ -732,6 +762,43 @@ const App: React.FC = () => {
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
       {isPricingOpen && (
         <PricingModal language={language} onClose={() => setIsPricingOpen(false)} />
+      )}
+
+      {/* ── Post-checkout success modal (fix #5) ── */}
+      {checkoutSuccess && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 p-8 max-w-sm w-full text-center animate-in zoom-in-95 duration-300">
+            <div className="w-20 h-20 rounded-full bg-amber-500 flex items-center justify-center mx-auto mb-5 shadow-xl shadow-amber-500/30">
+              <i className="fas fa-crown text-slate-900 text-3xl"></i>
+            </div>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2 tracking-tight">
+              ¡Bienvenido a Pro! 🎉
+            </h2>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mb-6 leading-relaxed">
+              Tu cuenta ya tiene acceso completo a todas las funcionalidades Pro: análisis ilimitados, screener completo, alertas, cartera IA y Telegram.
+            </p>
+            <div className="grid grid-cols-2 gap-2 mb-6 text-left">
+              {[
+                'Análisis ilimitados',
+                '20 alertas activas',
+                'Screener completo',
+                'Cartera IA',
+                'Notificaciones Telegram',
+                'Resumen diario 9:00',
+              ].map(f => (
+                <div key={f} className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
+                  <i className="fas fa-check text-amber-500 text-[10px]"></i> {f}
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => setCheckoutSuccess(false)}
+              className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-900 font-black rounded-xl transition-all shadow-lg shadow-amber-500/20"
+            >
+              Empezar a usar Pro →
+            </button>
+          </div>
+        </div>
       )}
       <UserProfileSidebar
         isOpen={isProfileOpen}

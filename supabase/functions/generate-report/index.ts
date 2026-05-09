@@ -44,6 +44,48 @@ async function fetchQuote(ticker: string, tdKey: string) {
   } catch { return null; }
 }
 
+// ── FMP: resolve ticker to correct symbol (handles ACS → ACS.MC, etc.) ───────
+const PREFERRED_EXCHANGES = ['NASDAQ','NYSE','AMEX','BME','XETRA','LSE','EURONEXT','TSX','ASX','AMS','PAR','ETR','STO','HEL','CPH','OSL','IST'];
+const SKIP_EXCHANGES = ['OTC','CRYPTO','MUTUAL_FUND','ETF','INDEX','PNK','GREY'];
+
+async function resolveSymbol(ticker: string, fmpKey: string): Promise<string> {
+  // Try exact match first (works for US tickers and already-suffixed ones like ACS.MC)
+  const profileRes = await fetch(`${FMP_BASE}/profile?symbol=${encodeURIComponent(ticker)}&apikey=${fmpKey}`);
+  const profileData = await profileRes.json().catch(() => []);
+  if (Array.isArray(profileData) && profileData.length > 0 && profileData[0]?.companyName) {
+    return ticker; // exact match found
+  }
+
+  // Search for alternatives
+  const searchRes = await fetch(`${FMP_BASE}/search-symbol?query=${encodeURIComponent(ticker)}&apikey=${fmpKey}`);
+  const results = await searchRes.json().catch(() => []);
+  if (!Array.isArray(results) || results.length === 0) return ticker;
+
+  // Filter: exact ticker match (case-insensitive, ignoring suffix) or starts with ticker
+  const tickerUpper = ticker.toUpperCase();
+  const candidates = results.filter((r: { symbol: string; exchange: string; name: string }) => {
+    const sym = r.symbol.toUpperCase();
+    const baseSymbol = sym.split('.')[0];
+    if (SKIP_EXCHANGES.includes(r.exchange?.toUpperCase())) return false;
+    return baseSymbol === tickerUpper;
+  });
+
+  if (candidates.length === 0) return ticker;
+
+  // Sort by exchange preference
+  candidates.sort((a: { symbol: string; exchange: string }, b: { symbol: string; exchange: string }) => {
+    const aIdx = PREFERRED_EXCHANGES.indexOf(a.exchange?.toUpperCase() ?? '');
+    const bIdx = PREFERRED_EXCHANGES.indexOf(b.exchange?.toUpperCase() ?? '');
+    const aScore = aIdx === -1 ? 999 : aIdx;
+    const bScore = bIdx === -1 ? 999 : bIdx;
+    return aScore - bScore;
+  });
+
+  const resolved = candidates[0].symbol;
+  console.log(`[generate-report] Resolved ${ticker} → ${resolved} (${candidates[0].exchange})`);
+  return resolved;
+}
+
 // ── FMP: real fundamentals ────────────────────────────────────────────────────
 interface FmpFundamentals {
   name: string;
@@ -96,13 +138,11 @@ async function fetchFundamentals(ticker: string, fmpKey: string): Promise<FmpFun
     }
     const p = profileData[0];
 
-    // Income statements must exist with at least 2 quarters for YoY
-    if (!Array.isArray(incomeData) || incomeData.length < 2) {
-      return null;
-    }
+    // Income statements — not available for non-US stocks on free plan (graceful fallback)
+    const hasIncome = Array.isArray(incomeData) && incomeData.length >= 1;
 
     // Build quarters (up to 4, with YoY vs same quarter prior year when available)
-    const quarters = incomeData.slice(0, 4).map((q: Record<string, number | string>, i: number) => {
+    const quarters = hasIncome ? incomeData.slice(0, 4).map((q: Record<string, number | string>, i: number) => {
       const prevYear = incomeData[i + 4]; // same quarter 1 year ago (may not exist in free plan)
       const revYoY = prevYear && prevYear.revenue
         ? (((q.revenue as number) - (prevYear.revenue as number)) / Math.abs(prevYear.revenue as number) * 100).toFixed(1) + '%'
@@ -122,7 +162,7 @@ async function fetchFundamentals(ticker: string, fmpKey: string): Promise<FmpFun
         epsYoY,
         grossMargin,
       };
-    });
+    }) : [];
 
     // Ratios TTM (available on free plan as single object)
     const ratios = Array.isArray(ratiosData) ? ratiosData[0] : ratiosData;
@@ -182,9 +222,12 @@ function buildPrompt(
   const exchange = fund.exchange || quote?.exchange || 'NASDAQ';
 
   // Quarters table text
-  const quartersText = fund.quarters.map(q =>
-    `  ${q.date}: Ingresos ${fmtM(q.revenue)} (${q.revenueYoY} YoY) | EPS ${q.eps?.toFixed(2) ?? '—'} (${q.epsYoY} YoY) | Margen bruto ${q.grossMargin}`
-  ).join('\n');
+  const hasQuarters = fund.quarters.length > 0;
+  const quartersText = hasQuarters
+    ? fund.quarters.map(q =>
+        `  ${q.date}: Ingresos ${fmtM(q.revenue)} (${q.revenueYoY} YoY) | EPS ${q.eps?.toFixed(2) ?? '—'} (${q.epsYoY} YoY) | Margen bruto ${q.grossMargin}`
+      ).join('\n')
+    : '  Datos trimestrales detallados no disponibles para este mercado en el plan actual.';
 
   const estimatesText = fund.estimates.length > 0
     ? fund.estimates.map(e =>
@@ -248,7 +291,7 @@ D) "Potencial futuro del sector": 3 tarjetas con borde-top 4px. Bloque oscuro "R
 
 E) "Datos fundamentales" — USA EXACTAMENTE ESTOS NÚMEROS:
 - Tarjeta grande: Market Cap ${fund.mktCap} | PER ${fund.peRatio} | P/S ${fund.priceToSales}
-- Tabla izquierda "Resultados trimestrales" con los 4 trimestres reales de arriba (fecha, ingresos, EPS, margen, YoY en verde/rojo)
+- Tabla izquierda "Resultados trimestrales": ${hasQuarters ? `con los ${fund.quarters.length} trimestres reales de arriba (fecha, ingresos, EPS, margen, YoY en verde/rojo)` : `muestra un aviso "Datos trimestrales no disponibles para este mercado" con fondo gris claro y texto explicativo`}
 - Tabla derecha "Estimaciones analistas" con los datos de arriba
 - Pie de tabla: "Fuente: Financial Modeling Prep · ${today}"
 
@@ -305,7 +348,10 @@ Deno.serve(async (req) => {
   const { ticker } = await req.json().catch(() => ({})) as { ticker?: string };
   if (!ticker?.trim()) return jsonResponse({ error: 'ticker required' }, 400);
 
-  const sym = ticker.trim().toUpperCase();
+  const rawSym = ticker.trim().toUpperCase();
+
+  // ── Resolve ticker (e.g. ACS → ACS.MC, ITX → ITX.MC) ────────────────────
+  const sym = fmpKey ? await resolveSymbol(rawSym, fmpKey) : rawSym;
 
   // ── Fetch all data in parallel ────────────────────────────────────────────
   const [quote, fund] = await Promise.all([
@@ -318,7 +364,19 @@ Deno.serve(async (req) => {
     console.log(`[generate-report] No FMP data for ${sym} — blocking report`);
     return jsonResponse({
       error: 'no_fundamentals',
-      message: `No hay datos fundamentales reales disponibles para <b>${sym}</b>.<br>Este servicio solo genera informes con datos verificados. Prueba con empresas del S&P 500, NASDAQ 100, DAX 40 o IBEX 35.`,
+      message: `No hay datos fundamentales disponibles para <b>${sym}</b>.<br>El Informe Fundamental está disponible para empresas cotizadas en <b>NASDAQ, NYSE y AMEX</b>. Prueba con AAPL, NVDA, MSFT, AMZN o GOOGL.`,
+    }, 422);
+  }
+
+  // ── Block non-US exchanges (FMP free only covers US fully) ────────────────
+  const US_EXCHANGES = ['NASDAQ','NYSE','AMEX','NYSE ARCA','BATS','CBOE','NYSEARCA','NYSE MKT'];
+  const fundExchange = (fund.exchange ?? '').toUpperCase().replace(/\s+/g, ' ').trim();
+  const isUS = US_EXCHANGES.some(ex => fundExchange === ex || fundExchange.startsWith(ex));
+  if (!isUS) {
+    console.log(`[generate-report] Non-US exchange blocked: ${sym} (${fund.exchange})`);
+    return jsonResponse({
+      error: 'us_only',
+      message: `El Informe Fundamental solo está disponible para empresas de <b>NASDAQ, NYSE y AMEX</b>.<br><b>${fund.name}</b> cotiza en ${fund.exchange}. Próximamente ampliaremos cobertura a mercados europeos.`,
     }, 422);
   }
 

@@ -204,7 +204,7 @@ const ReportPanel: React.FC<Props> = ({ isOpen, onClose, isPro, onUpgrade, initi
 
       const data = await res.json();
       if (!res.ok || data.error) {
-        if (data.error === 'no_fundamentals') {
+        if (data.error === 'no_fundamentals' || data.error === 'us_only') {
           throw new Error(data.message ?? 'Datos no disponibles para este ticker');
         }
         throw new Error(data.error ?? `Error ${res.status}`);
@@ -290,7 +290,7 @@ const ReportPanel: React.FC<Props> = ({ isOpen, onClose, isPro, onUpgrade, initi
             <i className="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
             <input
               type="text"
-              placeholder="Ticker o empresa… NVDA, AAPL, Tesla, Inditex"
+              placeholder="Ticker USA… NVDA, AAPL, MSFT, AMZN, TSLA"
               value={ticker}
               onChange={e => setTicker(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && generate()}
@@ -388,82 +388,49 @@ const ReportPanel: React.FC<Props> = ({ isOpen, onClose, isPro, onUpgrade, initi
                 Informe Fundamental con datos reales
               </h3>
               <p className="text-slate-500 dark:text-slate-400 text-sm max-w-md mb-6 leading-relaxed">
-                Generamos informes únicamente con datos financieros verificados y actualizados.
-                Ingresos, EPS y márgenes reales del último trimestre disponible.
+                Datos financieros reales y actualizados: ingresos, EPS y márgenes del último trimestre.
+                Generamos informes únicamente cuando tenemos datos verificados.
               </p>
 
-              {/* Supported markets */}
-              <div className="w-full max-w-2xl mb-6">
-                <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">✅ Mercados con datos reales disponibles</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {[
-                    {
-                      flag: '🇺🇸', market: 'S&P 500 · NASDAQ 100', desc: '~500 empresas USA',
-                      tickers: [
-                        { sym: 'AAPL', label: 'AAPL' }, { sym: 'NVDA', label: 'NVDA' },
-                        { sym: 'MSFT', label: 'MSFT' }, { sym: 'AMZN', label: 'AMZN' },
-                        { sym: 'META', label: 'META' }, { sym: 'GOOGL', label: 'GOOGL' },
-                        { sym: 'TSLA', label: 'TSLA' }, { sym: 'AVGO', label: 'AVGO' },
-                      ],
-                      color: 'border-blue-200 dark:border-blue-500/30 bg-blue-50/50 dark:bg-blue-500/5',
-                      badge: 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-500/20',
-                    },
-                    {
-                      flag: '🇩🇪', market: 'DAX 40', desc: '~40 empresas alemanas',
-                      tickers: [
-                        { sym: 'SAP.DE',  label: 'SAP'  }, { sym: 'SIE.DE',  label: 'SIE'  },
-                        { sym: 'ALV.DE',  label: 'ALV'  }, { sym: 'BMW.DE',  label: 'BMW'  },
-                        { sym: 'BAYN.DE', label: 'BAYN' }, { sym: 'ADS.DE',  label: 'ADS'  },
-                        { sym: 'MBG.DE',  label: 'MBG'  }, { sym: 'DTE.DE',  label: 'DTE'  },
-                      ],
-                      color: 'border-yellow-200 dark:border-yellow-500/30 bg-yellow-50/50 dark:bg-yellow-500/5',
-                      badge: 'text-yellow-700 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-500/20',
-                    },
-                    {
-                      flag: '🇪🇸', market: 'IBEX 35', desc: '~35 empresas españolas',
-                      tickers: [
-                        { sym: 'ITX.MC',  label: 'ITX'  }, { sym: 'SAN.MC',  label: 'SAN'  },
-                        { sym: 'BBVA.MC', label: 'BBVA' }, { sym: 'IBE.MC',  label: 'IBE'  },
-                        { sym: 'REP.MC',  label: 'REP'  }, { sym: 'TEF.MC',  label: 'TEF'  },
-                        { sym: 'AMS.MC',  label: 'AMS'  }, { sym: 'ACS.MC',  label: 'ACS'  },
-                      ],
-                      color: 'border-red-200 dark:border-red-500/30 bg-red-50/50 dark:bg-red-500/5',
-                      badge: 'text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-500/20',
-                    },
-                    {
-                      flag: '🌍', market: 'Europa · Global', desc: 'FTSE, CAC40, AEX y más',
-                      tickers: [
-                        { sym: 'ASML',    label: 'ASML' }, { sym: 'MC.PA',   label: 'LVMH' },
-                        { sym: 'NVO',     label: 'NVO'  }, { sym: 'SHEL',    label: 'SHEL' },
-                        { sym: 'TTE',     label: 'TTE'  }, { sym: 'UL',      label: 'UL'   },
-                        { sym: 'OR.PA',   label: 'L\'Oréal' }, { sym: 'AIR.PA', label: 'Airbus' },
-                      ],
-                      color: 'border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-500/5',
-                      badge: 'text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/20',
-                    },
-                  ].map(({ flag, market, desc, tickers, color, badge }) => (
-                    <div key={market} className={`rounded-2xl border p-4 text-left ${color}`}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xl">{flag}</span>
-                        <div>
-                          <p className="text-sm font-black text-slate-900 dark:text-white leading-none">{market}</p>
-                          <p className="text-[10px] text-slate-400 mt-0.5">{desc}</p>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {tickers.map(({ sym, label }) => (
-                          <button
-                            key={sym}
-                            onClick={() => { setTicker(sym); setError(null); setHtml(null); generateWithTicker(sym); }}
-                            className={`px-2 py-1 rounded-lg text-[11px] font-black transition-all hover:scale-105 ${badge}`}
-                            title={sym}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+              {/* US only badge */}
+              <div className="flex items-center gap-2 mb-5 px-4 py-2 rounded-full bg-blue-100 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30">
+                <span className="text-base">🇺🇸</span>
+                <span className="text-xs font-black text-blue-700 dark:text-blue-300 uppercase tracking-widest">Disponible para NASDAQ · NYSE · AMEX</span>
+              </div>
+
+              {/* US tickers grid */}
+              <div className="w-full max-w-2xl mb-5">
+                <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">✅ Prueba con estas empresas</p>
+                <div className="rounded-2xl border border-blue-200 dark:border-blue-500/30 bg-blue-50/50 dark:bg-blue-500/5 p-4">
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { sym: 'AAPL',  label: 'Apple'    },
+                      { sym: 'NVDA',  label: 'NVIDIA'   },
+                      { sym: 'MSFT',  label: 'Microsoft'},
+                      { sym: 'AMZN',  label: 'Amazon'   },
+                      { sym: 'META',  label: 'Meta'     },
+                      { sym: 'GOOGL', label: 'Alphabet' },
+                      { sym: 'TSLA',  label: 'Tesla'    },
+                      { sym: 'AVGO',  label: 'Broadcom' },
+                      { sym: 'JPM',   label: 'JPMorgan' },
+                      { sym: 'V',     label: 'Visa'     },
+                      { sym: 'JNJ',   label: 'J&J'      },
+                      { sym: 'XOM',   label: 'ExxonMobil'},
+                      { sym: 'NFLX',  label: 'Netflix'  },
+                      { sym: 'AMD',   label: 'AMD'      },
+                      { sym: 'CRM',   label: 'Salesforce'},
+                      { sym: 'COST',  label: 'Costco'   },
+                    ].map(({ sym, label }) => (
+                      <button
+                        key={sym}
+                        onClick={() => { setTicker(sym); setError(null); setHtml(null); generateWithTicker(sym); }}
+                        className="flex flex-col items-center px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-500/20 hover:border-blue-400 dark:hover:border-blue-400 hover:shadow-md transition-all hover:scale-105 group"
+                      >
+                        <span className="text-[11px] font-black text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300">{sym}</span>
+                        <span className="text-[9px] text-slate-400 font-medium mt-0.5 truncate max-w-[56px]">{label}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -472,7 +439,7 @@ const ReportPanel: React.FC<Props> = ({ isOpen, onClose, isPro, onUpgrade, initi
                 <i className="fas fa-circle-xmark text-slate-400 mt-0.5 shrink-0" />
                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                   <span className="font-black text-slate-700 dark:text-slate-300">No disponible: </span>
-                  Small caps, OTC, criptomonedas y empresas sin cobertura de analistas. Si introduces un ticker no soportado, se mostrará un aviso sin consumir tu cuota mensual.
+                  Mercados europeos (DAX, IBEX, FTSE…), small caps, OTC y criptomonedas. Si introduces un ticker no soportado, se mostrará un aviso sin consumir tu cuota mensual.
                 </p>
               </div>
 
@@ -519,18 +486,18 @@ const ReportPanel: React.FC<Props> = ({ isOpen, onClose, isPro, onUpgrade, initi
           {/* Error */}
           {error && !loading && (
             <div className="flex flex-col items-center justify-center h-full text-center px-6">
-              {error.includes('datos fundamentales') || error.includes('datos verificados') ? (
+              {(error.includes('NASDAQ') || error.includes('NYSE') || error.includes('disponibles para') || error.includes('datos fundamentales') || error.includes('datos verificados')) ? (
                 <>
-                  <div className="w-20 h-20 rounded-3xl bg-amber-100 dark:bg-amber-500/10 flex items-center justify-center mb-5">
-                    <i className="fas fa-database text-amber-500 text-3xl" />
+                  <div className="w-20 h-20 rounded-3xl bg-blue-100 dark:bg-blue-500/10 flex items-center justify-center mb-5">
+                    <span className="text-4xl">🇺🇸</span>
                   </div>
-                  <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2">Datos no disponibles</h3>
-                  <p className="text-slate-500 text-sm mb-2 max-w-md" dangerouslySetInnerHTML={{ __html: error }} />
-                  <p className="text-xs text-slate-400 mb-6 max-w-xs">Solo generamos informes con datos financieros reales y verificados.</p>
+                  <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2">Solo mercados USA</h3>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm mb-1 max-w-md" dangerouslySetInnerHTML={{ __html: error }} />
+                  <p className="text-xs text-slate-400 mb-6 max-w-xs mt-2">Solo generamos informes con datos financieros reales y verificados.</p>
                   <div className="flex gap-2 flex-wrap justify-center">
-                    {['AAPL','NVDA','MSFT','AMZN','ASML'].map(t => (
-                      <button key={t} onClick={() => { setTicker(t); setError(null); }}
-                        className="px-4 py-2 rounded-xl bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300 font-black text-sm hover:bg-violet-200 transition-all">
+                    {['AAPL','NVDA','MSFT','AMZN','TSLA','META'].map(t => (
+                      <button key={t} onClick={() => { setTicker(t); setError(null); setHtml(null); generateWithTicker(t); }}
+                        className="px-4 py-2 rounded-xl bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 font-black text-sm hover:bg-blue-200 dark:hover:bg-blue-500/30 transition-all">
                         {t}
                       </button>
                     ))}

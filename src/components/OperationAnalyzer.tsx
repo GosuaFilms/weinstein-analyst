@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Language, OperationAnalysisResult, Settings } from '../types';
-import { analyzeOperation } from '../services/geminiService';
+import { analyzeOperation } from '../lib/api';
 // html2canvas and jspdf are loaded on-demand to keep the initial bundle small
 
 interface Props {

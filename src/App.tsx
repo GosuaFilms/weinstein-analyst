@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect, Suspense, lazy } from 'react';
-import { analyzeMarket } from './services/geminiService';
+import { analyzeMarket } from './lib/api';
 import {
   AnalysisState,
   Settings,
@@ -22,6 +22,8 @@ import HelpPanel from './components/HelpPanel';
 import LandingPage from './components/LandingPage';
 import TrackRecordPage from './components/TrackRecordPage';
 import PricingPage from './components/PricingPage';
+import TermsPage from './components/TermsPage';
+import PrivacyPage from './components/PrivacyPage';
 import { useAuth } from './contexts/AuthContext';
 import { supabase } from './lib/supabase';
 import { uploadAnalysisImage } from './lib/imageStorage';
@@ -279,6 +281,12 @@ const App: React.FC = () => {
   }
   if (window.location.pathname === '/precios') {
     return <PricingPage onGetStarted={() => setIsAuthOpen(true)} />;
+  }
+  if (window.location.pathname === '/legal/terms') {
+    return <TermsPage />;
+  }
+  if (window.location.pathname === '/legal/privacy') {
+    return <PrivacyPage />;
   }
 
   // Show landing page for non-authenticated visitors

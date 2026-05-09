@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
   const anonKey    = Deno.env.get('SUPABASE_ANON_KEY')!;
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const botToken   = Deno.env.get('TELEGRAM_BOT_TOKEN') ?? '';
-  const appUrl     = Deno.env.get('APP_URL') ?? 'https://weinstein-analyst.vercel.app';
+  const appUrl     = Deno.env.get('APP_URL') ?? 'https://www.alphastage.finance';
 
   // Validate JWT
   const token = authHeader.slice(7);

@@ -37,7 +37,7 @@ function buildHtml(p: AlertEmailPayload): string {
   const meta = CONDITION_META[p.condition] ?? { emoji: '🔔', label: p.condition, color: '#6366f1' };
   const sym = p.currency === 'USD' ? '$' : p.currency + ' ';
   const priceStr = `${sym}${p.price.toFixed(2)}`;
-  const url = p.appUrl ?? 'https://weinstein-analyst.vercel.app';
+  const url = p.appUrl ?? 'https://www.alphastage.finance';
 
   return `<!DOCTYPE html>
 <html lang="es">

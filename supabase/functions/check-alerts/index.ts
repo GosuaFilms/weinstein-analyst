@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
     byTicker.set(a.ticker, list);
   }
 
-  const appUrl = Deno.env.get('APP_URL') ?? 'https://weinstein-analyst.vercel.app';
+  const appUrl = Deno.env.get('APP_URL') ?? 'https://www.alphastage.finance';
   let triggeredCount = 0;
   const now = new Date().toISOString();
 

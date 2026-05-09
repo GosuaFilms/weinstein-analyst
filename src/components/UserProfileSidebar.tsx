@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { supabase } from '../lib/supabase';
 import { User } from '../types';
 
 interface Props {
@@ -26,30 +27,43 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
 
   const initials = user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
-  const handleExportData = () => {
-    const data = {
-      user: user,
-      timestamp: new Date().toISOString(),
-      stats: {
-        analysisCount: historyCount,
-        alertsCount: alertsCount
-      },
-      history: JSON.parse(localStorage.getItem('weinstein_stage_analyst_history') || '[]'),
-      alerts: JSON.parse(localStorage.getItem('weinstein_stage_analyst_alerts') || '[]')
-    };
+  const [exporting, setExporting] = useState(false);
 
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `weinstein-data-${user.name.replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const handleExportData = async () => {
+    setExporting(true);
+    try {
+      const [{ data: analyses }, { data: alerts }, { data: watchlist }, { data: positions }] = await Promise.all([
+        supabase.from('analyses').select('*').order('created_at', { ascending: false }),
+        supabase.from('alerts').select('*').order('created_at', { ascending: false }),
+        supabase.from('watchlist').select('*').order('created_at', { ascending: false }),
+        supabase.from('portfolio_positions').select('*').order('created_at', { ascending: false }),
+      ]);
+
+      const exportData = {
+        exportedAt: new Date().toISOString(),
+        user: { name: user.name, email: user.email, joinedDate: user.joinedDate },
+        stats: { analysisCount: historyCount, alertsCount: alertsCount },
+        analyses:   analyses   ?? [],
+        alerts:     alerts     ?? [],
+        watchlist:  watchlist  ?? [],
+        portfolio:  positions  ?? [],
+      };
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `alphastage-data-${user.name.replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
   };
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setSecurityMsg(null);
 
@@ -57,34 +71,30 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
       setSecurityMsg({ type: 'error', text: 'Las nuevas contraseñas no coinciden' });
       return;
     }
-
     if (passwords.new.length < 6) {
       setSecurityMsg({ type: 'error', text: 'La contraseña debe tener al menos 6 caracteres' });
       return;
     }
 
-    // Logic to verify and update password in localStorage
-    const usersStr = localStorage.getItem('weinstein_users');
-    if (usersStr) {
-      const users = JSON.parse(usersStr);
-      const currentUserIndex = users.findIndex((u: any) => u.email === user.email);
-
-      if (currentUserIndex !== -1) {
-        // Verify old password
-        if (users[currentUserIndex].password !== passwords.current) {
-          setSecurityMsg({ type: 'error', text: 'La contraseña actual es incorrecta' });
-          return;
-        }
-
-        // Update password
-        users[currentUserIndex].password = passwords.new;
-        localStorage.setItem('weinstein_users', JSON.stringify(users));
-        setSecurityMsg({ type: 'success', text: 'Contraseña actualizada correctamente' });
-        setPasswords({ current: '', new: '', confirm: '' });
-      } else {
-        setSecurityMsg({ type: 'error', text: 'Usuario no encontrado en la base de datos local' });
-      }
+    // Re-authenticate to verify current password before changing
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: passwords.current,
+    });
+    if (signInError) {
+      setSecurityMsg({ type: 'error', text: 'La contraseña actual es incorrecta' });
+      return;
     }
+
+    // Update password via Supabase Auth
+    const { error: updateError } = await supabase.auth.updateUser({ password: passwords.new });
+    if (updateError) {
+      setSecurityMsg({ type: 'error', text: updateError.message ?? 'Error al actualizar la contraseña' });
+      return;
+    }
+
+    setSecurityMsg({ type: 'success', text: 'Contraseña actualizada correctamente' });
+    setPasswords({ current: '', new: '', confirm: '' });
   };
 
   const renderMainView = () => (
@@ -302,11 +312,13 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
             </div>
          </div>
 
-         <button 
+         <button
            onClick={handleExportData}
-           className="w-full max-w-xs py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2"
+           disabled={exporting}
+           className="w-full max-w-xs py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2"
          >
-           <i className="fas fa-download"></i> DESCARGAR JSON
+           <i className={`fas ${exporting ? 'fa-circle-notch animate-spin' : 'fa-download'}`}></i>
+           {exporting ? 'Preparando…' : 'DESCARGAR JSON'}
          </button>
       </div>
     </div>

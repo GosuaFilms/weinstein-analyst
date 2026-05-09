@@ -40,6 +40,7 @@ const TradingViewWidget = lazy(() => import('./components/TradingViewWidget'));
 const ScreenerPanel     = lazy(() => import('./components/ScreenerPanel'));
 const PortfolioPanel    = lazy(() => import('./components/PortfolioPanel'));
 const VirtualPortfolioPanel = lazy(() => import('./components/VirtualPortfolioPanel'));
+const ReportPanel           = lazy(() => import('./components/ReportPanel'));
 
 const THEME_KEY = 'weinstein_theme';
 const LANG_KEY = 'weinstein_language';
@@ -102,6 +103,7 @@ const App: React.FC = () => {
   const [isScreenerOpen, setIsScreenerOpen] = useState(false);
   const [isPortfolioOpen, setIsPortfolioOpen] = useState(false);
   const [isVirtualPortfolioOpen, setIsVirtualPortfolioOpen] = useState(false);
+  const [isReportOpen, setIsReportOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -425,6 +427,13 @@ const App: React.FC = () => {
               <i className="fas fa-filter text-emerald-500"></i>
               <span className="hidden sm:inline">Screener</span>
             </button>
+            <button
+              onClick={() => { if (!user) { setIsAuthOpen(true); return; } setIsReportOpen(true); }}
+              className="px-4 py-2 rounded-lg text-sm font-bold transition-all text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700 hover:text-violet-600 dark:hover:text-violet-400 hover:shadow-sm flex items-center gap-2"
+            >
+              <i className="fas fa-file-chart-column text-violet-500"></i>
+              <span className="hidden sm:inline">Informe</span>
+            </button>
           </div>
         </div>
 
@@ -725,6 +734,19 @@ const App: React.FC = () => {
             onClose={() => setIsScreenerOpen(false)}
           />
           </ErrorBoundary>
+        )}
+      </Suspense>
+
+      {/* Report Panel — full-screen overlay */}
+      <Suspense fallback={null}>
+        {isReportOpen && (
+          <ReportPanel
+            isOpen={isReportOpen}
+            onClose={() => setIsReportOpen(false)}
+            isPro={isPro}
+            onUpgrade={() => { setIsReportOpen(false); setIsPricingOpen(true); }}
+            initialTicker={ticker || undefined}
+          />
         )}
       </Suspense>
 

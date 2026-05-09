@@ -319,7 +319,7 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
   const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN') ?? '';
-  const appUrl   = Deno.env.get('APP_URL') ?? 'https://weinstein-analyst.vercel.app';
+  const appUrl   = Deno.env.get('APP_URL') ?? 'https://www.alphastage.finance';
 
   // Week identifier (e.g. "semana del 5 de mayo de 2025")
   const now = new Date();
@@ -341,52 +341,89 @@ Deno.serve(async (req) => {
   const reportText = await generateWeinsteinReport(indices, sectors, stage2, weekLabel);
   console.log(`[weekly-report] Report generated (${reportText.length} chars)`);
 
-  // ── 3. Build Telegram message (condensed) ─────────────────────────────────
-  const spyData  = indices.find(i => i.symbol === 'SPY');
+  // ── 3. Build Telegram message ─────────────────────────────────────────────
+  const spyData    = indices.find(i => i.symbol === 'SPY');
   const nasdaqData = indices.find(i => i.symbol === 'QQQ');
-  const ibexData = indices.find(i => i.symbol === 'EWP');
+  const ibexData   = indices.find(i => i.symbol === 'EWP');
+  const daxData    = indices.find(i => i.symbol === 'EWG');
 
-  const formatPct = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
+  const formatPct = (v: number) => {
+    const sign = v >= 0 ? '▲' : '▼';
+    return `${sign} ${Math.abs(v).toFixed(2)}%`;
+  };
+
+  const indexLine = (flag: string, name: string, pct: number) => {
+    const arrow = pct >= 0 ? '🟢' : '🔴';
+    return `${arrow} ${flag} <b>${name}</b>   ${formatPct(pct)}`;
+  };
 
   const topSectors = sectors
     .sort((a, b) => b.changePercent - a.changePercent)
     .slice(0, 3)
-    .map(s => `▸ ${s.name}: ${formatPct(s.changePercent)}`)
+    .map((s, i) => {
+      const medals = ['🥇', '🥈', '🥉'];
+      return `${medals[i]} <b>${s.name}</b>  ${formatPct(s.changePercent)}`;
+    })
     .join('\n');
 
   const top5 = stage2.slice(0, 5)
-    .map(s => `▸ <b>${s.ticker}</b> — ${s.price.toFixed(2)} ${s.currency} · RS ${s.rs?.toFixed(1) ?? '—'} (${s.index})`)
+    .map(s => {
+      const rs = s.rs != null ? `RS ${s.rs.toFixed(1)}` : '';
+      const price = `${s.price.toFixed(2)} ${s.currency}`;
+      return `✅ <b>${s.ticker}</b>  <code>${price}</code>  ${rs}`;
+    })
     .join('\n');
 
-  // Extract first paragraph of report as executive summary
-  const execSummary = reportText.split('\n\n').find(p => p.length > 100)?.slice(0, 400) ?? '';
+  // Executive summary — first substantial paragraph
+  const execSummary = reportText
+    .split('\n\n')
+    .find(p => p.replace(/\*\*/g, '').trim().length > 120)
+    ?.replace(/\*\*/g, '')
+    .trim()
+    .slice(0, 420) ?? '';
 
-  let tgMsg = `📊 <b>INFORME SEMANAL WEINSTEIN</b>\n`;
-  tgMsg += `📅 ${weekLabel}\n\n`;
+  const div = '━━━━━━━━━━━━━━━━━━━━━━';
 
-  tgMsg += `<b>📈 Índices</b>\n`;
-  if (spyData)   tgMsg += `🇺🇸 S&P 500: ${formatPct(spyData.changePercent)}\n`;
-  if (nasdaqData) tgMsg += `🇺🇸 NASDAQ: ${formatPct(nasdaqData.changePercent)}\n`;
-  if (ibexData)  tgMsg += `🇪🇸 IBEX 35: ${formatPct(ibexData.changePercent)}\n\n`;
+  let tgMsg = `⚡️ <b>ALPHA STAGE · WEINSTEIN ANALYST</b>\n`;
+  tgMsg += `${div}\n`;
+  tgMsg += `📅 <b>${weekLabel.toUpperCase()}</b>\n\n`;
 
-  tgMsg += `<b>🔄 Sectores líderes</b>\n${topSectors}\n\n`;
+  tgMsg += `<b>📊 MERCADOS</b>\n`;
+  if (spyData)    tgMsg += indexLine('🇺🇸', 'S&P 500', spyData.changePercent)    + '\n';
+  if (nasdaqData) tgMsg += indexLine('🇺🇸', 'NASDAQ 100', nasdaqData.changePercent) + '\n';
+  if (daxData)    tgMsg += indexLine('🇩🇪', 'DAX', daxData.changePercent)        + '\n';
+  if (ibexData)   tgMsg += indexLine('🇪🇸', 'IBEX 35', ibexData.changePercent)   + '\n';
 
-  tgMsg += `<b>🟢 Top Stage 2 (${stage2.length} encontrados)</b>\n${top5}\n\n`;
+  tgMsg += `\n<b>🏆 SECTORES LÍDERES</b>\n${topSectors}\n`;
 
-  tgMsg += `<b>💡 Resumen</b>\n${execSummary.replace(/\*\*/g, '')}...\n\n`;
+  tgMsg += `\n${div}\n`;
+  tgMsg += `<b>🟢 STAGE 2 — ${stage2.length} valores detectados</b>\n${top5}\n`;
+  if (stage2.length > 5) tgMsg += `<i>+${stage2.length - 5} más en el análisis completo</i>\n`;
 
-  tgMsg += `<a href="${appUrl}">📲 Ver informe completo →</a>`;
+  tgMsg += `\n${div}\n`;
+  tgMsg += `<b>💡 ANÁLISIS SEMANAL</b>\n${execSummary}...\n`;
 
-  // ── 4. Fetch all users ─────────────────────────────────────────────────────
+  tgMsg += `\n${div}\n`;
+  tgMsg += `🔗 <a href="${appUrl}"><b>Ver informe completo → alphastage.finance</b></a>`;
+
+  // ── 4. Post to public channel ──────────────────────────────────────────────
+  const channelId = Deno.env.get('TELEGRAM_CHANNEL_ID') ?? '';
+  let channelSent = false;
+  if (botToken && channelId) {
+    channelSent = await sendTelegramMessage(channelId, tgMsg, botToken);
+    console.log(`[weekly-report] Channel post: ${channelSent ? 'OK' : 'FAILED'}`);
+  }
+
+  // ── 5. Fetch all users ─────────────────────────────────────────────────────
   const { data: profiles } = await supabase
     .from('profiles')
     .select('id, email, telegram_chat_id');
 
   if (!profiles || profiles.length === 0) {
-    return jsonResponse({ sent: 0, stage2Found: stage2.length });
+    return jsonResponse({ sent: 0, stage2Found: stage2.length, channelSent });
   }
 
-  // ── 5. Build email ─────────────────────────────────────────────────────────
+  // ── 6. Build email ─────────────────────────────────────────────────────────
   const emailHtml    = buildWeeklyReportEmail(reportText, weekLabel, stage2.length, appUrl);
   const emailSubject = `📊 Informe Semanal Weinstein — ${weekLabel}`;
 
@@ -408,11 +445,12 @@ Deno.serve(async (req) => {
     }
   }
 
-  console.log(`[weekly-report] Done — Telegram: ${telegramSent}, Emails: ${emailsSent}`);
+  console.log(`[weekly-report] Done — Channel: ${channelSent}, Telegram: ${telegramSent}, Emails: ${emailsSent}`);
 
   return jsonResponse({
     week: weekLabel,
     stage2Found: stage2.length,
+    channelSent,
     telegramSent,
     emailsSent,
     reportLength: reportText.length,

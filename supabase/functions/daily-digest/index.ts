@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
   const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase    = createClient(supabaseUrl, serviceKey);
   const botToken    = Deno.env.get('TELEGRAM_BOT_TOKEN') ?? '';
-  const appUrl      = Deno.env.get('APP_URL') ?? 'https://weinstein-analyst.vercel.app';
+  const appUrl      = Deno.env.get('APP_URL') ?? 'https://www.alphastage.finance';
 
   // ── Scan all tickers ──────────────────────────────────────────────────────
   const allTickers = [...new Set(Object.values(SCAN_INDICES).flat())];
@@ -108,19 +108,38 @@ Deno.serve(async (req) => {
     }
   }
 
-  let tgMsg = `📊 <b>Resumen diario Weinstein</b> — ${today}\n\n`;
-  tgMsg += `🟢 <b>${stage2.length} valores en Stage 2</b> encontrados en S&P 100, DAX 40 e IBEX 35\n\n`;
+  const div = '━━━━━━━━━━━━━━━━━━━━━━';
+  const todayCap = today.charAt(0).toUpperCase() + today.slice(1);
+
+  let tgMsg = `⚡️ <b>ALPHA STAGE · WEINSTEIN ANALYST</b>\n`;
+  tgMsg += `${div}\n`;
+  tgMsg += `📅 <b>${todayCap.toUpperCase()}</b>\n\n`;
+
+  tgMsg += `<b>🟢 STAGE 2 HOY — ${stage2.length} valores</b>\n`;
+  tgMsg += `<i>S&P 100 · DAX 40 · IBEX 35</i>\n`;
+  tgMsg += `${div}\n\n`;
 
   for (const [idxName, items] of Object.entries(byIndex)) {
     if (items.length === 0) continue;
-    tgMsg += `<b>${idxName}</b>\n`;
+    tgMsg += `<b>📌 ${idxName}</b>\n`;
     for (const { ticker, snap, cls } of items) {
-      tgMsg += relativeTime(ticker, cls.stage, snap.name, snap.currentPrice, snap.currency, snap.mansfieldRS) + '\n';
+      const rs = snap.mansfieldRS != null ? `  RS ${snap.mansfieldRS.toFixed(1)}` : '';
+      const conf = cls.confidence === 'high' ? '🔥' : '✅';
+      tgMsg += `${conf} <b>${ticker}</b>  <code>${snap.currentPrice.toFixed(2)} ${snap.currency}</code>${rs}\n`;
     }
     tgMsg += '\n';
   }
 
-  tgMsg += `<a href="${appUrl}">Ver análisis completo →</a>`;
+  tgMsg += `${div}\n`;
+  tgMsg += `🔗 <a href="${appUrl}"><b>Análisis completo → alphastage.finance</b></a>`;
+
+  // ── Post to public channel ─────────────────────────────────────────────────
+  const channelId = Deno.env.get('TELEGRAM_CHANNEL_ID') ?? '';
+  let channelSent = false;
+  if (botToken && channelId) {
+    channelSent = await sendTelegramMessage(channelId, tgMsg, botToken);
+    console.log(`[daily-digest] Channel post: ${channelSent ? 'OK' : 'FAILED'}`);
+  }
 
   // ── Fetch all users with notifications enabled ────────────────────────────
   const { data: profiles } = await supabase
@@ -128,7 +147,7 @@ Deno.serve(async (req) => {
     .select('id, email, telegram_chat_id');
 
   if (!profiles || profiles.length === 0) {
-    return jsonResponse({ sent: 0, stage2Found: stage2.length });
+    return jsonResponse({ sent: 0, stage2Found: stage2.length, channelSent });
   }
 
   let sentCount = 0;
@@ -166,6 +185,7 @@ Deno.serve(async (req) => {
   return jsonResponse({
     date: today,
     stage2Found: stage2.length,
+    channelSent,
     sent: sentCount,
     tickers: topN.map(s => s.ticker),
   });

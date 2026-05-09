@@ -26,8 +26,8 @@ const FAQS = [
     a: 'No. La IA analiza el activo y te da un veredicto claro: COMPRAR, ESPERAR o CERRAR. Explica el razonamiento para que vayas aprendiendo el método.',
   },
   {
-    q: '¿Cuándo estará disponible el plan Pro?',
-    a: 'Estamos en fase beta. Durante este período todos los usuarios tienen acceso gratuito a las funcionalidades principales. El plan Pro se activará próximamente con funciones avanzadas.',
+    q: '¿Qué incluye el plan Pro?',
+    a: 'El plan Pro desbloquea análisis Weinstein ilimitados, screener completo de todos los índices, hasta 20 alertas activas, cartera IA, notificaciones Telegram, informe fundamental IA y resumen diario de mercado a las 09:00 (Madrid).',
   },
   {
     q: '¿Qué mercados cubre el screener?',
@@ -39,7 +39,7 @@ const FAQS = [
   },
   {
     q: '¿Puedo cancelar cuando quiera?',
-    a: 'Sí. El plan Pro (cuando esté activo) se puede cancelar en cualquier momento desde tu perfil, sin permanencia ni penalizaciones.',
+    a: 'Sí. El plan Pro se puede cancelar en cualquier momento desde tu perfil, sin permanencia ni penalizaciones. Seguirás teniendo acceso hasta el final del período pagado.',
   },
   {
     q: '¿Esto es asesoramiento financiero?',
@@ -90,9 +90,9 @@ const PricingPage: React.FC<Props> = ({ onGetStarted }) => {
 
         {/* ── Hero ── */}
         <div className="text-center mb-16">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/20 rounded-full text-amber-400 text-xs font-black uppercase tracking-widest mb-6">
-            <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-ping" />
-            100% gratis durante el beta
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-emerald-400 text-xs font-black uppercase tracking-widest mb-6">
+            <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping" />
+            Plan Pro disponible ahora
           </div>
           <h1 className="text-4xl sm:text-6xl font-black text-white mb-5 leading-tight">
             Planes simples.<br />
@@ -101,7 +101,7 @@ const PricingPage: React.FC<Props> = ({ onGetStarted }) => {
             </span>
           </h1>
           <p className="text-slate-400 text-xl max-w-xl mx-auto">
-            Empieza gratis hoy. El plan Pro se activa próximamente con funciones avanzadas para el inversor serio.
+            Empieza gratis hoy o activa el plan Pro y accede al terminal Weinstein más completo del mercado.
           </p>
         </div>
 
@@ -136,7 +136,7 @@ const PricingPage: React.FC<Props> = ({ onGetStarted }) => {
           </button>
           <span className={`text-sm font-bold transition-colors ${billing === 'yearly' ? 'text-white' : 'text-slate-500'}`}>
             Anual
-            <span className="ml-2 text-xs px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded-full font-black">−17%</span>
+            <span className="ml-2 text-xs px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded-full font-black">−28%</span>
           </span>
         </div>
 
@@ -184,7 +184,7 @@ const PricingPage: React.FC<Props> = ({ onGetStarted }) => {
             {/* Badge */}
             <div className="absolute -top-4 left-1/2 -translate-x-1/2">
               <div className="px-5 py-1.5 bg-amber-500 text-slate-900 text-xs font-black uppercase tracking-widest rounded-full shadow-lg shadow-amber-500/30">
-                ⚡ Próximamente
+                ⚡ Más popular
               </div>
             </div>
 
@@ -195,7 +195,7 @@ const PricingPage: React.FC<Props> = ({ onGetStarted }) => {
                 <span className="text-slate-500 text-sm">/ mes</span>
               </div>
               {billing === 'yearly' && (
-                <div className="text-amber-400 text-xs font-bold mb-2">€{yearlyTotal}/año · ahorras €20.88</div>
+                <div className="text-amber-400 text-xs font-bold mb-2">€{yearlyTotal}/año · ahorras €50.88</div>
               )}
               <p className="text-slate-400 text-sm">Análisis profesional sin límites para el inversor serio.</p>
             </div>
@@ -224,8 +224,8 @@ const PricingPage: React.FC<Props> = ({ onGetStarted }) => {
               onClick={onGetStarted}
               className="w-full py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-900 font-black text-sm transition-all shadow-lg shadow-amber-500/20 hover:scale-[1.02] flex items-center justify-center gap-2"
             >
-              <i className="fas fa-bell" />
-              Avísame cuando esté disponible
+              <i className="fas fa-rocket" />
+              Empezar con Pro ahora
             </button>
             <p className="text-center text-slate-600 text-xs mt-3">Cancela cuando quieras · Sin permanencia</p>
           </div>

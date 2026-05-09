@@ -166,8 +166,19 @@ const ReportPanel: React.FC<Props> = ({ isOpen, onClose, isPro, onUpgrade, initi
     if (msgTimer.current) clearInterval(msgTimer.current);
   };
 
-  const generate = async () => {
+  const generateWithTicker = (sym: string) => {
+    setTicker(sym);
+    // defer so state update is flushed
+    setTimeout(() => generateCore(sym), 0);
+  };
+
+  const generate = () => {
     if (!ticker.trim() || loading) return;
+    generateCore(ticker.trim());
+  };
+
+  const generateCore = async (sym: string) => {
+    if (!sym || loading) return;
     if (!canGenerate) { onUpgrade(); return; }
 
     setLoading(true);
@@ -188,7 +199,7 @@ const ReportPanel: React.FC<Props> = ({ isOpen, onClose, isPro, onUpgrade, initi
           'Content-Type':  'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ ticker: ticker.trim().toUpperCase() }),
+        body: JSON.stringify({ ticker: sym.trim().toUpperCase() }),
       });
 
       const data = await res.json();
@@ -288,6 +299,7 @@ const ReportPanel: React.FC<Props> = ({ isOpen, onClose, isPro, onUpgrade, initi
             />
           </div>
           <button
+            data-generate
             onClick={generate}
             disabled={loading || !ticker.trim()}
             className="px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-black text-sm transition-all flex items-center gap-2 shadow-lg shadow-violet-500/20"
@@ -387,25 +399,45 @@ const ReportPanel: React.FC<Props> = ({ isOpen, onClose, isPro, onUpgrade, initi
                   {[
                     {
                       flag: '🇺🇸', market: 'S&P 500 · NASDAQ 100', desc: '~500 empresas USA',
-                      tickers: ['AAPL','NVDA','MSFT','AMZN','META','GOOGL','TSLA','AVGO'],
+                      tickers: [
+                        { sym: 'AAPL', label: 'AAPL' }, { sym: 'NVDA', label: 'NVDA' },
+                        { sym: 'MSFT', label: 'MSFT' }, { sym: 'AMZN', label: 'AMZN' },
+                        { sym: 'META', label: 'META' }, { sym: 'GOOGL', label: 'GOOGL' },
+                        { sym: 'TSLA', label: 'TSLA' }, { sym: 'AVGO', label: 'AVGO' },
+                      ],
                       color: 'border-blue-200 dark:border-blue-500/30 bg-blue-50/50 dark:bg-blue-500/5',
                       badge: 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-500/20',
                     },
                     {
                       flag: '🇩🇪', market: 'DAX 40', desc: '~40 empresas alemanas',
-                      tickers: ['SAP','SIE','ALV','BMW','BAYN','ADS','MBG','DTE'],
+                      tickers: [
+                        { sym: 'SAP.DE',  label: 'SAP'  }, { sym: 'SIE.DE',  label: 'SIE'  },
+                        { sym: 'ALV.DE',  label: 'ALV'  }, { sym: 'BMW.DE',  label: 'BMW'  },
+                        { sym: 'BAYN.DE', label: 'BAYN' }, { sym: 'ADS.DE',  label: 'ADS'  },
+                        { sym: 'MBG.DE',  label: 'MBG'  }, { sym: 'DTE.DE',  label: 'DTE'  },
+                      ],
                       color: 'border-yellow-200 dark:border-yellow-500/30 bg-yellow-50/50 dark:bg-yellow-500/5',
                       badge: 'text-yellow-700 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-500/20',
                     },
                     {
                       flag: '🇪🇸', market: 'IBEX 35', desc: '~35 empresas españolas',
-                      tickers: ['ITX','SAN','BBVA','IBE','REP','TEF','AMS','ACS'],
+                      tickers: [
+                        { sym: 'ITX.MC',  label: 'ITX'  }, { sym: 'SAN.MC',  label: 'SAN'  },
+                        { sym: 'BBVA.MC', label: 'BBVA' }, { sym: 'IBE.MC',  label: 'IBE'  },
+                        { sym: 'REP.MC',  label: 'REP'  }, { sym: 'TEF.MC',  label: 'TEF'  },
+                        { sym: 'AMS.MC',  label: 'AMS'  }, { sym: 'ACS.MC',  label: 'ACS'  },
+                      ],
                       color: 'border-red-200 dark:border-red-500/30 bg-red-50/50 dark:bg-red-500/5',
                       badge: 'text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-500/20',
                     },
                     {
-                      flag: '🌍', market: 'Europa · Russell 2000', desc: 'FTSE, CAC40, AEX y más',
-                      tickers: ['ASML','LVMH','NVO','SHEL','TTE','UL','MC','OR'],
+                      flag: '🌍', market: 'Europa · Global', desc: 'FTSE, CAC40, AEX y más',
+                      tickers: [
+                        { sym: 'ASML',    label: 'ASML' }, { sym: 'MC.PA',   label: 'LVMH' },
+                        { sym: 'NVO',     label: 'NVO'  }, { sym: 'SHEL',    label: 'SHEL' },
+                        { sym: 'TTE',     label: 'TTE'  }, { sym: 'UL',      label: 'UL'   },
+                        { sym: 'OR.PA',   label: 'L\'Oréal' }, { sym: 'AIR.PA', label: 'Airbus' },
+                      ],
                       color: 'border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-500/5',
                       badge: 'text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/20',
                     },
@@ -419,13 +451,14 @@ const ReportPanel: React.FC<Props> = ({ isOpen, onClose, isPro, onUpgrade, initi
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
-                        {tickers.map(t => (
+                        {tickers.map(({ sym, label }) => (
                           <button
-                            key={t}
-                            onClick={() => setTicker(t)}
+                            key={sym}
+                            onClick={() => { setTicker(sym); setError(null); setHtml(null); generateWithTicker(sym); }}
                             className={`px-2 py-1 rounded-lg text-[11px] font-black transition-all hover:scale-105 ${badge}`}
+                            title={sym}
                           >
-                            {t}
+                            {label}
                           </button>
                         ))}
                       </div>

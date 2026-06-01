@@ -40,6 +40,7 @@ const ChatBot           = lazy(() => import('./components/ChatBot'));
 const OperationAnalyzer = lazy(() => import('./components/OperationAnalyzer'));
 const TradingViewWidget = lazy(() => import('./components/TradingViewWidget'));
 const ScreenerPanel     = lazy(() => import('./components/ScreenerPanel'));
+const Stage2MonitorPanel = lazy(() => import('./components/Stage2MonitorPanel'));
 const PortfolioPanel    = lazy(() => import('./components/PortfolioPanel'));
 const VirtualPortfolioPanel = lazy(() => import('./components/VirtualPortfolioPanel'));
 
@@ -70,7 +71,7 @@ const App: React.FC = () => {
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
   const { history, save: saveAnalysis, remove: removeAnalysis, clear: clearHistory } = useAnalyses();
-  const { alerts, add: addAlert, remove: removeAlert, reload: reloadAlerts } = useAlerts();
+  const { alerts, add: addAlert, remove: removeAlert, pause: pauseAlert, reload: reloadAlerts } = useAlerts();
   const [isCheckingAlerts, setIsCheckingAlerts] = useState(false);
   const [alertCheckResult, setAlertCheckResult] = useState<{ checked: number; triggered: number; skipped?: boolean } | null>(null);
   const [isChartOpen, setIsChartOpen] = useState(false);
@@ -111,6 +112,7 @@ const App: React.FC = () => {
   const [isAlertsOpen, setIsAlertsOpen] = useState(false);
   const [isWatchlistOpen, setIsWatchlistOpen] = useState(false);
   const [isScreenerOpen, setIsScreenerOpen] = useState(false);
+  const [isStage2MonitorOpen, setIsStage2MonitorOpen] = useState(false);
   const [isPortfolioOpen, setIsPortfolioOpen] = useState(false);
   const [isVirtualPortfolioOpen, setIsVirtualPortfolioOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -453,6 +455,13 @@ const App: React.FC = () => {
               <i className="fas fa-filter text-emerald-500"></i>
               <span className="hidden sm:inline">Screener</span>
             </button>
+            <button
+              onClick={() => { if (!user) { setIsAuthOpen(true); return; } setIsStage2MonitorOpen(true); }}
+              className="px-4 py-2 rounded-lg text-sm font-bold transition-all text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700 hover:text-emerald-600 dark:hover:text-emerald-400 hover:shadow-sm flex items-center gap-2"
+            >
+              <i className="fas fa-arrow-trend-up text-emerald-500"></i>
+              <span className="hidden sm:inline">Stage 2</span>
+            </button>
           </div>
         </div>
 
@@ -680,6 +689,7 @@ const App: React.FC = () => {
         alerts={alerts}
         onAddAlert={(t: string, c: AlertCondition, level?: number) => addAlert(t, c, level)}
         onDeleteAlert={removeAlert}
+        onPauseAlert={pauseAlert}
         checkResult={alertCheckResult}
         isPro={isPro}
         maxAlerts={limits.maxAlerts}
@@ -761,6 +771,22 @@ const App: React.FC = () => {
               setPendingAnalysis(symbol);
             }}
             onClose={() => setIsScreenerOpen(false)}
+          />
+          </ErrorBoundary>
+        )}
+
+        {isStage2MonitorOpen && (
+          <ErrorBoundary label="Error en Stage 2 Monitor">
+          <Stage2MonitorPanel
+            isPro={isPro}
+            onUpgrade={() => { setIsStage2MonitorOpen(false); setIsPricingOpen(true); }}
+            onAnalyze={(symbol) => {
+              setTicker(symbol);
+              setActiveTab('scan');
+              setIsChartOpen(false);
+              setPendingAnalysis(symbol);
+            }}
+            onClose={() => setIsStage2MonitorOpen(false)}
           />
           </ErrorBoundary>
         )}

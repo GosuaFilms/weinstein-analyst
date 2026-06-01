@@ -20,7 +20,7 @@ function toAlert(row: DbAlert): Alert {
     id: row.id,
     ticker: row.ticker,
     condition: row.condition as AlertCondition,
-    status: row.status === 'paused' ? 'active' : row.status,
+    status: row.status,
     createdAt: new Date(row.created_at).getTime(),
     lastChecked: row.last_checked_at ? new Date(row.last_checked_at).getTime() : undefined,
     triggeredAt: row.triggered_at ? new Date(row.triggered_at).getTime() : undefined,
@@ -29,7 +29,15 @@ function toAlert(row: DbAlert): Alert {
   };
 }
 
-export function useAlerts() {
+interface UseAlertsReturn {
+  alerts: Alert[];
+  add: (ticker: string, condition: AlertCondition, referenceLevel?: number) => Promise<void>;
+  remove: (id: string) => Promise<void>;
+  pause: (id: string) => Promise<void>;
+  reload: () => Promise<void>;
+}
+
+export function useAlerts(): UseAlertsReturn {
   const { user } = useAuth();
   const [alerts, setAlerts] = useState<Alert[]>([]);
 
@@ -95,5 +103,17 @@ export function useAlerts() {
     setAlerts(prev => prev.filter(a => a.id !== id));
   }, []);
 
-  return { alerts, add, remove, reload };
+  const pause = useCallback(async (id: string) => {
+    const alert = alerts.find(a => a.id === id);
+    if (!alert) return;
+    const newStatus = alert.status === 'paused' ? 'active' : 'paused';
+    const { error } = await supabase
+      .from('alerts')
+      .update({ status: newStatus })
+      .eq('id', id);
+    if (error) throw new Error(error.message);
+    setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a));
+  }, [alerts]);
+
+  return { alerts, add, remove, pause, reload };
 }

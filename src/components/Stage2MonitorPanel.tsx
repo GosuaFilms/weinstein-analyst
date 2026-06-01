@@ -70,49 +70,52 @@ const Stage2MonitorPanel: React.FC<Props> = ({ onAnalyze, onClose, isPro = false
         return;
       }
 
-      const uniqueDates = [...new Set(dates.map((d: { scan_date: string }) => d.scan_date))].slice(0, 2);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const uniqueDates = [...new Set((dates as any[]).map((d) => d.scan_date as string))].slice(0, 2);
       const latestDate   = uniqueDates[0];
       const previousDate = uniqueDates[1] ?? null;
       setLastDate(latestDate);
 
       // 2. Fetch today's Stage 2 list
-      const { data: todayRows, error: err1 } = await supabase
+      const { data: todayRaw, error: err1 } = await supabase
         .from('stage2_snapshots')
         .select('*')
         .eq('scan_date', latestDate)
         .order('confidence', { ascending: false });
 
       if (err1) throw err1;
-      setToday(todayRows ?? []);
+      const todayRows = (todayRaw ?? []) as Stage2Row[];
+      setToday(todayRows);
 
       // 3. Fetch yesterday's list for diff
       if (previousDate) {
-        const { data: prevRows } = await supabase
+        const { data: prevRaw } = await supabase
           .from('stage2_snapshots')
           .select('symbol, index_id')
           .eq('scan_date', previousDate);
 
-        const prevSet   = new Set((prevRows ?? []).map((r: { symbol: string; index_id: string }) => `${r.index_id}:${r.symbol}`));
-        const todaySet  = new Set((todayRows ?? []).map(r => `${r.index_id}:${r.symbol}`));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const prevRows = (prevRaw ?? []) as any[];
+        const prevSet  = new Set(prevRows.map((r) => `${r.index_id}:${r.symbol}`));
+        const todaySet = new Set(todayRows.map(r => `${r.index_id}:${r.symbol}`));
 
         // New entries = in today but not yesterday
         const newSet = new Set(
-          (todayRows ?? [])
+          todayRows
             .filter(r => !prevSet.has(`${r.index_id}:${r.symbol}`))
             .map(r => `${r.index_id}:${r.symbol}`)
         );
         setNewEntries(newSet);
 
         // Exits = in yesterday but not today
-        const exitSymbols = (prevRows ?? []).filter((r: { symbol: string; index_id: string }) => !todaySet.has(`${r.index_id}:${r.symbol}`));
-        // Fetch full data for exits from yesterday
+        const exitSymbols = prevRows.filter((r) => !todaySet.has(`${r.index_id}:${r.symbol}`));
         if (exitSymbols.length > 0) {
-          const { data: exitRows } = await supabase
+          const { data: exitRaw } = await supabase
             .from('stage2_snapshots')
             .select('*')
             .eq('scan_date', previousDate)
-            .in('symbol', exitSymbols.map((r: { symbol: string }) => r.symbol));
-          setExits(exitRows ?? []);
+            .in('symbol', exitSymbols.map((r) => r.symbol as string));
+          setExits((exitRaw ?? []) as Stage2Row[]);
         } else {
           setExits([]);
         }

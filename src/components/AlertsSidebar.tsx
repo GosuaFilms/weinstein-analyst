@@ -10,6 +10,7 @@ interface Props {
   alerts: Alert[];
   onAddAlert: (ticker: string, condition: AlertCondition, referenceLevel?: number) => Promise<void> | void;
   onDeleteAlert: (id: string) => Promise<void> | void;
+  onPauseAlert: (id: string) => Promise<void> | void;
   onCheckAll: () => void;
   isChecking: boolean;
   checkResult?: { checked: number; triggered: number; skipped?: boolean } | null;
@@ -20,7 +21,7 @@ interface Props {
 
 const NEEDS_LEVEL = new Set([AlertCondition.RESISTANCE_BREAKOUT, AlertCondition.SUPPORT_BREAKDOWN]);
 
-const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, onDeleteAlert, onCheckAll, isChecking, checkResult, isPro = false, maxAlerts = 2, onUpgrade }) => {
+const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, onDeleteAlert, onPauseAlert, onCheckAll, isChecking, checkResult, isPro = false, maxAlerts = 2, onUpgrade }) => {
   const [newTicker, setNewTicker] = useState('');
   const [newCondition, setNewCondition] = useState<AlertCondition>(AlertCondition.PRICE_CROSS_SMA30_UP);
   const [newLevel, setNewLevel] = useState('');
@@ -204,6 +205,8 @@ const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, o
                 className={`relative p-4 rounded-xl border transition-all ${
                   alert.status === 'triggered'
                     ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/50'
+                    : alert.status === 'paused'
+                    ? 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 opacity-60'
                     : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
                 }`}
               >
@@ -235,21 +238,41 @@ const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, o
                       </button>
                     </div>
                   ) : (
-                    <button
-                      onClick={() => setConfirmDeleteId(alert.id)}
-                      className="text-slate-400 hover:text-rose-500 transition-colors p-1"
-                      aria-label="Eliminar alerta"
-                    >
-                      <i className="fas fa-trash-alt text-xs"></i>
-                    </button>
+                    <div className="flex items-center gap-1">
+                      {alert.status !== 'triggered' && (
+                        <button
+                          onClick={() => onPauseAlert(alert.id)}
+                          className={`transition-colors p-1 ${
+                            alert.status === 'paused'
+                              ? 'text-amber-400 hover:text-emerald-400'
+                              : 'text-slate-400 hover:text-amber-400'
+                          }`}
+                          aria-label={alert.status === 'paused' ? 'Reactivar alerta' : 'Pausar alerta'}
+                          title={alert.status === 'paused' ? 'Reactivar' : 'Pausar'}
+                        >
+                          <i className={`fas ${alert.status === 'paused' ? 'fa-play' : 'fa-pause'} text-xs`}></i>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setConfirmDeleteId(alert.id)}
+                        className="text-slate-400 hover:text-rose-500 transition-colors p-1"
+                        aria-label="Eliminar alerta"
+                      >
+                        <i className="fas fa-trash-alt text-xs"></i>
+                      </button>
+                    </div>
                   )}
                 </div>
                 <div className="mt-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded ${
-                      alert.status === 'triggered' ? 'bg-amber-500 text-white' : 'bg-slate-100 dark:bg-slate-900 text-slate-500'
+                      alert.status === 'triggered'
+                        ? 'bg-amber-500 text-white'
+                        : alert.status === 'paused'
+                        ? 'bg-slate-200 dark:bg-slate-700 text-slate-400'
+                        : 'bg-slate-100 dark:bg-slate-900 text-slate-500'
                     }`}>
-                      {alert.status === 'active' ? 'Activa' : 'Disparada'}
+                      {alert.status === 'active' ? 'Activa' : alert.status === 'paused' ? 'Pausada' : 'Disparada'}
                     </span>
                     {alert.triggeredAt && (
                       <span className="text-[9px] font-medium text-amber-600 dark:text-amber-400">
@@ -287,6 +310,7 @@ const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, o
           <button
             onClick={onCheckAll}
             disabled={isChecking || alerts.filter(a => a.status === 'active').length === 0}
+          title={alerts.filter(a => a.status === 'paused').length > 0 ? `${alerts.filter(a => a.status === 'paused').length} alerta(s) pausada(s) no se comprueban` : undefined}
             className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-3 disabled:opacity-50 disabled:grayscale"
           >
             {isChecking ? (

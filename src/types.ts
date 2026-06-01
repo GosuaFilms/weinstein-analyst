@@ -97,7 +97,7 @@ export interface Alert {
   id: string;
   ticker: string;
   condition: AlertCondition;
-  status: 'active' | 'triggered';
+  status: 'active' | 'triggered' | 'paused';
   createdAt: number;
   lastChecked?: number;
   triggeredAt?: number;

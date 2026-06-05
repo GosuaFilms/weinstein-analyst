@@ -109,7 +109,7 @@ const Stage2MonitorPanel: React.FC<Props> = ({ onAnalyze, onClose, isPro = false
         return (b.mansfield_rs ?? -99) - (a.mansfield_rs ?? -99);
       });
 
-      setToday(deduped);
+      setToday(deduped as Stage2Row[]);
 
       // 3. Fetch yesterday's list for diff
       if (previousDate) {
@@ -120,19 +120,19 @@ const Stage2MonitorPanel: React.FC<Props> = ({ onAnalyze, onClose, isPro = false
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const prevRows = (prevRaw ?? []) as any[];
-        const prevSet  = new Set(prevRows.map((r) => `${r.index_id}:${r.symbol}`));
-        const todaySet = new Set(todayRows.map(r => `${r.index_id}:${r.symbol}`));
+        const prevSet  = new Set<string>(prevRows.map((r) => `${r.symbol}`));
+        const todaySet = new Set<string>(deduped.map(r => `${r.symbol}`));
 
         // New entries = in today but not yesterday
-        const newSet = new Set(
-          todayRows
-            .filter(r => !prevSet.has(`${r.index_id}:${r.symbol}`))
+        const newSet = new Set<string>(
+          deduped
+            .filter(r => !prevSet.has(r.symbol))
             .map(r => `${r.index_id}:${r.symbol}`)
         );
         setNewEntries(newSet);
 
         // Exits = in yesterday but not today
-        const exitSymbols = prevRows.filter((r) => !todaySet.has(`${r.index_id}:${r.symbol}`));
+        const exitSymbols = prevRows.filter((r) => !todaySet.has(`${r.symbol}`));
         if (exitSymbols.length > 0) {
           const { data: exitRaw } = await supabase
             .from('stage2_snapshots')

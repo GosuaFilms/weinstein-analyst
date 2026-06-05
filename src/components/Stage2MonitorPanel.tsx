@@ -187,6 +187,10 @@ const Stage2MonitorPanel: React.FC<Props> = ({ onAnalyze, onClose, isPro = false
 
   // ── Derived data ──────────────────────────────────────────────────────────
   const allIndices = [...new Set(today.map(r => r.index_id))].sort();
+  const indexCounts = allIndices.reduce<Record<string, number>>((acc, idx) => {
+    acc[idx] = today.filter(r => r.index_id === idx).length;
+    return acc;
+  }, {});
 
   const filteredToday = today.filter(r => {
     if (indexFilter !== 'ALL' && r.index_id !== indexFilter) return false;
@@ -270,8 +274,8 @@ const Stage2MonitorPanel: React.FC<Props> = ({ onAnalyze, onClose, isPro = false
             onChange={e => setIndexFilter(e.target.value)}
             className="text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-2 py-1.5 focus:outline-none focus:border-emerald-400"
           >
-            <option value="ALL">Todos los índices</option>
-            {allIndices.map(idx => <option key={idx} value={idx}>{idx}</option>)}
+            <option value="ALL">Todos los índices ({today.length})</option>
+            {allIndices.map(idx => <option key={idx} value={idx}>{idx} ({indexCounts[idx]})</option>)}
           </select>
 
           {/* Legend */}

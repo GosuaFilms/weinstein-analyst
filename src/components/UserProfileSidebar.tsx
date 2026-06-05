@@ -18,7 +18,8 @@ type ViewState = 'main' | 'security' | 'export';
 
 const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCount, alertsCount, onLogout, isPro = false, onUpgrade }) => {
   const [currentView, setCurrentView] = useState<ViewState>('main');
-  
+  const [exporting,   setExporting]   = useState(false);
+
   // Security State
   const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
   const [securityMsg, setSecurityMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null);
@@ -26,8 +27,6 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
   if (!isOpen || !user) return null;
 
   const initials = user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-
-  const [exporting, setExporting] = useState(false);
 
   const handleExportData = async () => {
     setExporting(true);

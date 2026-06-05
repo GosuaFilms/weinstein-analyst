@@ -86,14 +86,30 @@ const Stage2MonitorPanel: React.FC<Props> = ({ onAnalyze, onClose, isPro = false
 
       if (err1) throw err1;
 
-      // Sort: high → medium → low, then by Mansfield RS descending
       const CONF_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
-      const todayRows = ((todayRaw ?? []) as Stage2Row[]).sort((a, b) => {
+
+      // Deduplicate by symbol — keep the entry with highest confidence, then best RS
+      const deduped = Object.values(
+        ((todayRaw ?? []) as Stage2Row[]).reduce<Record<string, Stage2Row>>((acc, row) => {
+          const existing = acc[row.symbol];
+          if (!existing) { acc[row.symbol] = row; return acc; }
+          const better =
+            (CONF_ORDER[row.confidence] ?? 2) < (CONF_ORDER[existing.confidence] ?? 2) ||
+            ((CONF_ORDER[row.confidence] ?? 2) === (CONF_ORDER[existing.confidence] ?? 2) &&
+             (row.mansfield_rs ?? -99) > (existing.mansfield_rs ?? -99));
+          if (better) acc[row.symbol] = row;
+          return acc;
+        }, {})
+      );
+
+      // Sort: high → medium → low, then by Mansfield RS descending
+      deduped.sort((a, b) => {
         const confDiff = (CONF_ORDER[a.confidence] ?? 2) - (CONF_ORDER[b.confidence] ?? 2);
         if (confDiff !== 0) return confDiff;
         return (b.mansfield_rs ?? -99) - (a.mansfield_rs ?? -99);
       });
-      setToday(todayRows);
+
+      setToday(deduped);
 
       // 3. Fetch yesterday's list for diff
       if (previousDate) {

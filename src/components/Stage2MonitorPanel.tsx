@@ -80,11 +80,17 @@ const Stage2MonitorPanel: React.FC<Props> = ({ onAnalyze, onClose, isPro = false
       const { data: todayRaw, error: err1 } = await supabase
         .from('stage2_snapshots')
         .select('*')
-        .eq('scan_date', latestDate)
-        .order('confidence', { ascending: false });
+        .eq('scan_date', latestDate);
 
       if (err1) throw err1;
-      const todayRows = (todayRaw ?? []) as Stage2Row[];
+
+      // Sort: high → medium → low, then by Mansfield RS descending
+      const CONF_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+      const todayRows = ((todayRaw ?? []) as Stage2Row[]).sort((a, b) => {
+        const confDiff = (CONF_ORDER[a.confidence] ?? 2) - (CONF_ORDER[b.confidence] ?? 2);
+        if (confDiff !== 0) return confDiff;
+        return (b.mansfield_rs ?? -99) - (a.mansfield_rs ?? -99);
+      });
       setToday(todayRows);
 
       // 3. Fetch yesterday's list for diff

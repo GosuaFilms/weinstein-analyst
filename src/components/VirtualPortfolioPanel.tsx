@@ -298,7 +298,7 @@ const SavedPortfolioDetail: React.FC<{
           {es ? 'P&L' : 'P&L'}
         </button>
         <button onClick={handleRescan} disabled={rescanning} title={es ? 'Verificar si los valores siguen en Stage 2' : 'Check if holdings are still Stage 2'} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 hover:text-violet-500 hover:border-violet-400 transition-all disabled:opacity-50">
-          <i className={`fas fa-radar text-[10px] ${rescanning ? 'animate-pulse text-violet-500' : ''}`}></i>
+          <i className={`fas fa-satellite-dish text-[10px] ${rescanning ? 'animate-pulse text-violet-500' : ''}`}></i>
           {rescanning ? (es ? 'Escaneando…' : 'Scanning…') : (es ? 'Etapas' : 'Stages')}
         </button>
         <button onClick={() => exportCSV(portfolio, livePrices)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 hover:text-emerald-500 hover:border-emerald-400 transition-all">

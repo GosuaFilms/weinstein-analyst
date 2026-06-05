@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -48,7 +48,9 @@ const Stage2MonitorPanel: React.FC<Props> = ({ onAnalyze, onClose, isPro = false
   const [newEntries, setNewEntries] = useState<Set<string>>(new Set());
   const [exits,      setExits]      = useState<Stage2Row[]>([]);
   const [loading,    setLoading]    = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [refreshing,   setRefreshing]   = useState(false);
+  const [refreshMsg,   setRefreshMsg]   = useState('');
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [lastDate,   setLastDate]   = useState<string | null>(null);
   const [filter,     setFilter]     = useState<Filter>('ALL');
   const [indexFilter, setIndexFilter] = useState<string>('ALL');
@@ -137,14 +139,35 @@ const Stage2MonitorPanel: React.FC<Props> = ({ onAnalyze, onClose, isPro = false
   useEffect(() => { loadData(); }, [loadData]);
 
   // ── Manual refresh (triggers edge function + reloads) ─────────────────────
-  const handleRefresh = async () => {
+  const handleRefresh = () => {
     if (!isPro) { onUpgrade?.(); return; }
+    if (refreshing) return;
+
+    // Fire the scan in the background — don't await (takes 3-4 min)
     setRefreshing(true);
-    try {
-      await supabase.functions.invoke('stage2-daily', {});
-    } catch { /* ignore */ }
-    await loadData();
+    setRefreshMsg('Escaneando mercado… ~3 min');
+    supabase.functions.invoke('stage2-daily', {}).catch(() => {/* ignore */});
+
+    // Reload data progressively: check at 45s, 90s, 180s
+    const checkAt = [45_000, 90_000, 180_000];
+    checkAt.forEach((delay, i) => {
+      refreshTimer.current = setTimeout(async () => {
+        await loadData();
+        const remaining = checkAt.length - i - 1;
+        if (remaining === 0) {
+          setRefreshing(false);
+          setRefreshMsg('');
+        } else {
+          setRefreshMsg(`Actualizando… quedan ~${Math.round((checkAt[i + 1] - delay) / 60_000)} min`);
+        }
+      }, delay);
+    });
   };
+
+  // Cleanup timers on unmount
+  useEffect(() => () => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+  }, []);
 
   // ── Derived data ──────────────────────────────────────────────────────────
   const allIndices = [...new Set(today.map(r => r.index_id))].sort();
@@ -182,10 +205,15 @@ const Stage2MonitorPanel: React.FC<Props> = ({ onAnalyze, onClose, isPro = false
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {refreshMsg && (
+              <span className="text-[10px] text-emerald-500 font-bold animate-pulse hidden sm:inline">
+                {refreshMsg}
+              </span>
+            )}
             <button
               onClick={handleRefresh}
               disabled={refreshing}
-              title={isPro ? 'Actualizar ahora' : 'Requiere plan Pro'}
+              title={isPro ? 'Lanza un nuevo escaneo completo (~3 min)' : 'Requiere plan Pro'}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all disabled:opacity-50"
             >
               <i className={`fas fa-rotate ${refreshing ? 'animate-spin' : ''}`} />

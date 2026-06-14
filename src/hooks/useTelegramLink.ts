@@ -11,6 +11,13 @@ export interface TelegramStatus {
 const EMPTY: TelegramStatus = { connected: false, chat_id: null, link_token: null, bot_username: '' };
 
 async function callLink(action: 'status' | 'generate' | 'disconnect'): Promise<TelegramStatus | null> {
+  // Explicitly set the user's JWT on the functions client before each call,
+  // because supabase-js may still have the anon key if the session was restored
+  // from storage (INITIAL_SESSION doesn't trigger setAuth in some versions).
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) return null;
+  supabase.functions.setAuth(session.access_token);
+
   const { data, error } = await supabase.functions.invoke('telegram-link', {
     body: { action },
   });

@@ -59,7 +59,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.telegram-link]
-verify_jwt = true
+verify_jwt = false
 
 [functions.stage2-daily]
 verify_jwt = false

@@ -51,3 +51,6 @@ verify_jwt = false
 
 [functions.watchlist-scan]
 verify_jwt = true
+
+[functions.daily-brief]
+verify_jwt = false

@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { User } from '../types';
+import { useUserSettings } from '../hooks/useUserSettings';
 
 interface Props {
   isOpen: boolean;
@@ -14,11 +15,13 @@ interface Props {
   onUpgrade?: () => void;
 }
 
-type ViewState = 'main' | 'security' | 'export';
+type ViewState = 'main' | 'security' | 'export' | 'notifications';
 
 const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCount, alertsCount, onLogout, isPro = false, onUpgrade }) => {
   const [currentView, setCurrentView] = useState<ViewState>('main');
   const [exporting,   setExporting]   = useState(false);
+  const { settings: notifSettings, loading: notifLoading, saving: notifSaving, update: updateNotif } = useUserSettings();
+  const [testEmailState, setTestEmailState] = useState<'idle' | 'sending' | 'ok' | 'error'>('idle');
 
   // Security State
   const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
@@ -152,7 +155,7 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
               <i className="fas fa-chevron-right text-[10px] text-slate-300"></i>
            </button>
 
-           <button 
+           <button
              onClick={() => setCurrentView('export')}
              className="w-full flex items-center justify-between p-4 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 transition-all group"
            >
@@ -161,6 +164,22 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
                 <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Exportar Datos</span>
               </div>
               <i className="fas fa-chevron-right text-[10px] text-slate-300"></i>
+           </button>
+
+           <button
+             onClick={() => setCurrentView('notifications')}
+             className="w-full flex items-center justify-between p-4 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 transition-all group"
+           >
+              <div className="flex items-center gap-3">
+                <i className="fas fa-bell text-slate-400 group-hover:text-violet-500 transition-colors"></i>
+                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Notificaciones</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {!notifLoading && notifSettings?.daily_email_enabled && (
+                  <span className="text-[9px] font-black text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 px-2 py-0.5 rounded-full uppercase">Activo</span>
+                )}
+                <i className="fas fa-chevron-right text-[10px] text-slate-300"></i>
+              </div>
            </button>
         </div>
 
@@ -279,6 +298,85 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
     </div>
   );
 
+  const handleSendTestEmail = async () => {
+    setTestEmailState('sending');
+    try {
+      const { error } = await supabase.functions.invoke('daily-brief', {
+        body: { test: true },
+      });
+      setTestEmailState(error ? 'error' : 'ok');
+    } catch {
+      setTestEmailState('error');
+    }
+    setTimeout(() => setTestEmailState('idle'), 4000);
+  };
+
+  const renderNotificationsView = () => (
+    <div className="flex flex-col h-full animate-in slide-in-from-right duration-300">
+      <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center gap-4 bg-slate-50 dark:bg-slate-900/50">
+        <button onClick={() => setCurrentView('main')} className="w-8 h-8 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors shadow-sm">
+          <i className="fas fa-arrow-left"></i>
+        </button>
+        <h3 className="text-lg font-black text-slate-900 dark:text-white">Notificaciones</h3>
+      </div>
+
+      <div className="p-6 flex-grow overflow-y-auto space-y-6">
+        {/* Daily email toggle */}
+        <div className="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="p-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center flex-shrink-0">
+                <i className="fas fa-envelope text-violet-500"></i>
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-slate-900 dark:text-white">Briefing Diario</p>
+                <p className="text-[11px] text-slate-500 leading-tight">Email matutino con alertas de tu watchlist</p>
+              </div>
+            </div>
+            <button
+              onClick={() => updateNotif({ daily_email_enabled: !notifSettings?.daily_email_enabled })}
+              disabled={notifLoading || notifSaving}
+              className={`relative flex-shrink-0 w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none ${notifSettings?.daily_email_enabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${notifSettings?.daily_email_enabled ? 'translate-x-6' : 'translate-x-0'}`}></span>
+            </button>
+          </div>
+          {notifSettings?.daily_email_enabled && (
+            <div className="px-4 pb-4">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/50 rounded-xl p-3 leading-relaxed">
+                <i className="fas fa-clock text-violet-400 mr-1.5"></i>
+                Recibirás un email cada mañana a las <strong>8:00 AM</strong> con el estado de tu watchlist: rupturas, alertas urgentes y una visión del mercado.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Send test email */}
+        <div>
+          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Probar Ahora</h4>
+          <button
+            onClick={handleSendTestEmail}
+            disabled={testEmailState === 'sending' || !notifSettings?.daily_email_enabled}
+            className="w-full py-3 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all shadow-lg shadow-violet-500/20 flex items-center justify-center gap-2"
+          >
+            {testEmailState === 'sending' && <><i className="fas fa-circle-notch animate-spin"></i> Enviando…</>}
+            {testEmailState === 'ok'      && <><i className="fas fa-check"></i> ¡Email enviado!</>}
+            {testEmailState === 'error'   && <><i className="fas fa-exclamation-triangle"></i> Error al enviar</>}
+            {testEmailState === 'idle'    && <><i className="fas fa-paper-plane"></i> Enviar prueba ahora</>}
+          </button>
+          {!notifSettings?.daily_email_enabled && (
+            <p className="text-[11px] text-slate-400 text-center mt-2">Activa el briefing para enviar una prueba</p>
+          )}
+        </div>
+
+        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 text-[11px] text-slate-500 leading-relaxed">
+          <i className="fas fa-info-circle mr-1.5 text-blue-400"></i>
+          El email se envía a <strong className="text-slate-600 dark:text-slate-300">{user?.email}</strong>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderExportView = () => (
     <div className="flex flex-col h-full animate-in slide-in-from-right duration-300">
       <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center gap-4 bg-slate-50 dark:bg-slate-900/50">
@@ -328,9 +426,10 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
       <div className="absolute inset-0 bg-slate-950/20 dark:bg-slate-950/60 backdrop-blur-sm" onClick={onClose}></div>
       <div className="relative w-full max-w-sm bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 h-full flex flex-col shadow-2xl overflow-hidden transition-colors">
         
-        {currentView === 'main' && renderMainView()}
-        {currentView === 'security' && renderSecurityView()}
-        {currentView === 'export' && renderExportView()}
+        {currentView === 'main'          && renderMainView()}
+        {currentView === 'security'      && renderSecurityView()}
+        {currentView === 'export'        && renderExportView()}
+        {currentView === 'notifications' && renderNotificationsView()}
 
       </div>
     </div>

@@ -191,6 +191,8 @@ const ScreenerPanel: React.FC<Props> = ({ language, onAnalyze, onClose, isPro = 
     setResult(null);
     setStageFilter('ALL');
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) supabase.functions.setAuth(session.access_token);
       const { data, error: fnError } = await supabase.functions.invoke('screener', {
         body: { index: selectedIndex, smaPeriod: 30 },
       });

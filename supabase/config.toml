@@ -65,4 +65,7 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.screener]
-verify_jwt = true
+verify_jwt = false
+
+[functions.virtual-portfolio]
+verify_jwt = false

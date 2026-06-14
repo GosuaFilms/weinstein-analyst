@@ -1,14 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 
-const FN_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/telegram-link`;
-
-async function authHeaders() {
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token ?? '';
-  return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-}
-
 export interface TelegramStatus {
   connected: boolean;
   chat_id: number | null;
@@ -16,34 +8,35 @@ export interface TelegramStatus {
   bot_username: string;
 }
 
+const EMPTY: TelegramStatus = { connected: false, chat_id: null, link_token: null, bot_username: '' };
+
 export function useTelegramLink() {
   const [status, setStatus] = useState<TelegramStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchStatus = useCallback(async () => {
-    const headers = await authHeaders();
-    const res = await fetch(FN_BASE, { headers });
-    if (res.ok) setStatus(await res.json());
+    try {
+      const { data, error } = await supabase.functions.invoke('telegram-link', { method: 'GET' });
+      setStatus(!error && data ? (data as TelegramStatus) : EMPTY);
+    } catch {
+      setStatus(EMPTY);
+    }
   }, []);
 
-  useEffect(() => {
-    fetchStatus();
-  }, [fetchStatus]);
+  useEffect(() => { fetchStatus(); }, [fetchStatus]);
 
-  // Poll every 2s while a link_token is pending (waiting for user to /start in Telegram)
+  // Poll every 2s while a link_token is pending (waiting for user to /start the bot)
   useEffect(() => {
     if (status?.link_token && !status.connected) {
       pollRef.current = setInterval(async () => {
-        const headers = await authHeaders();
-        const res = await fetch(FN_BASE, { headers });
-        if (!res.ok) return;
-        const s: TelegramStatus = await res.json();
-        setStatus(s);
-        if (s.connected) {
-          clearInterval(pollRef.current!);
-          pollRef.current = null;
-        }
+        try {
+          const { data, error } = await supabase.functions.invoke('telegram-link', { method: 'GET' });
+          if (error || !data) return;
+          const s = data as TelegramStatus;
+          setStatus(s);
+          if (s.connected) { clearInterval(pollRef.current!); pollRef.current = null; }
+        } catch { /* ignore */ }
       }, 2000);
     } else {
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
@@ -54,9 +47,8 @@ export function useTelegramLink() {
   const generateToken = useCallback(async () => {
     setLoading(true);
     try {
-      const headers = await authHeaders();
-      const res = await fetch(FN_BASE, { method: 'POST', headers });
-      if (res.ok) setStatus(await res.json());
+      const { data } = await supabase.functions.invoke('telegram-link', { method: 'POST' });
+      if (data) setStatus(prev => ({ ...(prev ?? EMPTY), ...data }));
     } finally {
       setLoading(false);
     }
@@ -65,8 +57,7 @@ export function useTelegramLink() {
   const disconnect = useCallback(async () => {
     setLoading(true);
     try {
-      const headers = await authHeaders();
-      await fetch(FN_BASE, { method: 'DELETE', headers });
+      await supabase.functions.invoke('telegram-link', { method: 'DELETE' });
       await fetchStatus();
     } finally {
       setLoading(false);

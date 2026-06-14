@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
       .from('profiles')
       .select('telegram_chat_id, telegram_link_token')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
 
     return jsonResponse({
       connected: !!data?.telegram_chat_id,
@@ -52,10 +52,13 @@ Deno.serve(async (req) => {
   // ── POST — generate link token ────────────────────────────────────────────
   if (req.method === 'POST') {
     const newToken = randomToken();
+    // Upsert to handle the case where the profile row doesn't exist yet
     const { error } = await admin
       .from('profiles')
-      .update({ telegram_link_token: newToken, telegram_chat_id: null })
-      .eq('id', user.id);
+      .upsert(
+        { id: user.id, email: user.email ?? '', telegram_link_token: newToken, telegram_chat_id: null },
+        { onConflict: 'id' },
+      );
 
     if (error) return jsonResponse({ error: error.message }, 500);
 

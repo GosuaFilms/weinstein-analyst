@@ -34,8 +34,12 @@ export function useTelegramLink() {
           const { data, error } = await supabase.functions.invoke('telegram-link', { method: 'GET' });
           if (error || !data) return;
           const s = data as TelegramStatus;
-          setStatus(s);
-          if (s.connected) { clearInterval(pollRef.current!); pollRef.current = null; }
+          // Only update status if the user connected — don't overwrite token with null
+          if (s.connected) {
+            setStatus(s);
+            clearInterval(pollRef.current!);
+            pollRef.current = null;
+          }
         } catch { /* ignore */ }
       }, 2000);
     } else {

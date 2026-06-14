@@ -52,6 +52,36 @@ verify_jwt = false
 [functions.watchlist-scan]
 verify_jwt = false
 
+[functions.portfolio-prices]
+verify_jwt = false
+
+[functions.portfolio-rescan]
+verify_jwt = false
+
+[functions.backtest]
+verify_jwt = false
+
+[functions.daily-digest]
+verify_jwt = false
+
+[functions.get-news]
+verify_jwt = false
+
+[functions.push-subscribe]
+verify_jwt = false
+
+[functions.weekly-report]
+verify_jwt = false
+
+[functions.stripe-checkout]
+verify_jwt = false
+
+[functions.stripe-portal]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
+
 [functions.daily-brief]
 verify_jwt = false
 

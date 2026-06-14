@@ -54,3 +54,9 @@ verify_jwt = true
 
 [functions.daily-brief]
 verify_jwt = false
+
+[functions.telegram-webhook]
+verify_jwt = false
+
+[functions.telegram-link]
+verify_jwt = true

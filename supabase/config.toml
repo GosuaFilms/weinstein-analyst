@@ -60,3 +60,6 @@ verify_jwt = false
 
 [functions.telegram-link]
 verify_jwt = true
+
+[functions.stage2-daily]
+verify_jwt = false

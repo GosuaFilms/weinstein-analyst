@@ -1,14 +1,12 @@
-// GET  /functions/v1/telegram-link  → get current Telegram status (chat_id set?)
-// POST /functions/v1/telegram-link  → generate (or refresh) a link token
-// DELETE /functions/v1/telegram-link → disconnect Telegram
-//
+// POST /functions/v1/telegram-link
+// Body: { action: 'status' | 'generate' | 'disconnect' }
 // Auth: standard Supabase JWT
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
 
 function randomToken(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I,O,0,1 to avoid confusion
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   return Array.from(crypto.getRandomValues(new Uint8Array(6)))
     .map(b => chars[b % chars.length])
     .join('');
@@ -33,8 +31,11 @@ Deno.serve(async (req) => {
   const admin = createClient(supabaseUrl, serviceKey);
   const botUsername = Deno.env.get('TELEGRAM_BOT_USERNAME') ?? '';
 
-  // ── GET — current status ──────────────────────────────────────────────────
-  if (req.method === 'GET') {
+  const body = await req.json().catch(() => ({}));
+  const action = body?.action ?? 'status';
+
+  // ── status ──────────────────────────────────────────────────────────────────
+  if (action === 'status') {
     const { data } = await admin
       .from('profiles')
       .select('telegram_chat_id, telegram_link_token')
@@ -49,10 +50,9 @@ Deno.serve(async (req) => {
     });
   }
 
-  // ── POST — generate link token ────────────────────────────────────────────
-  if (req.method === 'POST') {
+  // ── generate link token ──────────────────────────────────────────────────────
+  if (action === 'generate') {
     const newToken = randomToken();
-    // Upsert to handle the case where the profile row doesn't exist yet
     const { error } = await admin
       .from('profiles')
       .upsert(
@@ -63,21 +63,22 @@ Deno.serve(async (req) => {
     if (error) return jsonResponse({ error: error.message }, 500);
 
     return jsonResponse({
+      connected: false,
+      chat_id: null,
       link_token: newToken,
       bot_username: botUsername,
-      deep_link: `https://t.me/${botUsername}?start=${newToken}`,
     });
   }
 
-  // ── DELETE — disconnect ───────────────────────────────────────────────────
-  if (req.method === 'DELETE') {
+  // ── disconnect ───────────────────────────────────────────────────────────────
+  if (action === 'disconnect') {
     await admin
       .from('profiles')
       .update({ telegram_chat_id: null, telegram_link_token: null })
       .eq('id', user.id);
 
-    return jsonResponse({ ok: true });
+    return jsonResponse({ connected: false, chat_id: null, link_token: null, bot_username: botUsername });
   }
 
-  return jsonResponse({ error: 'method not allowed' }, 405);
+  return jsonResponse({ error: 'unknown action' }, 400);
 });

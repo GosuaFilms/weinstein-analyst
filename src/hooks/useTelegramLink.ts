@@ -10,37 +10,37 @@ export interface TelegramStatus {
 
 const EMPTY: TelegramStatus = { connected: false, chat_id: null, link_token: null, bot_username: '' };
 
+async function callLink(action: 'status' | 'generate' | 'disconnect'): Promise<TelegramStatus | null> {
+  const { data, error } = await supabase.functions.invoke('telegram-link', {
+    body: { action },
+  });
+  if (error || !data) return null;
+  return data as TelegramStatus;
+}
+
 export function useTelegramLink() {
   const [status, setStatus] = useState<TelegramStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchStatus = useCallback(async () => {
-    try {
-      const { data, error } = await supabase.functions.invoke('telegram-link', { method: 'GET' });
-      setStatus(!error && data ? (data as TelegramStatus) : EMPTY);
-    } catch {
-      setStatus(EMPTY);
-    }
+    const result = await callLink('status');
+    setStatus(result ?? EMPTY);
   }, []);
 
   useEffect(() => { fetchStatus(); }, [fetchStatus]);
 
-  // Poll every 2s while a link_token is pending (waiting for user to /start the bot)
+  // Poll every 2s while link_token is pending (waiting for /start in Telegram bot)
   useEffect(() => {
     if (status?.link_token && !status.connected) {
       pollRef.current = setInterval(async () => {
-        try {
-          const { data, error } = await supabase.functions.invoke('telegram-link', { method: 'GET' });
-          if (error || !data) return;
-          const s = data as TelegramStatus;
-          // Only update status if the user connected — don't overwrite token with null
-          if (s.connected) {
-            setStatus(s);
-            clearInterval(pollRef.current!);
-            pollRef.current = null;
-          }
-        } catch { /* ignore */ }
+        const result = await callLink('status');
+        if (!result) return;
+        if (result.connected) {
+          setStatus(result);
+          clearInterval(pollRef.current!);
+          pollRef.current = null;
+        }
       }, 2000);
     } else {
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
@@ -51,8 +51,8 @@ export function useTelegramLink() {
   const generateToken = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await supabase.functions.invoke('telegram-link', { method: 'POST' });
-      if (data) setStatus(prev => ({ ...(prev ?? EMPTY), ...data }));
+      const result = await callLink('generate');
+      if (result) setStatus(result);
     } finally {
       setLoading(false);
     }
@@ -61,12 +61,12 @@ export function useTelegramLink() {
   const disconnect = useCallback(async () => {
     setLoading(true);
     try {
-      await supabase.functions.invoke('telegram-link', { method: 'DELETE' });
-      await fetchStatus();
+      const result = await callLink('disconnect');
+      if (result) setStatus(result);
     } finally {
       setLoading(false);
     }
-  }, [fetchStatus]);
+  }, []);
 
   return { status, loading, generateToken, disconnect };
 }

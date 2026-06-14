@@ -265,6 +265,7 @@ Deno.serve(async (req) => {
             confidence: 'low' as const,
             reasoning: '',
             sma30: null,
+            sma40: null,
             distanceFromSMA30Pct: null,
             sma30Trend: null,
             mansfieldRS: null,

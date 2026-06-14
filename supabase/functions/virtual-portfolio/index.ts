@@ -133,6 +133,8 @@ interface CandidateStock {
   stopLossRiskPct: number | null;
   distanceFromSMA30Pct: number | null;
   extendedStage2: boolean;
+  atr14Weekly: number | null;
+  atr14WeeklyPct: number | null;
   region: string;
   score: number;
 }
@@ -148,6 +150,9 @@ export interface VirtualPosition {
   stopLossRiskPct: number | null;
   distanceFromSMA30Pct: number | null;
   extendedStage2: boolean;
+  atr14Weekly: number | null;
+  atr14WeeklyPct: number | null;
+  sizingMethod: 'atr' | 'weinstein' | 'equal';
   region: string;
   allocationPct: number;
   allocationAmount: number;
@@ -192,14 +197,20 @@ function scoreCandidate(c: CandidateStock): number {
     else if (c.mansfieldRS > 0) s += 10;
     else s -= 5;
   }
-  if (c.extendedStage2) s -= 15; // Already extended, higher risk
+  if (c.extendedStage2) s -= 15;
   if (c.stopLossRiskPct !== null) {
-    if (c.stopLossRiskPct < 6) s += 10;   // Tight stop = better R/R
-    else if (c.stopLossRiskPct > 15) s -= 5; // Wide stop = worse R/R
+    if (c.stopLossRiskPct < 6) s += 10;
+    else if (c.stopLossRiskPct > 15) s -= 5;
   }
   if (c.distanceFromSMA30Pct !== null && c.distanceFromSMA30Pct > 0) {
-    if (c.distanceFromSMA30Pct < 5) s += 8;   // Close to SMA30 = early stage 2
-    else if (c.distanceFromSMA30Pct > 20) s -= 8; // Very extended
+    if (c.distanceFromSMA30Pct < 5) s += 8;
+    else if (c.distanceFromSMA30Pct > 20) s -= 8;
+  }
+  // ATR volatility score: prefer controlled volatility (better R/R precision)
+  if (c.atr14WeeklyPct !== null) {
+    if (c.atr14WeeklyPct < 3) s += 10;        // Low volatility — tighter ATR stop
+    else if (c.atr14WeeklyPct <= 6) s += 5;   // Moderate — typical
+    else if (c.atr14WeeklyPct > 10) s -= 10;  // High volatility — wider stop, harder sizing
   }
   return s;
 }
@@ -209,22 +220,20 @@ function scoreCandidate(c: CandidateStock): number {
 const MAX_POSITIONS = 12;
 const MAX_PER_REGION = 4;
 const RISK_PER_POSITION = 0.015; // 1.5% of portfolio per position
+const ATR_MULTIPLIER = 2.0;      // ATR stop distance = ATR14w × this multiplier
 const MAX_POSITION_PCT = 0.12;   // 12% cap
 const MIN_POSITION_PCT = 0.03;   // 3% floor
-const CASH_RESERVE_TARGET = 0.15; // Keep ~15% in cash
-const MIN_STOCK_PRICE = 2.0;      // Exclude penny stocks below this price
+const CASH_RESERVE_TARGET = 0.15;
+const MIN_STOCK_PRICE = 2.0;
 
 function buildPortfolio(
   candidates: CandidateStock[],
   portfolioAmount: number
 ): VirtualPosition[] {
-  // Sort by score descending
   const sorted = [...candidates].sort((a, b) => b.score - a.score);
 
-  // Select with regional diversification
   const selected: CandidateStock[] = [];
   const regionCount: Record<string, number> = {};
-
   for (const c of sorted) {
     if (selected.length >= MAX_POSITIONS) break;
     const region = c.region;
@@ -237,38 +246,53 @@ function buildPortfolio(
   if (selected.length === 0) return [];
 
   const investableAmount = portfolioAmount * (1 - CASH_RESERVE_TARGET);
+  const riskBudget = portfolioAmount * RISK_PER_POSITION;
 
-  // Risk-based sizing: position_size = (portfolio * RISK_PCT) / (stopRiskPct/100)
-  const rawAllocations = selected.map(c => {
-    if (c.stopLossRiskPct && c.stopLossRiskPct > 0) {
-      return (portfolioAmount * RISK_PER_POSITION) / (c.stopLossRiskPct / 100);
+  // Risk-based sizing — prefer ATR stop (Van Tharp), fall back to Weinstein SMA30 stop
+  type SizingInfo = { amount: number; method: 'atr' | 'weinstein' | 'equal' };
+  const rawAllocations: SizingInfo[] = selected.map(c => {
+    // ATR method: shares = riskBudget / (ATR14w × mult); positionSize = shares × price
+    if (c.atr14Weekly && c.atr14Weekly > 0) {
+      const riskPerShare = c.atr14Weekly * ATR_MULTIPLIER;
+      const shares = riskBudget / riskPerShare;
+      return { amount: shares * c.currentPrice, method: 'atr' };
     }
-    return investableAmount / selected.length;
+    // Weinstein method: positionSize = riskBudget / (stopLossRiskPct/100)
+    if (c.stopLossRiskPct && c.stopLossRiskPct > 0) {
+      return { amount: riskBudget / (c.stopLossRiskPct / 100), method: 'weinstein' };
+    }
+    // Equal weight fallback
+    return { amount: investableAmount / selected.length, method: 'equal' };
   });
 
   // Normalise so total ≤ investableAmount, apply caps
-  const rawTotal = rawAllocations.reduce((s, v) => s + v, 0);
+  const rawTotal = rawAllocations.reduce((s, v) => s + v.amount, 0);
   const scale = rawTotal > investableAmount ? investableAmount / rawTotal : 1;
 
-  const capped = rawAllocations.map(v => {
-    const scaled = v * scale;
-    return Math.min(
-      Math.max(scaled, portfolioAmount * MIN_POSITION_PCT),
+  const capped = rawAllocations.map(v => ({
+    amount: Math.min(
+      Math.max(v.amount * scale, portfolioAmount * MIN_POSITION_PCT),
       portfolioAmount * MAX_POSITION_PCT
-    );
-  });
+    ),
+    method: v.method,
+  }));
 
-  // Re-normalise after capping so we don't exceed investableAmount
-  const cappedTotal = capped.reduce((s, v) => s + v, 0);
+  const cappedTotal = capped.reduce((s, v) => s + v.amount, 0);
   const finalScale = cappedTotal > investableAmount ? investableAmount / cappedTotal : 1;
 
   return selected.map((c, i) => {
-    const amount = capped[i] * finalScale;
+    const amount = capped[i].amount * finalScale;
+    const sizingMethod = capped[i].method;
     const pct = amount / portfolioAmount;
-    const approxShares = c.currentPrice > 0 ? amount / c.currentPrice : 0;
-    const posRisk = c.stopLossRiskPct
-      ? amount * (c.stopLossRiskPct / 100)
-      : amount * 0.08; // fallback: assume 8% stop
+
+    // Risk $ = riskBudget (target) — always RISK_PER_POSITION × portfolio
+    // Actual risk depends on stop method used
+    const posRisk = c.atr14Weekly && c.atr14Weekly > 0
+      ? Math.floor(riskBudget / (c.atr14Weekly * ATR_MULTIPLIER)) * c.atr14Weekly * ATR_MULTIPLIER
+      : c.stopLossRiskPct
+        ? amount * (c.stopLossRiskPct / 100)
+        : amount * 0.08;
+
     const r2 = (v: number | null) => v !== null ? Math.round(v * 100) / 100 : null;
     return {
       symbol: c.symbol,
@@ -276,21 +300,21 @@ function buildPortfolio(
       nativeCurrency: c.currency,
       currentPrice: r2(c.currentPrice) ?? 0,
       confidence: c.confidence,
-      // All percentages and prices rounded to 2 decimals
       mansfieldRS: r2(c.mansfieldRS),
       stopLoss: r2(c.stopLoss),
       stopLossRiskPct: r2(c.stopLossRiskPct),
       distanceFromSMA30Pct: r2(c.distanceFromSMA30Pct),
       extendedStage2: c.extendedStage2,
+      atr14Weekly: r2(c.atr14Weekly),
+      atr14WeeklyPct: r2(c.atr14WeeklyPct),
+      sizingMethod,
       region: c.region,
       allocationPct: Math.round(pct * 1000) / 10,
       allocationAmount: Math.round(amount * 100) / 100,
-      // Integer shares for normal stocks, 2 decimals for sub-1 prices
       approxShares: c.currentPrice >= 1
         ? Math.floor(amount / c.currentPrice)
         : Math.round((amount / c.currentPrice) * 100) / 100,
       positionRisk: Math.round(posRisk * 100) / 100,
-      // 2 decimal places for risk % (0.59 instead of 0.6)
       positionRiskPct: Math.round((posRisk / portfolioAmount) * 10000) / 100,
     };
   });
@@ -369,6 +393,8 @@ Deno.serve(async (req) => {
         stopLossRiskPct: snap.stopLossRiskPct,
         distanceFromSMA30Pct: snap.distanceFromSMA30Pct,
         extendedStage2: snap.extendedStage2,
+        atr14Weekly: snap.atr14Weekly,
+        atr14WeeklyPct: snap.atr14WeeklyPct,
         region: tickerToRegion.get(ticker) ?? regionOf(ticker),
         score: 0,
       };
@@ -397,10 +423,11 @@ Deno.serve(async (req) => {
       positions,
       methodology: {
         riskPerPosition: `${RISK_PER_POSITION * 100}%`,
+        atrMultiplier: `${ATR_MULTIPLIER}×`,
+        sizingPriority: 'ATR14w → Weinstein SMA30 → Equal weight',
         maxPositions: MAX_POSITIONS,
         maxPerRegion: MAX_PER_REGION,
         cashReserveTarget: `${CASH_RESERVE_TARGET * 100}%`,
-        stopLossMethod: 'Weinstein SMA30 / swing low',
       },
     });
   } catch (err) {

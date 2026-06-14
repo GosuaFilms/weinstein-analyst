@@ -23,6 +23,10 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [isGeneratingCard, setIsGeneratingCard] = useState(false);
+  // Position sizing calculator state
+  const [posCalcPortfolio, setPosCalcPortfolio] = useState(100000);
+  const [posCalcRiskPct, setPosCalcRiskPct] = useState(1);
+  const [posCalcAtrMult, setPosCalcAtrMult] = useState(2);
   const displayRef = useRef<HTMLDivElement>(null);
   const shareCardRef = useRef<HTMLDivElement>(null);
   const { articles: news, loading: newsLoading } = useTickerNews(ticker, language === Language.ES ? 'es' : 'en');
@@ -513,6 +517,161 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
             </div>
           </section>
         </div>
+
+        {/* ATR Position Sizing Calculator */}
+        {data.technicalSnapshot?.atr14Weekly && (() => {
+          const atr = data.technicalSnapshot!.atr14Weekly!;
+          const price = data.technicalSnapshot!.currentPrice ?? parseFloat(data.currentPrice) ?? 0;
+          if (!price) return null;
+
+          const riskAmt = posCalcPortfolio * posCalcRiskPct / 100;
+          const riskPerShare = atr * posCalcAtrMult;
+          const atrStop = price - riskPerShare;
+          const shares = riskPerShare > 0 ? Math.floor(riskAmt / riskPerShare) : 0;
+          const posValue = shares * price;
+          const posPct = posCalcPortfolio > 0 ? (posValue / posCalcPortfolio * 100) : 0;
+
+          const wsStop = data.technicalSnapshot!.suggestedStopLoss ??
+            (data.stopLoss ? parseFloat(data.stopLoss.replace(/[^0-9.]/g, '')) : null);
+          const wsRisk = wsStop ? price - wsStop : null;
+          const wsShares = (wsRisk && wsRisk > 0) ? Math.floor(riskAmt / wsRisk) : null;
+          const wsValue = wsShares ? wsShares * price : null;
+          const wsPct = (wsValue && posCalcPortfolio > 0) ? wsValue / posCalcPortfolio * 100 : null;
+
+          const fmt0 = (n: number) => n.toLocaleString('es-ES', { maximumFractionDigits: 0 });
+
+          return (
+            <div className="px-8 md:px-12 pb-8" data-html2canvas-ignore="true">
+              <div className="bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800 p-4">
+                {/* Header */}
+                <div className="flex items-center gap-2 mb-4">
+                  <i className="fas fa-calculator text-violet-500 text-xs"></i>
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex-grow">
+                    {language === Language.ES ? 'Calculadora de Posición (ATR)' : 'Position Sizing Calculator (ATR)'}
+                  </h3>
+                  <span className="text-[9px] text-slate-400">
+                    ATR14w: <span className="font-black text-slate-600 dark:text-slate-300">{atr.toFixed(2)}</span>
+                    {data.technicalSnapshot!.atr14WeeklyPct != null && (
+                      <span className="ml-1">({data.technicalSnapshot!.atr14WeeklyPct!.toFixed(1)}%)</span>
+                    )}
+                    <span className="mx-2 text-slate-300 dark:text-slate-600">·</span>
+                    <span className="font-bold text-slate-500">{language === Language.ES ? 'Precio' : 'Price'}:</span> <span className="font-black text-slate-600 dark:text-slate-300">{price.toFixed(2)}</span>
+                  </span>
+                </div>
+
+                {/* Controls */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1 block">
+                      {language === Language.ES ? 'Capital (€/$)' : 'Portfolio ($)'}
+                    </label>
+                    <input
+                      type="number"
+                      min={1000}
+                      step={5000}
+                      value={posCalcPortfolio}
+                      onChange={e => setPosCalcPortfolio(Math.max(0, Number(e.target.value)))}
+                      className="w-full text-sm font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1 block">
+                      {language === Language.ES ? 'Riesgo / trade' : 'Risk / trade'}
+                    </label>
+                    <div className="flex gap-1">
+                      {([0.5, 1, 1.5, 2] as const).map(v => (
+                        <button
+                          key={v}
+                          onClick={() => setPosCalcRiskPct(v)}
+                          className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all ${posCalcRiskPct === v ? 'bg-violet-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-violet-400'}`}
+                        >
+                          {v}%
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1 block">
+                      ATR {language === Language.ES ? 'multiplicador' : 'multiplier'}
+                    </label>
+                    <div className="flex gap-1">
+                      {([1.5, 2, 2.5] as const).map(v => (
+                        <button
+                          key={v}
+                          onClick={() => setPosCalcAtrMult(v)}
+                          className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all ${posCalcAtrMult === v ? 'bg-violet-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-violet-400'}`}
+                        >
+                          {v}×
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Results */}
+                <div className="space-y-2">
+                  {/* ATR row */}
+                  <div className="grid grid-cols-5 gap-2 bg-violet-50 dark:bg-violet-500/10 rounded-xl p-3 border border-violet-100 dark:border-violet-500/20">
+                    <div className="text-center">
+                      <p className="text-[9px] text-violet-500 font-black uppercase tracking-wider mb-0.5">ATR Stop</p>
+                      <p className="text-sm font-black text-violet-700 dark:text-violet-300">{atrStop > 0 ? atrStop.toFixed(2) : '—'}</p>
+                      <p className="text-[8px] text-violet-400">−{posCalcAtrMult}×ATR</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[9px] text-violet-500 font-black uppercase tracking-wider mb-0.5">{language === Language.ES ? 'Acciones' : 'Shares'}</p>
+                      <p className="text-sm font-black text-slate-800 dark:text-slate-100">{shares.toLocaleString()}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[9px] text-violet-500 font-black uppercase tracking-wider mb-0.5">{language === Language.ES ? 'Valor pos.' : 'Pos. value'}</p>
+                      <p className="text-sm font-black text-slate-800 dark:text-slate-100">{fmt0(posValue)}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[9px] text-violet-500 font-black uppercase tracking-wider mb-0.5">% {language === Language.ES ? 'cartera' : 'portfolio'}</p>
+                      <p className={`text-sm font-black ${posPct > 25 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-800 dark:text-slate-100'}`}>{posPct.toFixed(1)}%</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[9px] text-violet-500 font-black uppercase tracking-wider mb-0.5">{language === Language.ES ? 'Riesgo €' : 'Risk $'}</p>
+                      <p className="text-sm font-black text-rose-600 dark:text-rose-400">{fmt0(riskAmt)}</p>
+                    </div>
+                  </div>
+
+                  {/* Weinstein stop comparison */}
+                  {wsStop != null && wsShares != null && wsValue != null && (
+                    <div className="grid grid-cols-5 gap-2 bg-slate-100 dark:bg-slate-900/50 rounded-xl p-3 border border-slate-200 dark:border-slate-700/40">
+                      <div className="text-center">
+                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-wider mb-0.5">{language === Language.ES ? 'Stop W.' : 'W. Stop'}</p>
+                        <p className="text-sm font-black text-rose-600 dark:text-rose-400">{wsStop.toFixed(2)}</p>
+                        <p className="text-[8px] text-slate-400">Weinstein</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-wider mb-0.5">{language === Language.ES ? 'Acciones' : 'Shares'}</p>
+                        <p className="text-sm font-black text-slate-600 dark:text-slate-400">{wsShares.toLocaleString()}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-wider mb-0.5">{language === Language.ES ? 'Valor pos.' : 'Pos. value'}</p>
+                        <p className="text-sm font-black text-slate-600 dark:text-slate-400">{fmt0(wsValue)}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-wider mb-0.5">% {language === Language.ES ? 'cartera' : 'portfolio'}</p>
+                        <p className={`text-sm font-black ${wsPct && wsPct > 25 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-600 dark:text-slate-400'}`}>{wsPct?.toFixed(1)}%</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-wider mb-0.5">{language === Language.ES ? 'Riesgo €' : 'Risk $'}</p>
+                        <p className="text-sm font-black text-rose-400">{fmt0(riskAmt)}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <p className="text-[8px] text-slate-300 dark:text-slate-600 mt-3 italic">
+                  {language === Language.ES
+                    ? 'Fórmula: Acciones = (Capital × Riesgo%) ÷ (ATR14w × mult). Solo orientativo, no constituye asesoramiento financiero.'
+                    : 'Formula: Shares = (Portfolio × Risk%) ÷ (ATR14w × mult). For reference only, not financial advice.'}
+                </p>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Uploaded Images Section */}
         {images && images.length > 0 && (

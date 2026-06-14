@@ -35,22 +35,22 @@ policy = "oneshot"
 inspector_port = 8083
 
 [functions.get-live-price]
-verify_jwt = true
+verify_jwt = false
 
 [functions.analyze-market]
-verify_jwt = true
+verify_jwt = false
 
 [functions.analyze-operation]
-verify_jwt = true
+verify_jwt = false
 
 [functions.chat]
-verify_jwt = true
+verify_jwt = false
 
 [functions.check-alerts]
 verify_jwt = false
 
 [functions.watchlist-scan]
-verify_jwt = true
+verify_jwt = false
 
 [functions.daily-brief]
 verify_jwt = false

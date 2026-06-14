@@ -15,3 +15,12 @@ export const supabase = createClient(url ?? '', anonKey ?? '', {
     detectSessionInUrl: true,
   },
 });
+
+// Ensure edge function calls always use the user's JWT, not the anon key.
+// supabase-js may not call setAuth on INITIAL_SESSION (restored sessions),
+// leaving the functions client with the anon key instead of the user's JWT.
+supabase.auth.onAuthStateChange((_event, session) => {
+  if (session?.access_token) {
+    supabase.functions.setAuth(session.access_token);
+  }
+});

@@ -32,6 +32,10 @@ export function classifyStage(snap: TechnicalSnapshot): StageClassification {
     volumeRatio,
     extendedStage2,
   } = snap;
+  const multiMaAlignment = snap.multiMaAlignment;
+  const volumeDryUp = snap.volumeDryUp;
+  const sma10 = snap.sma10Weekly;
+  const sma40 = snap.sma40Weekly;
 
   if (sma30Weekly == null || distanceFromSMA30Pct == null || sma30Trend == null) {
     return {
@@ -60,16 +64,26 @@ export function classifyStage(snap: TechnicalSnapshot): StageClassification {
     const nearHigh = weekly52High ? currentPrice >= weekly52High * 0.95 : false;
     const volBoost = (volumeRatio ?? 0) >= 2;
     const confidence: 'low' | 'medium' | 'high' =
-      bullishHits === 4 ? 'high' : bullishHits === 3 ? 'medium' : 'low';
+      bullishHits === 4 && multiMaAlignment === 'bullish' ? 'high' :
+      bullishHits >= 3 && (multiMaAlignment === 'bullish' || multiMaAlignment === 'partial') ? 'medium' :
+      bullishHits >= 3 ? 'medium' :
+      'low';
     const extras = [
       nearHigh ? 'cerca de máximos 52sem' : null,
       volBoost ? 'volumen ≥2× la media' : null,
       extendedStage2 ? '⚠ Etapa 2 extendida (>15% sobre MM30) — considerar salida parcial' : null,
     ].filter(Boolean).join(', ');
+    const multiMaStr = multiMaAlignment === 'bullish'
+      ? ` MA10w(${sma10?.toFixed(2) ?? '?'}) > MA30w > MA40w(${sma40?.toFixed(2) ?? '?'}) alcistas alineadas ✓`
+      : multiMaAlignment === 'partial'
+      ? ` MAs parcialmente alineadas (${multiMaAlignment})`
+      : multiMaAlignment === 'bearish'
+      ? ` ⚠ MAs en alineación bajista`
+      : '';
     return {
       stage: 'STAGE_2',
       confidence,
-      reasoning: `Etapa 2: precio ${dist.toFixed(1)}% sobre MM30 ASCENDENTE, Mansfield RS=${rsStr} vs ${benchName} ${rsRising ? 'subiendo' : rsPositive ? 'positiva pero no subiendo' : 'NEGATIVA'}. Filtros Weinstein cumplidos: ${bullishHits}/4.${extras ? ' ' + extras + '.' : ''}`,
+      reasoning: `Etapa 2: precio ${dist.toFixed(1)}% sobre MM30 ASCENDENTE, Mansfield RS=${rsStr} vs ${benchName} ${rsRising ? 'subiendo' : rsPositive ? 'positiva pero no subiendo' : 'NEGATIVA'}. Filtros Weinstein cumplidos: ${bullishHits}/4.${extras ? ' ' + extras + '.' : ''}${multiMaStr}`,
     };
   }
 
@@ -95,10 +109,11 @@ export function classifyStage(snap: TechnicalSnapshot): StageClassification {
   }
 
   // Stage 1 — price below MM30 but slope flat or turning up → base.
+  const dryUpNote = volumeDryUp === true ? ' · ⚡ Volumen en contracción (posible rotura inminente)' : '';
   return {
     stage: 'STAGE_1',
     confidence: 'medium',
-    reasoning: `Etapa 1 (base): precio ${Math.abs(dist).toFixed(1)}% bajo MM30 ${sma30Trend === 'rising' ? 'girando al alza' : 'plana'}. Esperar ruptura confirmada con volumen ≥2× antes de comprar.`,
+    reasoning: `Etapa 1 (base): precio ${Math.abs(dist).toFixed(1)}% bajo MM30 ${sma30Trend === 'rising' ? 'girando al alza' : 'plana'}. Esperar ruptura confirmada con volumen ≥2× antes de comprar.${dryUpNote}`,
   };
 }
 

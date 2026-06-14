@@ -48,3 +48,21 @@ verify_jwt = true
 
 [functions.check-alerts]
 verify_jwt = false
+
+[functions.watchlist-scan]
+verify_jwt = true
+
+[functions.daily-brief]
+verify_jwt = false
+
+[functions.telegram-webhook]
+verify_jwt = false
+
+[functions.telegram-link]
+verify_jwt = true
+
+[functions.stage2-daily]
+verify_jwt = false
+
+[functions.screener]
+verify_jwt = true

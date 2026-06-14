@@ -23,6 +23,10 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [isGeneratingCard, setIsGeneratingCard] = useState(false);
+  // Position sizing calculator state
+  const [posCalcPortfolio, setPosCalcPortfolio] = useState(100000);
+  const [posCalcRiskPct, setPosCalcRiskPct] = useState(1);
+  const [posCalcAtrMult, setPosCalcAtrMult] = useState(2);
   const displayRef = useRef<HTMLDivElement>(null);
   const shareCardRef = useRef<HTMLDivElement>(null);
   const { articles: news, loading: newsLoading } = useTickerNews(ticker, language === Language.ES ? 'es' : 'en');
@@ -393,6 +397,74 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
               <p className="text-slate-700 dark:text-slate-300 leading-relaxed font-semibold text-base">{data.sma30Analysis || 'Data unavailable'}</p>
             </div>
 
+            {/* Multi-MA System indicator — shows when technicalSnapshot available */}
+            {data.technicalSnapshot && (() => {
+              const ts = data.technicalSnapshot;
+              const alignColor = {
+                bullish:  'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30',
+                partial:  'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30',
+                neutral:  'text-slate-500 bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700',
+                bearish:  'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30',
+              };
+              const align = (ts.multiMaAlignment ?? 'neutral') as keyof typeof alignColor;
+              const price = ts.currentPrice ?? 0;
+
+              const maRows = [
+                { label: 'MA10w ≈ MA50d',  val: ts.sma10Weekly,  trend: ts.sma10WeeklyTrend  },
+                { label: 'MA30w ≈ MA150d', val: ts.sma30Weekly,  trend: ts.sma30Trend         },
+                { label: 'MA40w ≈ MA200d', val: ts.sma40Weekly,  trend: ts.sma40WeeklyTrend  },
+              ];
+
+              return (
+                <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                  <div className="flex items-center gap-2 mb-3">
+                    <i className="fas fa-layer-group text-violet-500 text-xs"></i>
+                    <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] flex-grow">
+                      {language === Language.ES ? 'Sistema Multi-MA (upgrade Weinstein)' : 'Multi-MA System (Weinstein upgrade)'}
+                    </h3>
+                    {ts.multiMaAlignment && (
+                      <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${alignColor[align]}`}>
+                        {ts.multiMaAlignment}
+                      </span>
+                    )}
+                  </div>
+                  <div className="space-y-1.5 mb-3">
+                    {maRows.map(row => {
+                      if (!row.val) return null;
+                      const above = price > row.val;
+                      const pct = ((price - row.val) / row.val * 100).toFixed(1);
+                      const trendIcon = row.trend === 'rising' ? '↑' : row.trend === 'falling' ? '↓' : '→';
+                      return (
+                        <div key={row.label} className="flex items-center gap-2 text-xs">
+                          <span className="w-28 text-[10px] font-bold text-slate-500 flex-shrink-0">{row.label}</span>
+                          <span className="font-black text-slate-700 dark:text-slate-300 w-16 text-right flex-shrink-0">{row.val.toFixed(2)}</span>
+                          <span className={`font-bold flex-shrink-0 ${above ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                            {above ? '▲' : '▼'} {above ? '+' : ''}{pct}%
+                          </span>
+                          <span className={`text-[10px] font-bold flex-shrink-0 ${row.trend === 'rising' ? 'text-emerald-500' : row.trend === 'falling' ? 'text-rose-500' : 'text-slate-400'}`}>
+                            {trendIcon} {row.trend ?? '—'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex flex-wrap gap-3 pt-2 border-t border-slate-100 dark:border-slate-700/50 text-[9px] text-slate-400">
+                    {ts.atr14WeeklyPct != null && (
+                      <span><span className="font-bold text-slate-500">ATR14w:</span> {ts.atr14Weekly?.toFixed(2)} ({ts.atr14WeeklyPct.toFixed(1)}%)</span>
+                    )}
+                    {ts.volumeDryUp != null && (
+                      <span className={ts.volumeDryUp ? 'text-amber-600 dark:text-amber-400 font-bold' : ''}>
+                        {ts.volumeDryUp ? '⚡ ' : ''}{language === Language.ES ? (ts.volumeDryUp ? 'Volumen en contracción (posible rotura)' : 'Volumen normal') : (ts.volumeDryUp ? 'Volume dry-up (potential breakout)' : 'Volume normal')}
+                      </span>
+                    )}
+                    {ts.distanceFromSMA30Pct != null && ts.extendedStage2 && (
+                      <span className="text-amber-600 font-bold">⚠ Stage 2 extendido (+{ts.distanceFromSMA30Pct.toFixed(1)}% sobre MA30w)</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="bg-slate-50 dark:bg-slate-800/40 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
               <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                 <i className="fas fa-balance-scale text-amber-500"></i> {labels.rs}
@@ -445,6 +517,161 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
             </div>
           </section>
         </div>
+
+        {/* ATR Position Sizing Calculator */}
+        {data.technicalSnapshot?.atr14Weekly && (() => {
+          const atr = data.technicalSnapshot!.atr14Weekly!;
+          const price = data.technicalSnapshot!.currentPrice ?? parseFloat(data.currentPrice) ?? 0;
+          if (!price) return null;
+
+          const riskAmt = posCalcPortfolio * posCalcRiskPct / 100;
+          const riskPerShare = atr * posCalcAtrMult;
+          const atrStop = price - riskPerShare;
+          const shares = riskPerShare > 0 ? Math.floor(riskAmt / riskPerShare) : 0;
+          const posValue = shares * price;
+          const posPct = posCalcPortfolio > 0 ? (posValue / posCalcPortfolio * 100) : 0;
+
+          const wsStop = data.technicalSnapshot!.suggestedStopLoss ??
+            (data.stopLoss ? parseFloat(data.stopLoss.replace(/[^0-9.]/g, '')) : null);
+          const wsRisk = wsStop ? price - wsStop : null;
+          const wsShares = (wsRisk && wsRisk > 0) ? Math.floor(riskAmt / wsRisk) : null;
+          const wsValue = wsShares ? wsShares * price : null;
+          const wsPct = (wsValue && posCalcPortfolio > 0) ? wsValue / posCalcPortfolio * 100 : null;
+
+          const fmt0 = (n: number) => n.toLocaleString('es-ES', { maximumFractionDigits: 0 });
+
+          return (
+            <div className="px-8 md:px-12 pb-8" data-html2canvas-ignore="true">
+              <div className="bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800 p-4">
+                {/* Header */}
+                <div className="flex items-center gap-2 mb-4">
+                  <i className="fas fa-calculator text-violet-500 text-xs"></i>
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex-grow">
+                    {language === Language.ES ? 'Calculadora de Posición (ATR)' : 'Position Sizing Calculator (ATR)'}
+                  </h3>
+                  <span className="text-[9px] text-slate-400">
+                    ATR14w: <span className="font-black text-slate-600 dark:text-slate-300">{atr.toFixed(2)}</span>
+                    {data.technicalSnapshot!.atr14WeeklyPct != null && (
+                      <span className="ml-1">({data.technicalSnapshot!.atr14WeeklyPct!.toFixed(1)}%)</span>
+                    )}
+                    <span className="mx-2 text-slate-300 dark:text-slate-600">·</span>
+                    <span className="font-bold text-slate-500">{language === Language.ES ? 'Precio' : 'Price'}:</span> <span className="font-black text-slate-600 dark:text-slate-300">{price.toFixed(2)}</span>
+                  </span>
+                </div>
+
+                {/* Controls */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1 block">
+                      {language === Language.ES ? 'Capital (€/$)' : 'Portfolio ($)'}
+                    </label>
+                    <input
+                      type="number"
+                      min={1000}
+                      step={5000}
+                      value={posCalcPortfolio}
+                      onChange={e => setPosCalcPortfolio(Math.max(0, Number(e.target.value)))}
+                      className="w-full text-sm font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1 block">
+                      {language === Language.ES ? 'Riesgo / trade' : 'Risk / trade'}
+                    </label>
+                    <div className="flex gap-1">
+                      {([0.5, 1, 1.5, 2] as const).map(v => (
+                        <button
+                          key={v}
+                          onClick={() => setPosCalcRiskPct(v)}
+                          className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all ${posCalcRiskPct === v ? 'bg-violet-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-violet-400'}`}
+                        >
+                          {v}%
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1 block">
+                      ATR {language === Language.ES ? 'multiplicador' : 'multiplier'}
+                    </label>
+                    <div className="flex gap-1">
+                      {([1.5, 2, 2.5] as const).map(v => (
+                        <button
+                          key={v}
+                          onClick={() => setPosCalcAtrMult(v)}
+                          className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all ${posCalcAtrMult === v ? 'bg-violet-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-violet-400'}`}
+                        >
+                          {v}×
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Results */}
+                <div className="space-y-2">
+                  {/* ATR row */}
+                  <div className="grid grid-cols-5 gap-2 bg-violet-50 dark:bg-violet-500/10 rounded-xl p-3 border border-violet-100 dark:border-violet-500/20">
+                    <div className="text-center">
+                      <p className="text-[9px] text-violet-500 font-black uppercase tracking-wider mb-0.5">ATR Stop</p>
+                      <p className="text-sm font-black text-violet-700 dark:text-violet-300">{atrStop > 0 ? atrStop.toFixed(2) : '—'}</p>
+                      <p className="text-[8px] text-violet-400">−{posCalcAtrMult}×ATR</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[9px] text-violet-500 font-black uppercase tracking-wider mb-0.5">{language === Language.ES ? 'Acciones' : 'Shares'}</p>
+                      <p className="text-sm font-black text-slate-800 dark:text-slate-100">{shares.toLocaleString()}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[9px] text-violet-500 font-black uppercase tracking-wider mb-0.5">{language === Language.ES ? 'Valor pos.' : 'Pos. value'}</p>
+                      <p className="text-sm font-black text-slate-800 dark:text-slate-100">{fmt0(posValue)}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[9px] text-violet-500 font-black uppercase tracking-wider mb-0.5">% {language === Language.ES ? 'cartera' : 'portfolio'}</p>
+                      <p className={`text-sm font-black ${posPct > 25 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-800 dark:text-slate-100'}`}>{posPct.toFixed(1)}%</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[9px] text-violet-500 font-black uppercase tracking-wider mb-0.5">{language === Language.ES ? 'Riesgo €' : 'Risk $'}</p>
+                      <p className="text-sm font-black text-rose-600 dark:text-rose-400">{fmt0(riskAmt)}</p>
+                    </div>
+                  </div>
+
+                  {/* Weinstein stop comparison */}
+                  {wsStop != null && wsShares != null && wsValue != null && (
+                    <div className="grid grid-cols-5 gap-2 bg-slate-100 dark:bg-slate-900/50 rounded-xl p-3 border border-slate-200 dark:border-slate-700/40">
+                      <div className="text-center">
+                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-wider mb-0.5">{language === Language.ES ? 'Stop W.' : 'W. Stop'}</p>
+                        <p className="text-sm font-black text-rose-600 dark:text-rose-400">{wsStop.toFixed(2)}</p>
+                        <p className="text-[8px] text-slate-400">Weinstein</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-wider mb-0.5">{language === Language.ES ? 'Acciones' : 'Shares'}</p>
+                        <p className="text-sm font-black text-slate-600 dark:text-slate-400">{wsShares.toLocaleString()}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-wider mb-0.5">{language === Language.ES ? 'Valor pos.' : 'Pos. value'}</p>
+                        <p className="text-sm font-black text-slate-600 dark:text-slate-400">{fmt0(wsValue)}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-wider mb-0.5">% {language === Language.ES ? 'cartera' : 'portfolio'}</p>
+                        <p className={`text-sm font-black ${wsPct && wsPct > 25 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-600 dark:text-slate-400'}`}>{wsPct?.toFixed(1)}%</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-wider mb-0.5">{language === Language.ES ? 'Riesgo €' : 'Risk $'}</p>
+                        <p className="text-sm font-black text-rose-400">{fmt0(riskAmt)}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <p className="text-[8px] text-slate-300 dark:text-slate-600 mt-3 italic">
+                  {language === Language.ES
+                    ? 'Fórmula: Acciones = (Capital × Riesgo%) ÷ (ATR14w × mult). Solo orientativo, no constituye asesoramiento financiero.'
+                    : 'Formula: Shares = (Portfolio × Risk%) ÷ (ATR14w × mult). For reference only, not financial advice.'}
+                </p>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Uploaded Images Section */}
         {images && images.length > 0 && (
@@ -558,6 +785,101 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
                   </p>
                 </div>
               </div>
+
+              {/* ── Quant Metrics Panel ── */}
+              {backtest.metrics && (() => {
+                const m = backtest.metrics!;
+                const fmtPct = (v: number, decimals = 1) => `${v >= 0 ? '+' : ''}${v.toFixed(decimals)}%`;
+                const fmtRatio = (v: number) => v >= 999 ? '∞' : v.toFixed(2);
+                const pos = (v: number) => v > 0 ? 'text-emerald-600 dark:text-emerald-400' : v < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500';
+
+                const cells: { label: string; value: string; cls: string; hint?: string }[] = [
+                  {
+                    label: 'CAGR',
+                    value: fmtPct(m.cagr),
+                    cls: pos(m.cagr),
+                    hint: language === Language.ES ? '2 años' : '2 yr',
+                  },
+                  {
+                    label: 'Max DD',
+                    value: `${m.maxDrawdown.toFixed(1)}%`,
+                    cls: m.maxDrawdown < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500',
+                    hint: language === Language.ES ? 'drawdown máx' : 'max drawdown',
+                  },
+                  {
+                    label: 'Sharpe',
+                    value: fmtRatio(m.sharpeRatio),
+                    cls: m.sharpeRatio >= 1 ? 'text-emerald-600 dark:text-emerald-400' : m.sharpeRatio >= 0.5 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400',
+                    hint: 'RF=0%',
+                  },
+                  {
+                    label: 'Sortino',
+                    value: fmtRatio(m.sortinoRatio),
+                    cls: m.sortinoRatio >= 1.5 ? 'text-emerald-600 dark:text-emerald-400' : m.sortinoRatio >= 0.75 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400',
+                    hint: 'MAR=0%',
+                  },
+                  {
+                    label: 'Calmar',
+                    value: fmtRatio(m.calmarRatio),
+                    cls: m.calmarRatio >= 0.5 ? 'text-emerald-600 dark:text-emerald-400' : m.calmarRatio >= 0.2 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400',
+                    hint: 'CAGR/DD',
+                  },
+                  {
+                    label: language === Language.ES ? 'Prof. Factor' : 'Profit Factor',
+                    value: fmtRatio(m.profitFactor),
+                    cls: m.profitFactor >= 1.5 ? 'text-emerald-600 dark:text-emerald-400' : m.profitFactor >= 1 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400',
+                    hint: 'bruto G/P',
+                  },
+                  {
+                    label: language === Language.ES ? 'Esperanza' : 'Expectancy',
+                    value: fmtPct(m.expectancy),
+                    cls: pos(m.expectancy),
+                    hint: language === Language.ES ? 'por trade' : 'per trade',
+                  },
+                  {
+                    label: language === Language.ES ? 'Exposición' : 'Exposure',
+                    value: `${m.exposure}%`,
+                    cls: 'text-violet-600 dark:text-violet-400',
+                    hint: `${m.completedTrades} trades`,
+                  },
+                ];
+
+                return (
+                  <div className="bg-slate-50 dark:bg-slate-800/40 rounded-2xl p-3 border border-slate-200 dark:border-slate-700/60">
+                    <div className="flex items-center gap-2 mb-2">
+                      <i className="fas fa-square-root-variable text-violet-500 text-[10px]"></i>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                        {language === Language.ES ? 'Métricas cuantitativas' : 'Quant metrics'}
+                      </p>
+                      <span className="ml-auto text-[9px] text-slate-400">
+                        {language === Language.ES ? 'Retorno total' : 'Total return'}:
+                        <span className={`font-black ml-1 ${pos(m.totalReturn)}`}>{fmtPct(m.totalReturn)}</span>
+                        <span className="text-slate-300 dark:text-slate-600 mx-1">·</span>
+                        {language === Language.ES ? 'Vol.' : 'Vol.'} <span className="font-bold">{m.volatility.toFixed(1)}%</span>
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {cells.map(cell => (
+                        <div key={cell.label} className="bg-white dark:bg-slate-900 rounded-xl p-2 text-center border border-slate-100 dark:border-slate-700/40">
+                          <p className="text-[9px] text-slate-400 uppercase tracking-wider leading-none mb-1">{cell.label}</p>
+                          <p className={`text-sm font-black leading-none ${cell.cls}`}>{cell.value}</p>
+                          {cell.hint && <p className="text-[8px] text-slate-400 mt-0.5 leading-none">{cell.hint}</p>}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-3 mt-2 flex-wrap">
+                      <span className="text-[8px] text-slate-400"><span className="font-bold text-slate-500">{language === Language.ES ? 'Mejor' : 'Best'}:</span> {fmtPct(m.bestTrade)}</span>
+                      <span className="text-[8px] text-slate-400"><span className="font-bold text-slate-500">{language === Language.ES ? 'Peor' : 'Worst'}:</span> {fmtPct(m.worstTrade)}</span>
+                      <span className="text-[8px] text-slate-400"><span className="font-bold text-slate-500">Payoff:</span> {fmtRatio(m.payoffRatio)}:1</span>
+                      <span className="text-[8px] text-slate-400"><span className="font-bold text-slate-500">{language === Language.ES ? 'Media G/P' : 'Avg W/L'}:</span> {fmtPct(m.avgWin)} / {fmtPct(m.avgLoss)}</span>
+                      <span className="text-[8px] text-slate-400"><span className="font-bold text-slate-500">{language === Language.ES ? 'Durac. media' : 'Avg dur.'}:</span> {m.avgWeeksPerTrade} {language === Language.ES ? 'sem.' : 'wks'}</span>
+                      <span className="ml-auto text-[8px] text-slate-300 dark:text-slate-600 italic">
+                        {m.completedTrades} {language === Language.ES ? 'trades · RF=0%' : 'trades · RF=0%'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Active entry + price targets */}
               {backtest.activeEntry && (

@@ -68,6 +68,8 @@ export function usePortfolio() {
     setRefreshing(true);
     try {
       const tickers = [...new Set(list.map(p => p.symbol))];
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) supabase.functions.setAuth(session.access_token);
       const { data, error } = await supabase.functions.invoke('portfolio-prices', {
         body: { tickers },
       });

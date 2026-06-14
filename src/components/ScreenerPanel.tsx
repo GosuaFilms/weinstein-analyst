@@ -13,6 +13,7 @@ interface ScreenerItem {
   confidence: 'low' | 'medium' | 'high';
   reasoning: string;
   sma30: number | null;
+  sma40: number | null;
   distanceFromSMA30Pct: number | null;
   sma30Trend: string | null;
   mansfieldRS: number | null;
@@ -24,6 +25,18 @@ interface ScreenerItem {
   stopLossRiskPct: number | null;
 }
 
+interface BreadthStats {
+  scanned: number;
+  aboveSMA30wCount: number;
+  aboveSMA30wPct: number;
+  aboveSMA40wCount: number;
+  aboveSMA40wPct: number;
+  stageDist: { stage1Pct: number; stage2Pct: number; stage3Pct: number; stage4Pct: number };
+  regime: 'bull' | 'mixed' | 'bear';
+  tradingSignal: 'GO' | 'CAUTION' | 'AVOID';
+  breadthScore: number;
+}
+
 interface ScreenerResult {
   index: string;
   label: string;
@@ -31,6 +44,7 @@ interface ScreenerResult {
   duration: number;
   total: number;
   failed?: string[];
+  breadth: BreadthStats;
   results: ScreenerItem[];
 }
 
@@ -177,6 +191,8 @@ const ScreenerPanel: React.FC<Props> = ({ language, onAnalyze, onClose, isPro = 
     setResult(null);
     setStageFilter('ALL');
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) supabase.functions.setAuth(session.access_token);
       const { data, error: fnError } = await supabase.functions.invoke('screener', {
         body: { index: selectedIndex, smaPeriod: 30 },
       });
@@ -202,6 +218,39 @@ const ScreenerPanel: React.FC<Props> = ({ language, onAnalyze, onClose, isPro = 
         STAGE_4: result.results.filter(r => r.stage === 'STAGE_4').length,
       }
     : null;
+
+  // Compute breadth client-side from screener items if the backend didn't return it
+  const breadth: BreadthStats | null = result ? (() => {
+    if (result.breadth) return result.breadth;
+    const items = result.results;
+    const n = items.length;
+    if (n === 0) return null;
+    const pct = (count: number) => Math.round((count / n) * 1000) / 10;
+    const aboveSMA30wCount = items.filter(r => r.sma30 != null && r.currentPrice > r.sma30).length;
+    const aboveSMA40wCount = items.filter(r => r.sma40 != null && r.currentPrice > r.sma40).length;
+    const aboveSMA30wPct = pct(aboveSMA30wCount);
+    const aboveSMA40wPct = pct(aboveSMA40wCount);
+    const s1 = items.filter(r => r.stage === 'STAGE_1').length;
+    const s2 = items.filter(r => r.stage === 'STAGE_2').length;
+    const s3 = items.filter(r => r.stage === 'STAGE_3').length;
+    const s4 = items.filter(r => r.stage === 'STAGE_4').length;
+    const stage2Pct = pct(s2);
+    const regime: BreadthStats['regime'] = aboveSMA40wPct >= 60 ? 'bull' : aboveSMA40wPct >= 40 ? 'mixed' : 'bear';
+    const tradingSignal: BreadthStats['tradingSignal'] =
+      regime === 'bull' && stage2Pct >= 20 ? 'GO' :
+      regime === 'bear' ? 'AVOID' : 'CAUTION';
+    return {
+      scanned: n,
+      aboveSMA30wCount,
+      aboveSMA30wPct,
+      aboveSMA40wCount,
+      aboveSMA40wPct,
+      stageDist: { stage1Pct: pct(s1), stage2Pct, stage3Pct: pct(s3), stage4Pct: pct(s4) },
+      regime,
+      tradingSignal,
+      breadthScore: Math.min(100, Math.round(aboveSMA40wPct * 0.5 + stage2Pct * 0.3 + aboveSMA30wPct * 0.2)),
+    };
+  })() : null;
 
   const es = language === Language.ES;
 
@@ -353,6 +402,120 @@ const ScreenerPanel: React.FC<Props> = ({ language, onAnalyze, onClose, isPro = 
                 ))}
               </div>
             </div>
+
+            {/* ── Market Breadth Gauge ── */}
+            {breadth && (() => {
+              const b = breadth;
+              const regimeStyle = b.regime === 'bull'
+                ? { badge: 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30', bar: 'bg-emerald-500', icon: 'fa-arrow-trend-up' }
+                : b.regime === 'mixed'
+                ? { badge: 'bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/30', bar: 'bg-amber-500', icon: 'fa-minus' }
+                : { badge: 'bg-rose-100 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/30', bar: 'bg-rose-500', icon: 'fa-arrow-trend-down' };
+              const signalStyle = b.tradingSignal === 'GO'
+                ? 'bg-emerald-600 text-white'
+                : b.tradingSignal === 'CAUTION'
+                ? 'bg-amber-500 text-slate-950'
+                : 'bg-rose-600 text-white';
+              const signalLabel = b.tradingSignal === 'GO'
+                ? (es ? '✓ OPERAR' : '✓ TRADE')
+                : b.tradingSignal === 'CAUTION'
+                ? (es ? '⚠ PRECAUCIÓN' : '⚠ CAUTION')
+                : (es ? '✕ EVITAR' : '✕ AVOID');
+              const stageColors = ['bg-blue-400', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500'];
+              const stagePcts = [b.stageDist.stage1Pct, b.stageDist.stage2Pct, b.stageDist.stage3Pct, b.stageDist.stage4Pct];
+              const stageLabels = ['S1', 'S2', 'S3', 'S4'];
+              return (
+                <div className={`mx-6 mt-4 p-4 rounded-2xl border ${regimeStyle.badge}`}>
+                  {/* Header row */}
+                  <div className="flex flex-wrap items-center gap-3 mb-3">
+                    <div className="flex items-center gap-2">
+                      <i className={`fas ${regimeStyle.icon} text-sm`}></i>
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em]">
+                        {es ? 'Amplitud de mercado' : 'Market breadth'} · {result.label}
+                      </span>
+                    </div>
+                    <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${signalStyle}`}>
+                      {signalLabel}
+                    </span>
+                    <span className="text-[9px] font-black uppercase tracking-widest ml-auto opacity-70">
+                      {b.regime.toUpperCase()} · {es ? 'Score' : 'Score'}: {b.breadthScore}/100
+                    </span>
+                  </div>
+
+                  {/* Gauges + stage dist */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* % above SMA30w */}
+                    <div>
+                      <div className="flex justify-between text-[9px] font-bold mb-1 opacity-80">
+                        <span>% {es ? 'sobre' : 'above'} SMA30w <span className="opacity-60">(≈MA150d)</span></span>
+                        <span className="font-black">{b.aboveSMA30wPct}%</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
+                        <div className={`h-full rounded-full transition-all ${regimeStyle.bar}`} style={{ width: `${b.aboveSMA30wPct}%` }} />
+                      </div>
+                      <div className="flex justify-between text-[8px] opacity-50 mt-0.5">
+                        <span>0%</span><span className="text-amber-600 font-bold">40%</span><span className="text-emerald-600 font-bold">60%</span><span>100%</span>
+                      </div>
+                    </div>
+
+                    {/* % above SMA40w ≈ MA200d */}
+                    <div>
+                      <div className="flex justify-between text-[9px] font-bold mb-1 opacity-80">
+                        <span>% {es ? 'sobre' : 'above'} SMA40w <span className="opacity-60">(≈MA200d)</span></span>
+                        <span className="font-black">{b.aboveSMA40wPct}%</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${b.aboveSMA40wPct >= 60 ? 'bg-emerald-500' : b.aboveSMA40wPct >= 40 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                          style={{ width: `${b.aboveSMA40wPct}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-[8px] opacity-50 mt-0.5">
+                        <span>0%</span><span className="text-rose-600 font-bold">40%</span><span className="text-emerald-600 font-bold">60%</span><span>100%</span>
+                      </div>
+                    </div>
+
+                    {/* Stage distribution */}
+                    <div>
+                      <div className="text-[9px] font-bold mb-1 opacity-80">
+                        {es ? 'Distribución por etapas' : 'Stage distribution'}
+                      </div>
+                      <div className="h-2 rounded-full overflow-hidden flex">
+                        {stagePcts.map((p, i) => (
+                          <div key={i} className={stageColors[i]} style={{ width: `${p}%` }} />
+                        ))}
+                      </div>
+                      <div className="flex gap-3 mt-1">
+                        {stageLabels.map((lbl, i) => (
+                          <span key={i} className="text-[8px] font-bold opacity-70 flex items-center gap-0.5">
+                            <span className={`inline-block w-1.5 h-1.5 rounded-full ${stageColors[i]}`}></span>
+                            {lbl} {stagePcts[i]}%
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bear market warning */}
+                  {b.tradingSignal === 'AVOID' && (
+                    <div className="mt-3 pt-3 border-t border-rose-200 dark:border-rose-500/30 text-[9px] font-bold text-rose-700 dark:text-rose-400 flex items-center gap-2">
+                      <i className="fas fa-shield-exclamation"></i>
+                      {es
+                        ? `Solo el ${b.aboveSMA40wPct}% de los valores cotiza por encima de su MA200d. Mercado bajista — evitar nuevas posiciones largas y reducir exposición.`
+                        : `Only ${b.aboveSMA40wPct}% of stocks trade above their MA200d. Bear market — avoid new long positions and reduce exposure.`}
+                    </div>
+                  )}
+                  {b.tradingSignal === 'CAUTION' && (
+                    <div className="mt-3 pt-3 border-t border-amber-200 dark:border-amber-500/30 text-[9px] font-bold text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                      <i className="fas fa-triangle-exclamation"></i>
+                      {es
+                        ? `Mercado mixto (${b.aboveSMA40wPct}% sobre MA200d). Reducir tamaño de posición y ser más selectivo. Priorizar Stage 2 con alta confianza.`
+                        : `Mixed market (${b.aboveSMA40wPct}% above MA200d). Reduce position size and be selective. Prioritize high-confidence Stage 2 only.`}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Stage 2 highlight banner */}
             {stageCounts && stageCounts.STAGE_2 > 0 && (stageFilter === 'ALL' || stageFilter === 'STAGE_2') && (

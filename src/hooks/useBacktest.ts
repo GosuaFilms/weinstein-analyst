@@ -27,6 +27,27 @@ export interface PriceTargets {
   reachedT3: boolean;
 }
 
+export interface QuantMetrics {
+  totalReturn: number;
+  cagr: number;
+  avgWin: number;
+  avgLoss: number;
+  bestTrade: number;
+  worstTrade: number;
+  completedTrades: number;
+  payoffRatio: number;
+  profitFactor: number;
+  expectancy: number;
+  maxDrawdown: number;
+  volatility: number;
+  sharpeRatio: number;
+  sortinoRatio: number;
+  calmarRatio: number;
+  avgWeeksPerTrade: number;
+  exposure: number;
+  totalWeeks: number;
+}
+
 export interface BacktestResult {
   ticker: string;
   currentPrice: number;
@@ -35,6 +56,7 @@ export interface BacktestResult {
   avgReturn: number;
   activeEntry: Stage2Period | null;
   priceTargets: PriceTargets | null;
+  metrics: QuantMetrics | null;
 }
 
 export function useBacktest(ticker: string | undefined) {

@@ -52,6 +52,11 @@ REAL-TIME TECHNICAL ANCHOR (source: TwelveData + Yahoo Finance — DO NOT invent
   Weinstein rule: Stage 2 requires RS > 0 AND rising; Stage 4 usually RS < 0 AND falling.
 - Market filter (${snap.benchmarkName ?? 'benchmark'} own stage): ${snap.benchmarkStage ?? 'N/A'} — ${snap.benchmarkStageReason ?? 'N/A'}
   Weinstein rule: do NOT open longs if the market/benchmark is itself in Stage 3 or 4.
+- SMA10 weekly (≈SMA50d): ${snap.sma10Weekly?.toFixed(2) ?? 'N/A'} → trend = ${snap.sma10WeeklyTrend ?? 'N/A'}
+- SMA40 weekly (≈SMA200d): ${snap.sma40Weekly?.toFixed(2) ?? 'N/A'} → trend = ${snap.sma40WeeklyTrend ?? 'N/A'}
+- Multi-MA alignment (MA10w/30w/40w stack): ${snap.multiMaAlignment ?? 'N/A'} (bullish=all MAs correctly stacked & rising)
+- ATR14 weekly: ${snap.atr14Weekly?.toFixed(2) ?? 'N/A'} (${snap.atr14WeeklyPct?.toFixed(1) ?? 'N/A'}% of price)
+- Volume dry-up (last 3w all <85% avg): ${snap.volumeDryUp != null ? (snap.volumeDryUp ? 'YES ⚡' : 'no') : 'N/A'}
 - Suggested Weinstein stop-loss: ${snap.suggestedStopLoss?.toFixed(2) ?? 'N/A'} ${snap.currency} (basis: ${snap.stopLossBasis ?? 'N/A'}, risk ${snap.stopLossRiskPct?.toFixed(2) ?? 'N/A'}%)
 - Recent swing-low (last 10w): ${snap.recentSwingLow?.toFixed(2) ?? 'N/A'}
 - Rule-based stage verdict: ${stageHint}
@@ -70,7 +75,7 @@ Output STRICT JSON in ${langName} with this exact schema:
   "currentPrice": "Price with currency symbol (use the REAL-TIME value above)",
   "priceTimestamp": "Human-readable timestamp from the anchor",
   "stage": "Detailed stage label (e.g., 'Etapa 2A — Avance')",
-  "sma30Analysis": "Relación precio/MM30 semanal Y pendiente (ascendente/plana/descendente) — cita el valor numérico del anchor. Weinstein: Etapa 2 exige precio > MM30 Y MM30 ascendente.",
+  "sma30Analysis": "Relación precio vs MM30, MA50d equiv (SMA10w) y MA200d equiv (SMA40w). Cita los tres valores numéricos del anchor y su alineación. Weinstein: Etapa 2 ideal requiere precio > MA50d > MA150d > MA200d con MA200d ascendente.",
   "relativeStrength": "Fuerza Relativa Mansfield — cita el valor numérico, el benchmark y su MA13. Indica si está positiva/negativa y subiendo/bajando. Weinstein: Etapa 2 requiere RS > 0 Y subiendo; Etapa 4 típicamente RS < 0 Y bajando.",
   "volumeAnalysis": "Perfil de volumen usando el ratio del anchor. Weinstein: ruptura válida de Etapa 1→2 requiere volumen ≥2× la media de 30 semanas.",
   "support": "Soporte numérico (sin texto) — usa el swing-low reciente del anchor si aplica",

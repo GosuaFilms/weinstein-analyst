@@ -49,6 +49,32 @@ export interface User {
   avatarColor: string;
 }
 
+export interface TechnicalSnapshotSummary {
+  sma10Weekly?: number | null;
+  sma30Weekly?: number | null;
+  sma40Weekly?: number | null;
+  sma10WeeklyTrend?: string | null;
+  sma30Trend?: string | null;
+  sma40WeeklyTrend?: string | null;
+  multiMaAlignment?: 'bullish' | 'partial' | 'neutral' | 'bearish' | null;
+  atr14Weekly?: number | null;
+  atr14WeeklyPct?: number | null;
+  volumeDryUp?: boolean | null;
+  distanceFromSMA30Pct?: number | null;
+  extendedStage2?: boolean;
+  benchmarkStage?: string | null;
+  benchmarkName?: string | null;
+  mansfieldRS?: number | null;
+  volumeRatio?: number | null;
+  currentPrice?: number;
+  currency?: string;
+  suggestedStopLoss?: number | null;
+  stopLossRiskPct?: number | null;
+  recentSwingLow?: number | null;
+  weekly52High?: number | null;
+  weekly52Low?: number | null;
+}
+
 export interface AnalysisResult {
   companyName?: string;
   tickerSymbol?: string;
@@ -66,6 +92,7 @@ export interface AnalysisResult {
   verdictType: 'BUY' | 'SELL' | 'WAIT' | 'CLOSE';
   suggestedStrategy: string;
   groundingSources?: Array<{ title: string; uri: string }>;
+  technicalSnapshot?: TechnicalSnapshotSummary;
 }
 
 export interface OperationAnalysisResult {

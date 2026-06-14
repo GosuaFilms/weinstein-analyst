@@ -393,6 +393,74 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
               <p className="text-slate-700 dark:text-slate-300 leading-relaxed font-semibold text-base">{data.sma30Analysis || 'Data unavailable'}</p>
             </div>
 
+            {/* Multi-MA System indicator — shows when technicalSnapshot available */}
+            {data.technicalSnapshot && (() => {
+              const ts = data.technicalSnapshot;
+              const alignColor = {
+                bullish:  'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30',
+                partial:  'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30',
+                neutral:  'text-slate-500 bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700',
+                bearish:  'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30',
+              };
+              const align = (ts.multiMaAlignment ?? 'neutral') as keyof typeof alignColor;
+              const price = ts.currentPrice ?? 0;
+
+              const maRows = [
+                { label: 'MA10w ≈ MA50d',  val: ts.sma10Weekly,  trend: ts.sma10WeeklyTrend  },
+                { label: 'MA30w ≈ MA150d', val: ts.sma30Weekly,  trend: ts.sma30Trend         },
+                { label: 'MA40w ≈ MA200d', val: ts.sma40Weekly,  trend: ts.sma40WeeklyTrend  },
+              ];
+
+              return (
+                <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                  <div className="flex items-center gap-2 mb-3">
+                    <i className="fas fa-layer-group text-violet-500 text-xs"></i>
+                    <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] flex-grow">
+                      {language === Language.ES ? 'Sistema Multi-MA (upgrade Weinstein)' : 'Multi-MA System (Weinstein upgrade)'}
+                    </h3>
+                    {ts.multiMaAlignment && (
+                      <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${alignColor[align]}`}>
+                        {ts.multiMaAlignment}
+                      </span>
+                    )}
+                  </div>
+                  <div className="space-y-1.5 mb-3">
+                    {maRows.map(row => {
+                      if (!row.val) return null;
+                      const above = price > row.val;
+                      const pct = ((price - row.val) / row.val * 100).toFixed(1);
+                      const trendIcon = row.trend === 'rising' ? '↑' : row.trend === 'falling' ? '↓' : '→';
+                      return (
+                        <div key={row.label} className="flex items-center gap-2 text-xs">
+                          <span className="w-28 text-[10px] font-bold text-slate-500 flex-shrink-0">{row.label}</span>
+                          <span className="font-black text-slate-700 dark:text-slate-300 w-16 text-right flex-shrink-0">{row.val.toFixed(2)}</span>
+                          <span className={`font-bold flex-shrink-0 ${above ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                            {above ? '▲' : '▼'} {above ? '+' : ''}{pct}%
+                          </span>
+                          <span className={`text-[10px] font-bold flex-shrink-0 ${row.trend === 'rising' ? 'text-emerald-500' : row.trend === 'falling' ? 'text-rose-500' : 'text-slate-400'}`}>
+                            {trendIcon} {row.trend ?? '—'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex flex-wrap gap-3 pt-2 border-t border-slate-100 dark:border-slate-700/50 text-[9px] text-slate-400">
+                    {ts.atr14WeeklyPct != null && (
+                      <span><span className="font-bold text-slate-500">ATR14w:</span> {ts.atr14Weekly?.toFixed(2)} ({ts.atr14WeeklyPct.toFixed(1)}%)</span>
+                    )}
+                    {ts.volumeDryUp != null && (
+                      <span className={ts.volumeDryUp ? 'text-amber-600 dark:text-amber-400 font-bold' : ''}>
+                        {ts.volumeDryUp ? '⚡ ' : ''}{language === Language.ES ? (ts.volumeDryUp ? 'Volumen en contracción (posible rotura)' : 'Volumen normal') : (ts.volumeDryUp ? 'Volume dry-up (potential breakout)' : 'Volume normal')}
+                      </span>
+                    )}
+                    {ts.distanceFromSMA30Pct != null && ts.extendedStage2 && (
+                      <span className="text-amber-600 font-bold">⚠ Stage 2 extendido (+{ts.distanceFromSMA30Pct.toFixed(1)}% sobre MA30w)</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="bg-slate-50 dark:bg-slate-800/40 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
               <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                 <i className="fas fa-balance-scale text-amber-500"></i> {labels.rs}

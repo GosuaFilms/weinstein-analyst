@@ -90,11 +90,24 @@ export interface TechnicalSnapshot {
   extendedStage2: boolean;         // true when price > 15% above MM30 (late Stage 2 warning)
   benchmarkStage: 'STAGE_1' | 'STAGE_2' | 'STAGE_3' | 'STAGE_4' | null;
   benchmarkStageReason: string | null;
+  // Modern Weinstein multi-MA upgrade (weekly equivalents of daily MAs)
+  sma10Weekly: number | null;          // ≈ SMA 50 daily  (10w × 5 trading days)
+  sma40Weekly: number | null;          // ≈ SMA 200 daily (40w × 5 trading days)
+  sma10WeeklyTrend: Trend | null;
+  sma40WeeklyTrend: Trend | null;
+  multiMaAlignment: 'bullish' | 'partial' | 'neutral' | 'bearish' | null;
+  // ATR14 (weekly) — used for position sizing in next phase
+  atr14Weekly: number | null;
+  atr14WeeklyPct: number | null;       // ATR as % of current price
+  // Volume dry-up: last 3 weeks all below 85% of 30w avg (potential breakout signal)
+  volumeDryUp: boolean | null;
 }
 
 interface WeeklySeries {
   timestamps: number[]; // unix seconds for each weekly candle
   closes: number[];
+  highs?: number[];    // aligned with closes index
+  volumes?: number[];  // aligned with closes index (0 for unknown)
 }
 
 function pickBenchmark(symbol: string, currency: string): { symbol: string; name: string } {
@@ -355,6 +368,53 @@ async function yahooSearch(query: string): Promise<string | null> {
   return (primary ?? eligible[0]).symbol ?? null;
 }
 
+/** 14-period Average True Range from aligned weekly OHLC arrays. */
+function computeATR(closes: number[], highs: number[], lows: number[], period = 14): number | null {
+  const len = Math.min(closes.length, highs.length, lows.length);
+  if (len < period + 1) return null;
+  const trs: number[] = [];
+  for (let i = 1; i < len; i++) {
+    const h = highs[i], l = lows[i], pc = closes[i - 1];
+    if (!Number.isFinite(h) || !Number.isFinite(l) || !Number.isFinite(pc)) continue;
+    trs.push(Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc)));
+  }
+  if (trs.length < period) return null;
+  return trs.slice(-period).reduce((a, b) => a + b, 0) / period;
+}
+
+/** True when last 3 weekly volumes are all below 85% of the avg — signals potential breakout. */
+function detectVolumeDryUp(volumes: number[], avgVol: number | null): boolean | null {
+  if (!avgVol || volumes.length < 4) return null;
+  const last3 = volumes.slice(-3).filter(v => v > 0);
+  if (last3.length < 3) return null;
+  return last3.every(v => v < avgVol * 0.85);
+}
+
+/** Multi-MA alignment based on price vs SMA10w/SMA30w/SMA40w stack and SMA40w trend. */
+function computeMultiMaAlignment(
+  price: number,
+  sma10: number | null,
+  sma30: number | null,
+  sma40: number | null,
+  sma40Trend: Trend | null,
+): 'bullish' | 'partial' | 'neutral' | 'bearish' | null {
+  if (sma10 == null || sma30 == null || sma40 == null) return null;
+  const aboveSma10  = price > sma10;
+  const s10OverS30  = sma10 > sma30;
+  const s30OverS40  = sma30 > sma40;
+  const s40Rising   = sma40Trend === 'rising';
+  const s40Falling  = sma40Trend === 'falling';
+  // Perfect bullish stack: price > MA10w > MA30w > MA40w AND MA40w rising
+  if (aboveSma10 && s10OverS30 && s30OverS40 && s40Rising) return 'bullish';
+  // Correct stack but MA40w not yet rising
+  if (aboveSma10 && s10OverS30 && s30OverS40) return 'partial';
+  // Price above long-term MA and trend up — partially aligned
+  if (price > sma40 && s40Rising) return 'partial';
+  // Full bearish stack
+  if (!aboveSma10 && !s10OverS30 && !s30OverS40 && s40Falling) return 'bearish';
+  return 'neutral';
+}
+
 async function attachWeinsteinExtras(
   base: TechnicalSnapshot,
   stock: WeeklySeries,
@@ -373,6 +433,28 @@ async function attachWeinsteinExtras(
   // Late Stage 2 warning: Weinstein recommends partial exits once price is
   // 15%+ extended above the MM30 weekly.
   const extendedStage2 = (base.distanceFromSMA30Pct ?? 0) > 15;
+
+  // ── Multi-MA upgrade (SMA10w ≈ MA50d, SMA40w ≈ MA200d) ──────────────────
+  const sma10 = computeSMA(stock.closes, 10);
+  const sma40 = stock.closes.length >= 40 ? computeSMA(stock.closes, 40) : null;
+  const sma10Series = computeSMASeries(stock.closes, 10);
+  const sma40Series = stock.closes.length >= 40 ? computeSMASeries(stock.closes, 40) : [];
+  const sma10Trend = classifyTrend(computeSlope(sma10Series, 5), 0.5);
+  const sma40Trend = classifyTrend(sma40Series.length > 5 ? computeSlope(sma40Series, 5) : null, 0.5);
+  const multiMaAlignment = computeMultiMaAlignment(base.currentPrice, sma10, base.sma30Weekly, sma40, sma40Trend);
+
+  // ATR14 from weekly OHLC
+  const atr14Weekly = (stock.highs && stock.highs.length >= 15)
+    ? computeATR(stock.closes, stock.highs, stockLows, 14)
+    : null;
+  const atr14WeeklyPct = (atr14Weekly != null && base.currentPrice > 0)
+    ? (atr14Weekly / base.currentPrice) * 100
+    : null;
+
+  // Volume dry-up
+  const volumeDryUp = (stock.volumes && stock.volumes.length >= 4)
+    ? detectVolumeDryUp(stock.volumes, base.avgVolume30Weekly)
+    : null;
 
   // Mansfield RS + benchmark stage.
   const bench = pickBenchmark(base.symbol, base.currency);
@@ -424,6 +506,14 @@ async function attachWeinsteinExtras(
     extendedStage2,
     benchmarkStage,
     benchmarkStageReason,
+    sma10Weekly: sma10,
+    sma40Weekly: sma40,
+    sma10WeeklyTrend: sma10Trend,
+    sma40WeeklyTrend: sma40Trend,
+    multiMaAlignment,
+    atr14Weekly,
+    atr14WeeklyPct,
+    volumeDryUp,
   };
 }
 
@@ -479,17 +569,24 @@ async function yahooSnapshot(symbol: string, smaPeriod: number): Promise<Technic
   const allTs = r.timestamp ?? [];
   const alignedTs: number[] = [];
   const alignedCloses: number[] = [];
+  const alignedHighs: number[] = [];
+  const alignedLows: number[] = [];
+  const alignedVolumes: number[] = [];
   for (let i = 0; i < (q.close ?? []).length; i++) {
     const c = q.close[i];
     if (typeof c === 'number' && !Number.isNaN(c)) {
       alignedTs.push(allTs[i] ?? 0);
       alignedCloses.push(c);
+      const h = q.high?.[i], l = q.low?.[i], v = q.volume?.[i];
+      alignedHighs.push(typeof h === 'number' && !Number.isNaN(h) ? h : c);
+      alignedLows.push(typeof l === 'number' && !Number.isNaN(l) ? l : c);
+      alignedVolumes.push(typeof v === 'number' && !Number.isNaN(v) && v > 0 ? v : 0);
     }
   }
   const closes = alignedCloses;
-  const highs = (q.high ?? []).filter((n): n is number => typeof n === 'number' && !Number.isNaN(n));
-  const lows = (q.low ?? []).filter((n): n is number => typeof n === 'number' && !Number.isNaN(n));
-  const volumes = (q.volume ?? []).filter((n): n is number => typeof n === 'number' && !Number.isNaN(n) && n > 0);
+  const highs = alignedHighs;
+  const lows = alignedLows;
+  const volumes = alignedVolumes.filter(v => v > 0);
 
   const sma = closes.length ? computeSMA(closes, smaPeriod) : null;
   const volAvg = volumes.length ? computeVolumeAvg(volumes, smaPeriod) : null;
@@ -535,8 +632,16 @@ async function yahooSnapshot(symbol: string, smaPeriod: number): Promise<Technic
     extendedStage2: false,
     benchmarkStage: null,
     benchmarkStageReason: null,
+    sma10Weekly: null,
+    sma40Weekly: null,
+    sma10WeeklyTrend: null,
+    sma40WeeklyTrend: null,
+    multiMaAlignment: null,
+    atr14Weekly: null,
+    atr14WeeklyPct: null,
+    volumeDryUp: null,
   };
-  return await attachWeinsteinExtras(base, { timestamps: alignedTs, closes: alignedCloses }, lows, smaPeriod);
+  return await attachWeinsteinExtras(base, { timestamps: alignedTs, closes: alignedCloses, highs: alignedHighs, volumes: alignedVolumes }, lows, smaPeriod);
 }
 
 export async function getTechnicalSnapshot(
@@ -568,18 +673,25 @@ export async function getTechnicalSnapshot(
   const candles = series?.values ? [...series.values].reverse() : null;
   const stockTs: number[] = [];
   const closes: number[] = [];
+  const stockHighs: number[] = [];
+  const stockLowsAligned: number[] = [];
+  const stockVolumes: number[] = [];
   if (candles) {
     for (const v of candles) {
       const c = num(v.close);
       if (!Number.isNaN(c)) {
         stockTs.push(Math.floor(new Date(v.datetime).getTime() / 1000));
         closes.push(c);
+        const h = num(v.high), l = num(v.low), vol = num(v.volume ?? '0');
+        stockHighs.push(Number.isFinite(h) ? h : c);
+        stockLowsAligned.push(Number.isFinite(l) ? l : c);
+        stockVolumes.push(Number.isFinite(vol) && vol > 0 ? vol : 0);
       }
     }
   }
-  const highs = candles?.map((v) => num(v.high)).filter((n) => !Number.isNaN(n)) ?? [];
-  const lows = candles?.map((v) => num(v.low)).filter((n) => !Number.isNaN(n)) ?? [];
-  const volumes = candles?.map((v) => num(v.volume ?? '0')) ?? [];
+  const highs = stockHighs;
+  const lows = stockLowsAligned;
+  const volumes = stockVolumes.filter(v => v > 0);
 
   const sma = closes.length ? computeSMA(closes, smaPeriod) : null;
   const volAvg = volumes.length ? computeVolumeAvg(volumes, smaPeriod) : null;
@@ -627,6 +739,14 @@ export async function getTechnicalSnapshot(
     extendedStage2: false,
     benchmarkStage: null,
     benchmarkStageReason: null,
+    sma10Weekly: null,
+    sma40Weekly: null,
+    sma10WeeklyTrend: null,
+    sma40WeeklyTrend: null,
+    multiMaAlignment: null,
+    atr14Weekly: null,
+    atr14WeeklyPct: null,
+    volumeDryUp: null,
   };
-  return await attachWeinsteinExtras(base, { timestamps: stockTs, closes }, lows, smaPeriod);
+  return await attachWeinsteinExtras(base, { timestamps: stockTs, closes, highs: stockHighs, volumes: stockVolumes }, lows, smaPeriod);
 }

@@ -27,7 +27,7 @@ const TermsPage: React.FC = () => {
 
           <section>
             <h2 className="text-white font-black text-lg mb-3">1. Identificación del titular</h2>
-            <p>El presente sitio web <strong className="text-white">alphastage.finance</strong> (en adelante, «la Plataforma») es operado por <strong className="text-white">Gosua Films S.L.</strong>, con domicilio en Calle Luisa Fernanda 27, 1º Drcha., 28008 Madrid, España, y correo electrónico de contacto <a href="mailto:juantxu@gosua.com" className="text-amber-400 hover:underline">juantxu@gosua.com</a>.</p>
+            <p>El presente sitio web <strong className="text-white">alphastage.finance</strong> (en adelante, «la Plataforma») es operado por <strong className="text-white">Gosua Films S.L.</strong>, con NIF <strong className="text-white">B87531778</strong>, domicilio en Calle Luisa Fernanda 27, 1º Drcha., 28008 Madrid, España, e inscrita en el Registro Mercantil de Madrid. Correo electrónico de contacto: <a href="mailto:contabilidad@gosua.com" className="text-amber-400 hover:underline">contabilidad@gosua.com</a>.</p>
           </section>
 
           <section>
@@ -92,7 +92,7 @@ const TermsPage: React.FC = () => {
 
           <section>
             <h2 className="text-white font-black text-lg mb-3">10. Contacto</h2>
-            <p>Para cualquier consulta sobre estos Términos, puede contactar con nosotros en <a href="mailto:juantxu@gosua.com" className="text-amber-400 hover:underline">juantxu@gosua.com</a>.</p>
+            <p>Para cualquier consulta sobre estos Términos, puede contactar con nosotros en <a href="mailto:contabilidad@gosua.com" className="text-amber-400 hover:underline">contabilidad@gosua.com</a>.</p>
           </section>
 
         </div>

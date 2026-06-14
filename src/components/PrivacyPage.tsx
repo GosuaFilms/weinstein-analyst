@@ -29,8 +29,9 @@ const PrivacyPage: React.FC = () => {
             <h2 className="text-white font-black text-lg mb-3">1. Responsable del tratamiento</h2>
             <div className="bg-slate-900 rounded-xl p-4 border border-slate-800 space-y-1 text-slate-400">
               <p><strong className="text-white">Empresa:</strong> Gosua Films S.L.</p>
+              <p><strong className="text-white">NIF/CIF:</strong> B87531778</p>
               <p><strong className="text-white">Domicilio:</strong> Calle Luisa Fernanda 27, 1º Drcha., 28008 Madrid, España</p>
-              <p><strong className="text-white">Correo:</strong> <a href="mailto:juantxu@gosua.com" className="text-amber-400 hover:underline">juantxu@gosua.com</a></p>
+              <p><strong className="text-white">Correo:</strong> <a href="mailto:contabilidad@gosua.com" className="text-amber-400 hover:underline">contabilidad@gosua.com</a></p>
               <p><strong className="text-white">Actividad:</strong> Plataforma SaaS de análisis bursátil educativo (alphastage.finance)</p>
             </div>
           </section>
@@ -126,7 +127,7 @@ const PrivacyPage: React.FC = () => {
 
           <section>
             <h2 className="text-white font-black text-lg mb-3">6. Sus derechos (RGPD)</h2>
-            <p className="mb-3 text-slate-400">Puede ejercer los siguientes derechos escribiendo a <a href="mailto:juantxu@gosua.com" className="text-amber-400 hover:underline">juantxu@gosua.com</a> con asunto «RGPD — [Derecho]»:</p>
+            <p className="mb-3 text-slate-400">Puede ejercer los siguientes derechos escribiendo a <a href="mailto:contabilidad@gosua.com" className="text-amber-400 hover:underline">contabilidad@gosua.com</a> con asunto «RGPD — [Derecho]»:</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {[
                 { right: 'Acceso', desc: 'Conocer qué datos tenemos sobre usted.' },
@@ -162,7 +163,7 @@ const PrivacyPage: React.FC = () => {
 
           <section>
             <h2 className="text-white font-black text-lg mb-3">10. Contacto</h2>
-            <p className="text-slate-400">Para cualquier consulta sobre privacidad: <a href="mailto:juantxu@gosua.com" className="text-amber-400 hover:underline">juantxu@gosua.com</a></p>
+            <p className="text-slate-400">Para cualquier consulta sobre privacidad: <a href="mailto:contabilidad@gosua.com" className="text-amber-400 hover:underline">contabilidad@gosua.com</a></p>
           </section>
 
         </div>

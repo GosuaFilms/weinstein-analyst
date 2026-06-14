@@ -216,7 +216,7 @@ const ScreenerPanel: React.FC<Props> = ({ language, onAnalyze, onClose, isPro = 
         <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center">
-              <i className="fas fa-radar text-emerald-500 text-lg"></i>
+              <i className="fas fa-satellite-dish text-emerald-500 text-lg"></i>
             </div>
             <div>
               <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">

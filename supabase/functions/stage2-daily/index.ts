@@ -17,8 +17,9 @@ import { sendTelegramMessage } from '../_shared/telegram.ts';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-// Indices to scan every day (all available)
-const DAILY_INDICES = ['IBEX35', 'SP100', 'NASDAQ50', 'DAX40', 'CAC40', 'FTSE100', 'EUROSTOXX50'];
+// Indices to scan every day — ordered by priority
+// Kept to the most actionable indices to stay within function timeout
+const DAILY_INDICES = ['IBEX35', 'SP100', 'NASDAQ50', 'DAX40', 'EUROSTOXX50'];
 
 // ─── Concurrency helper ───────────────────────────────────────────────────────
 
@@ -133,20 +134,27 @@ Deno.serve(async (req) => {
   const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
 
   try {
-    // ── 1. Scan all indices in parallel ──────────────────────────────────────
+    // ── 1. Scan indices sequentially, saving after each one ──────────────────
+    // Sequential (not parallel) to avoid timeouts on free-tier edge functions.
+    // Results are saved to DB after each index so partial progress is kept.
     console.log(`[stage2-daily] scanning ${DAILY_INDICES.length} indices for ${today}…`);
-    const indexResults = await Promise.all(DAILY_INDICES.map(idx => scanIndexStage2(idx)));
-    const allStage2    = indexResults.flat();
-
-    // ── 2. Persist to DB (upsert — idempotent on re-run) ────────────────────
-    if (allStage2.length > 0) {
-      const rows = allStage2.map(r => ({ ...r, scan_date: today }));
-      const { error: upsertErr } = await supabase
-        .from('stage2_snapshots')
-        .upsert(rows, { onConflict: 'scan_date,index_id,symbol' });
-      if (upsertErr) throw new Error(`DB upsert failed: ${upsertErr.message}`);
+    const allStage2: ReturnType<typeof scanIndexStage2> extends Promise<infer T> ? T : never[] = [];
+    for (const indexId of DAILY_INDICES) {
+      try {
+        console.log(`[stage2-daily] scanning ${indexId}…`);
+        const rows = await scanIndexStage2(indexId);
+        if (rows.length > 0) {
+          const toSave = rows.map(r => ({ ...r, scan_date: today }));
+          await supabase.from('stage2_snapshots').upsert(toSave, { onConflict: 'scan_date,index_id,symbol' });
+          console.log(`[stage2-daily] ${indexId}: ${rows.length} Stage 2 stocks saved`);
+        }
+        allStage2.push(...rows);
+      } catch (e) {
+        console.error(`[stage2-daily] ${indexId} failed:`, e);
+      }
     }
-    console.log(`[stage2-daily] saved ${allStage2.length} Stage 2 rows for ${today}`);
+
+    console.log(`[stage2-daily] total Stage 2 stocks found: ${allStage2.length}`);
 
     // ── 3. Load yesterday's list to compute diff ─────────────────────────────
     const { data: yesterdayRows } = await supabase
@@ -164,7 +172,7 @@ Deno.serve(async (req) => {
 
     // ── 4. Send Telegram summary ─────────────────────────────────────────────
     const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
-    const chatId   = Deno.env.get('TELEGRAM_CHAT_ID');
+    const chatId   = Deno.env.get('TELEGRAM_CHANNEL_ID') || Deno.env.get('TELEGRAM_CHAT_ID');
     if (botToken && chatId) {
       const msg = formatTelegramMessage(today, newEntries, exits, allStage2.length);
       await sendTelegramMessage(chatId, msg, botToken);

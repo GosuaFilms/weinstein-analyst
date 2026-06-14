@@ -9,19 +9,32 @@ interface VirtualPosition {
   symbol: string;
   name: string;
   nativeCurrency: string;
-  currentPrice: number;   // price at generation time (= entry price)
+  currentPrice: number;
   confidence: 'low' | 'medium' | 'high';
   mansfieldRS: number | null;
   stopLoss: number | null;
   stopLossRiskPct: number | null;
   distanceFromSMA30Pct: number | null;
   extendedStage2: boolean;
+  atr14Weekly?: number | null;
+  atr14WeeklyPct?: number | null;
+  sizingMethod?: 'atr' | 'weinstein' | 'equal';
   region: string;
   allocationPct: number;
   allocationAmount: number;
   approxShares: number;
   positionRisk: number;
   positionRiskPct: number;
+}
+
+interface BreadthStats {
+  scanned: number;
+  aboveSMA30wPct: number;
+  aboveSMA40wPct: number;
+  stageDist: { stage1Pct: number; stage2Pct: number; stage3Pct: number; stage4Pct: number };
+  regime: 'bull' | 'mixed' | 'bear';
+  tradingSignal: 'GO' | 'CAUTION' | 'AVOID';
+  breadthScore: number;
 }
 
 interface VirtualPortfolioResult {
@@ -37,13 +50,15 @@ interface VirtualPortfolioResult {
   cashReservePct: number;
   maxPortfolioRisk: number;
   maxPortfolioRiskPct: number;
+  breadth?: BreadthStats;
   positions: VirtualPosition[];
   methodology: {
     riskPerPosition: string;
+    atrMultiplier?: string;
+    sizingPriority?: string;
     maxPositions: number;
     maxPerRegion: number;
     cashReserveTarget: string;
-    stopLossMethod: string;
   };
 }
 
@@ -833,6 +848,79 @@ const VirtualPortfolioPanel: React.FC<Props> = ({ language, onAnalyze, onClose, 
                     </button>
                   )}
                 </div>
+
+                {/* ── Market Breadth Gauge ── */}
+                {result.breadth && (() => {
+                  const b = result.breadth!;
+                  const regimeCls = b.regime === 'bull'
+                    ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
+                    : b.regime === 'mixed'
+                    ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-400'
+                    : 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-400';
+                  const signalCls = b.tradingSignal === 'GO' ? 'bg-emerald-600 text-white'
+                    : b.tradingSignal === 'CAUTION' ? 'bg-amber-500 text-slate-950' : 'bg-rose-600 text-white';
+                  const barCls = (pct: number) =>
+                    pct >= 60 ? 'bg-emerald-500' : pct >= 40 ? 'bg-amber-500' : 'bg-rose-500';
+                  return (
+                    <div className={`rounded-2xl border p-4 ${regimeCls}`}>
+                      <div className="flex flex-wrap items-center gap-3 mb-3">
+                        <i className={`fas ${b.regime === 'bull' ? 'fa-arrow-trend-up' : b.regime === 'mixed' ? 'fa-minus' : 'fa-arrow-trend-down'} text-sm`}></i>
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] flex-grow">
+                          {es ? 'Amplitud de mercado' : 'Market breadth'} · {result.indicesScanned.join(', ')} · {b.scanned} {es ? 'valores' : 'stocks'}
+                        </span>
+                        <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${signalCls}`}>
+                          {b.tradingSignal === 'GO' ? (es ? '✓ OPERAR' : '✓ TRADE') : b.tradingSignal === 'CAUTION' ? (es ? '⚠ PRECAUCIÓN' : '⚠ CAUTION') : (es ? '✕ EVITAR' : '✕ AVOID')}
+                        </span>
+                        <span className="text-[9px] font-black opacity-60 uppercase tracking-widest">
+                          {b.regime.toUpperCase()} · Score {b.breadthScore}/100
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <div className="flex justify-between text-[9px] font-bold mb-1 opacity-80">
+                            <span>% {es ? 'sobre' : 'above'} SMA40w <span className="opacity-60">(≈MA200d)</span></span>
+                            <span className="font-black">{b.aboveSMA40wPct}%</span>
+                          </div>
+                          <div className="h-2 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
+                            <div className={`h-full rounded-full ${barCls(b.aboveSMA40wPct)}`} style={{ width: `${b.aboveSMA40wPct}%` }} />
+                          </div>
+                          <div className="flex justify-between text-[8px] opacity-40 mt-0.5">
+                            <span>0%</span><span>40%</span><span>60%</span><span>100%</span>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] font-bold mb-1 opacity-80">
+                            {es ? 'Distribución de etapas' : 'Stage distribution'}
+                          </div>
+                          <div className="h-2 rounded-full overflow-hidden flex">
+                            {[
+                              { pct: b.stageDist.stage1Pct, cls: 'bg-blue-400' },
+                              { pct: b.stageDist.stage2Pct, cls: 'bg-emerald-500' },
+                              { pct: b.stageDist.stage3Pct, cls: 'bg-amber-500' },
+                              { pct: b.stageDist.stage4Pct, cls: 'bg-rose-500' },
+                            ].map((s, i) => <div key={i} className={s.cls} style={{ width: `${s.pct}%` }} />)}
+                          </div>
+                          <div className="flex gap-2 mt-1">
+                            {[['S1','bg-blue-400'],['S2','bg-emerald-500'],['S3','bg-amber-500'],['S4','bg-rose-500']].map(([lbl, cls], i) => (
+                              <span key={i} className="text-[8px] font-bold opacity-60 flex items-center gap-0.5">
+                                <span className={`inline-block w-1.5 h-1.5 rounded-full ${cls}`}></span>
+                                {lbl} {[b.stageDist.stage1Pct, b.stageDist.stage2Pct, b.stageDist.stage3Pct, b.stageDist.stage4Pct][i]}%
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      {b.tradingSignal !== 'GO' && (
+                        <p className="mt-3 pt-3 border-t border-current/20 text-[9px] font-bold opacity-80 flex items-center gap-1.5">
+                          <i className={`fas ${b.tradingSignal === 'AVOID' ? 'fa-shield-exclamation' : 'fa-triangle-exclamation'}`}></i>
+                          {b.tradingSignal === 'AVOID'
+                            ? (es ? `Solo el ${b.aboveSMA40wPct}% de los valores cotiza sobre MA200d. Amplitud bajista — considera reducir tamaños o evitar nuevas posiciones largas.` : `Only ${b.aboveSMA40wPct}% of stocks are above MA200d. Bearish breadth — consider reducing size or avoiding new longs.`)
+                            : (es ? `Mercado mixto (${b.aboveSMA40wPct}% sobre MA200d). Reducir tamaño de posición y priorizar Stage 2 de alta confianza.` : `Mixed market (${b.aboveSMA40wPct}% above MA200d). Reduce position size and prioritize high-confidence Stage 2.`)}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Summary */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

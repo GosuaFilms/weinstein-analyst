@@ -122,6 +122,16 @@ const INDICES: Record<string, { label: string; region: string; tickers: string[]
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export interface BreadthStats {
+  scanned: number;
+  aboveSMA30wPct: number;
+  aboveSMA40wPct: number;
+  stageDist: { stage1Pct: number; stage2Pct: number; stage3Pct: number; stage4Pct: number };
+  regime: 'bull' | 'mixed' | 'bear';
+  tradingSignal: 'GO' | 'CAUTION' | 'AVOID';
+  breadthScore: number;
+}
+
 interface CandidateStock {
   symbol: string;
   name: string;
@@ -407,6 +417,36 @@ Deno.serve(async (req) => {
     const cashReserve = amount - totalAllocated;
     const maxPortfolioRisk = positions.reduce((s, p) => s + p.positionRisk, 0);
 
+    // ── Market breadth — computed over ALL valid scanned stocks ──────────────
+    const validSnaps = snapshots.filter(Boolean) as NonNullable<(typeof snapshots)[number]>[];
+    const bN = validSnaps.length;
+    const bPct = (n: number) => bN > 0 ? Math.round((n / bN) * 1000) / 10 : 0;
+    const aboveSMA30wCount = validSnaps.filter(v => v.snap.sma30Weekly != null && v.snap.currentPrice > v.snap.sma30Weekly!).length;
+    const aboveSMA40wCount = validSnaps.filter(v => v.snap.sma40Weekly != null && v.snap.currentPrice > v.snap.sma40Weekly!).length;
+    const aboveSMA40wPct  = bPct(aboveSMA40wCount);
+    const aboveSMA30wPct  = bPct(aboveSMA30wCount);
+    const stageCounts2 = { STAGE_1: 0, STAGE_2: 0, STAGE_3: 0, STAGE_4: 0 };
+    for (const v of validSnaps) stageCounts2[v.cls.stage]++;
+    const stage2PctB = bPct(stageCounts2.STAGE_2);
+    const breadthRegime: BreadthStats['regime'] = aboveSMA40wPct >= 60 ? 'bull' : aboveSMA40wPct >= 40 ? 'mixed' : 'bear';
+    const tradingSignal: BreadthStats['tradingSignal'] =
+      breadthRegime === 'bull' && stage2PctB >= 20 ? 'GO' :
+      breadthRegime === 'bear' ? 'AVOID' : 'CAUTION';
+    const breadth: BreadthStats = {
+      scanned: bN,
+      aboveSMA30wPct,
+      aboveSMA40wPct,
+      stageDist: {
+        stage1Pct: bPct(stageCounts2.STAGE_1),
+        stage2Pct: stage2PctB,
+        stage3Pct: bPct(stageCounts2.STAGE_3),
+        stage4Pct: bPct(stageCounts2.STAGE_4),
+      },
+      regime: breadthRegime,
+      tradingSignal,
+      breadthScore: Math.min(100, Math.round(aboveSMA40wPct * 0.5 + stage2PctB * 0.3 + aboveSMA30wPct * 0.2)),
+    };
+
     return jsonResponse({
       portfolioCurrency: currency,
       portfolioAmount: amount,
@@ -420,6 +460,7 @@ Deno.serve(async (req) => {
       cashReservePct: Math.round((cashReserve / amount) * 1000) / 10,
       maxPortfolioRisk: Math.round(maxPortfolioRisk * 100) / 100,
       maxPortfolioRiskPct: Math.round((maxPortfolioRisk / amount) * 1000) / 10,
+      breadth,
       positions,
       methodology: {
         riskPerPosition: `${RISK_PER_POSITION * 100}%`,

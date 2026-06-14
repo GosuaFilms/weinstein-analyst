@@ -559,6 +559,101 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
                 </div>
               </div>
 
+              {/* ── Quant Metrics Panel ── */}
+              {backtest.metrics && (() => {
+                const m = backtest.metrics!;
+                const fmtPct = (v: number, decimals = 1) => `${v >= 0 ? '+' : ''}${v.toFixed(decimals)}%`;
+                const fmtRatio = (v: number) => v >= 999 ? '∞' : v.toFixed(2);
+                const pos = (v: number) => v > 0 ? 'text-emerald-600 dark:text-emerald-400' : v < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500';
+
+                const cells: { label: string; value: string; cls: string; hint?: string }[] = [
+                  {
+                    label: 'CAGR',
+                    value: fmtPct(m.cagr),
+                    cls: pos(m.cagr),
+                    hint: language === Language.ES ? '2 años' : '2 yr',
+                  },
+                  {
+                    label: 'Max DD',
+                    value: `${m.maxDrawdown.toFixed(1)}%`,
+                    cls: m.maxDrawdown < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500',
+                    hint: language === Language.ES ? 'drawdown máx' : 'max drawdown',
+                  },
+                  {
+                    label: 'Sharpe',
+                    value: fmtRatio(m.sharpeRatio),
+                    cls: m.sharpeRatio >= 1 ? 'text-emerald-600 dark:text-emerald-400' : m.sharpeRatio >= 0.5 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400',
+                    hint: 'RF=0%',
+                  },
+                  {
+                    label: 'Sortino',
+                    value: fmtRatio(m.sortinoRatio),
+                    cls: m.sortinoRatio >= 1.5 ? 'text-emerald-600 dark:text-emerald-400' : m.sortinoRatio >= 0.75 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400',
+                    hint: 'MAR=0%',
+                  },
+                  {
+                    label: 'Calmar',
+                    value: fmtRatio(m.calmarRatio),
+                    cls: m.calmarRatio >= 0.5 ? 'text-emerald-600 dark:text-emerald-400' : m.calmarRatio >= 0.2 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400',
+                    hint: 'CAGR/DD',
+                  },
+                  {
+                    label: language === Language.ES ? 'Prof. Factor' : 'Profit Factor',
+                    value: fmtRatio(m.profitFactor),
+                    cls: m.profitFactor >= 1.5 ? 'text-emerald-600 dark:text-emerald-400' : m.profitFactor >= 1 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400',
+                    hint: 'bruto G/P',
+                  },
+                  {
+                    label: language === Language.ES ? 'Esperanza' : 'Expectancy',
+                    value: fmtPct(m.expectancy),
+                    cls: pos(m.expectancy),
+                    hint: language === Language.ES ? 'por trade' : 'per trade',
+                  },
+                  {
+                    label: language === Language.ES ? 'Exposición' : 'Exposure',
+                    value: `${m.exposure}%`,
+                    cls: 'text-violet-600 dark:text-violet-400',
+                    hint: `${m.completedTrades} trades`,
+                  },
+                ];
+
+                return (
+                  <div className="bg-slate-50 dark:bg-slate-800/40 rounded-2xl p-3 border border-slate-200 dark:border-slate-700/60">
+                    <div className="flex items-center gap-2 mb-2">
+                      <i className="fas fa-square-root-variable text-violet-500 text-[10px]"></i>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                        {language === Language.ES ? 'Métricas cuantitativas' : 'Quant metrics'}
+                      </p>
+                      <span className="ml-auto text-[9px] text-slate-400">
+                        {language === Language.ES ? 'Retorno total' : 'Total return'}:
+                        <span className={`font-black ml-1 ${pos(m.totalReturn)}`}>{fmtPct(m.totalReturn)}</span>
+                        <span className="text-slate-300 dark:text-slate-600 mx-1">·</span>
+                        {language === Language.ES ? 'Vol.' : 'Vol.'} <span className="font-bold">{m.volatility.toFixed(1)}%</span>
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {cells.map(cell => (
+                        <div key={cell.label} className="bg-white dark:bg-slate-900 rounded-xl p-2 text-center border border-slate-100 dark:border-slate-700/40">
+                          <p className="text-[9px] text-slate-400 uppercase tracking-wider leading-none mb-1">{cell.label}</p>
+                          <p className={`text-sm font-black leading-none ${cell.cls}`}>{cell.value}</p>
+                          {cell.hint && <p className="text-[8px] text-slate-400 mt-0.5 leading-none">{cell.hint}</p>}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-3 mt-2 flex-wrap">
+                      <span className="text-[8px] text-slate-400"><span className="font-bold text-slate-500">{language === Language.ES ? 'Mejor' : 'Best'}:</span> {fmtPct(m.bestTrade)}</span>
+                      <span className="text-[8px] text-slate-400"><span className="font-bold text-slate-500">{language === Language.ES ? 'Peor' : 'Worst'}:</span> {fmtPct(m.worstTrade)}</span>
+                      <span className="text-[8px] text-slate-400"><span className="font-bold text-slate-500">Payoff:</span> {fmtRatio(m.payoffRatio)}:1</span>
+                      <span className="text-[8px] text-slate-400"><span className="font-bold text-slate-500">{language === Language.ES ? 'Media G/P' : 'Avg W/L'}:</span> {fmtPct(m.avgWin)} / {fmtPct(m.avgLoss)}</span>
+                      <span className="text-[8px] text-slate-400"><span className="font-bold text-slate-500">{language === Language.ES ? 'Durac. media' : 'Avg dur.'}:</span> {m.avgWeeksPerTrade} {language === Language.ES ? 'sem.' : 'wks'}</span>
+                      <span className="ml-auto text-[8px] text-slate-300 dark:text-slate-600 italic">
+                        {m.completedTrades} {language === Language.ES ? 'trades · RF=0%' : 'trades · RF=0%'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Active entry + price targets */}
               {backtest.activeEntry && (
                 <div className="border border-emerald-200 dark:border-emerald-500/30 rounded-2xl overflow-hidden">

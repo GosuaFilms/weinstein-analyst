@@ -33,6 +33,33 @@ export interface PriceTargets {
   reachedT3: boolean;
 }
 
+/** Professional quant metrics computed from completed Stage 2 periods. */
+export interface QuantMetrics {
+  // Return
+  totalReturn: number;        // compounded return across all completed trades %
+  cagr: number;               // CAGR annualized over 2-year data window %
+  avgWin: number;             // average winning trade return %
+  avgLoss: number;            // average losing trade return % (negative)
+  bestTrade: number;          // best single trade return %
+  worstTrade: number;         // worst single trade return %
+  // Trade stats
+  completedTrades: number;    // number of closed trades
+  payoffRatio: number;        // avgWin / |avgLoss|
+  profitFactor: number;       // sum(wins) / sum(|losses|)
+  expectancy: number;         // expected value per trade %
+  // Risk
+  maxDrawdown: number;        // max drawdown % (negative)
+  volatility: number;         // annualized volatility of trade returns %
+  // Ratios (risk-free rate = 0%)
+  sharpeRatio: number;
+  sortinoRatio: number;
+  calmarRatio: number;        // CAGR / |maxDrawdown|
+  // Activity
+  avgWeeksPerTrade: number;   // mean trade duration in weeks
+  exposure: number;           // % of total data period spent in Stage 2
+  totalWeeks: number;         // total data window size in weeks
+}
+
 export interface BacktestResult {
   ticker: string;
   currentPrice: number;
@@ -41,12 +68,104 @@ export interface BacktestResult {
   avgReturn: number;        // average return across all periods
   activeEntry: Stage2Period | null;
   priceTargets: PriceTargets | null; // Only computed when activeEntry exists
+  metrics: QuantMetrics | null;      // null when fewer than 2 completed trades
 }
 
 function sma(closes: number[], i: number, period: number): number | null {
   if (i < period - 1) return null;
   const slice = closes.slice(i - period + 1, i + 1);
   return slice.reduce((a, b) => a + b, 0) / period;
+}
+
+function computeQuantMetrics(
+  periods: Stage2Period[],
+  totalWeeks: number,
+): QuantMetrics | null {
+  const completed = periods.filter(p => !p.active);
+  if (completed.length < 2) return null;
+
+  const returns = completed.map(p => p.returnPct);
+  const n = returns.length;
+
+  const winners = returns.filter(r => r > 0);
+  const losers  = returns.filter(r => r <= 0);
+
+  const avgWin  = winners.length > 0 ? winners.reduce((a, b) => a + b, 0) / winners.length : 0;
+  const avgLoss = losers.length  > 0 ? losers.reduce((a, b)  => a + b, 0) / losers.length  : 0;
+  const winRate = winners.length / n;
+  const lossRate = 1 - winRate;
+
+  const bestTrade  = Math.max(...returns);
+  const worstTrade = Math.min(...returns);
+
+  const grossWin  = winners.reduce((a, b) => a + b, 0);
+  const grossLoss = Math.abs(losers.reduce((a, b) => a + b, 0));
+  const profitFactor = grossLoss > 0 ? +(grossWin / grossLoss).toFixed(2) : (grossWin > 0 ? 999 : 0);
+  const payoffRatio  = Math.abs(avgLoss) > 0 ? +(avgWin / Math.abs(avgLoss)).toFixed(2) : (avgWin > 0 ? 999 : 0);
+  const expectancy   = +(winRate * avgWin + lossRate * avgLoss).toFixed(2);
+
+  // Compounded equity curve
+  const totalReturn = +((returns.reduce((eq, r) => eq * (1 + r / 100), 1) - 1) * 100).toFixed(2);
+
+  // Max drawdown on equity curve at trade-end granularity
+  let equity = 1, peak = 1, maxDD = 0;
+  for (const r of returns) {
+    equity *= (1 + r / 100);
+    if (equity > peak) peak = equity;
+    const dd = (peak - equity) / peak;
+    if (dd > maxDD) maxDD = dd;
+  }
+  const maxDrawdown = +(-(maxDD * 100)).toFixed(2); // negative %
+
+  // CAGR: 2-year data window (totalReturn over 2 years)
+  const cagr = +((Math.pow(1 + totalReturn / 100, 0.5) - 1) * 100).toFixed(2);
+
+  // Average weeks per trade
+  const avgWeeks = completed.reduce((s, p) => s + p.weeksInStage2, 0) / n;
+
+  // Annualization factor: scale trade-level stats to annual equivalent
+  const tradesPerYear = 52 / Math.max(avgWeeks, 1);
+  const annFactor = Math.sqrt(tradesPerYear);
+
+  // Sample std dev
+  const mean = returns.reduce((a, b) => a + b, 0) / n;
+  const variance = returns.reduce((s, r) => s + Math.pow(r - mean, 2), 0) / (n - 1);
+  const stdDev = Math.sqrt(variance);
+
+  // Downside deviation (MAR = 0%)
+  const downsideVar = returns.reduce((s, r) => s + Math.pow(Math.min(r, 0), 2), 0) / n;
+  const downsideDev = Math.sqrt(downsideVar);
+
+  const sharpeRatio  = stdDev > 0 ? +((mean / stdDev) * annFactor).toFixed(2) : 0;
+  const sortinoRatio = downsideDev > 0 ? +((mean / downsideDev) * annFactor).toFixed(2) : (mean > 0 ? 999 : 0);
+  const calmarRatio  = Math.abs(maxDrawdown) > 0 ? +(cagr / Math.abs(maxDrawdown)).toFixed(2) : (cagr > 0 ? 999 : 0);
+  const volatility   = +(stdDev * annFactor).toFixed(2);
+
+  // Exposure: weeks in Stage 2 / total data weeks
+  const activeWeeks    = periods.find(p => p.active)?.weeksInStage2 ?? 0;
+  const weeksInStage2  = completed.reduce((s, p) => s + p.weeksInStage2, 0) + activeWeeks;
+  const exposure       = +(weeksInStage2 / totalWeeks * 100).toFixed(1);
+
+  return {
+    totalReturn,
+    cagr,
+    avgWin:           +avgWin.toFixed(2),
+    avgLoss:          +avgLoss.toFixed(2),
+    bestTrade:        +bestTrade.toFixed(2),
+    worstTrade:       +worstTrade.toFixed(2),
+    completedTrades:  n,
+    payoffRatio,
+    profitFactor,
+    expectancy,
+    maxDrawdown,
+    volatility,
+    sharpeRatio,
+    sortinoRatio,
+    calmarRatio,
+    avgWeeksPerTrade: +avgWeeks.toFixed(1),
+    exposure,
+    totalWeeks,
+  };
 }
 
 function computePriceTargets(
@@ -198,6 +317,8 @@ Deno.serve(async (req) => {
       ? computePriceTargets(closePrices, entryIdx, activeEntry.entryPrice, currentPrice, SMA_PERIOD)
       : null;
 
+    const metrics = computeQuantMetrics(periods, data.length);
+
     const payload: BacktestResult = {
       ticker,
       currentPrice,
@@ -206,6 +327,7 @@ Deno.serve(async (req) => {
       avgReturn,
       activeEntry,
       priceTargets,
+      metrics,
     };
 
     return jsonResponse(payload);

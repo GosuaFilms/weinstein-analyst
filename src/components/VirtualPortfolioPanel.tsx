@@ -251,6 +251,8 @@ const SavedPortfolioDetail: React.FC<{
     setRefreshing(true);
     try {
       const tickers = [...new Set(positions.map(p => p.symbol))];
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) supabase.functions.setAuth(session.access_token);
       const { data } = await supabase.functions.invoke('portfolio-prices', { body: { tickers } });
       if (data) setLivePrices(data as Record<string, LivePrice>);
     } finally {
@@ -598,6 +600,8 @@ const VirtualPortfolioPanel: React.FC<Props> = ({ language, onAnalyze, onClose, 
   const generate = async () => {
     setGenerating(true); setError(null); setResult(null); setSavedId(null);
     try {
+      const { data: authData } = await supabase.auth.getSession();
+      if (authData.session?.access_token) supabase.functions.setAuth(authData.session.access_token);
       const { data, error: fnError } = await supabase.functions.invoke('virtual-portfolio', { body: { currency, amount, indices: selectedIndices } });
       if (fnError) throw new Error(fnError.message);
       if (data?.error) throw new Error(data.error);

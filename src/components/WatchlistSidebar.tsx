@@ -84,6 +84,8 @@ const WatchlistSidebar: React.FC<Props> = ({
     setScanning(true);
     setScanError(null);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) supabase.functions.setAuth(session.access_token);
       const { data, error } = await supabase.functions.invoke('watchlist-scan', {
         body: { symbols: watchlist.map(w => w.symbol) },
       });

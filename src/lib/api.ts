@@ -10,6 +10,8 @@ import type {
 } from '../types';
 
 async function invoke<T>(fn: string, body: unknown): Promise<T> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.access_token) supabase.functions.setAuth(session.access_token);
   const { data, error } = await supabase.functions.invoke<T>(fn, { body: body as Record<string, unknown> });
   if (error) {
     // Supabase wraps non-2xx responses in FunctionsHttpError with the response

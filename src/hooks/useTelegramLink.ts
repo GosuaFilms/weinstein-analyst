@@ -21,7 +21,16 @@ async function callLink(action: 'status' | 'generate' | 'disconnect'): Promise<T
   const { data, error } = await supabase.functions.invoke('telegram-link', {
     body: { action },
   });
-  if (error || !data) return null;
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.error('[telegram-link] invoke error:', error.message, error);
+    return null;
+  }
+  if (!data) {
+    // eslint-disable-next-line no-console
+    console.error('[telegram-link] no data returned');
+    return null;
+  }
   return data as TelegramStatus;
 }
 

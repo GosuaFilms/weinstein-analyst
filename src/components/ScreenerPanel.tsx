@@ -217,6 +217,39 @@ const ScreenerPanel: React.FC<Props> = ({ language, onAnalyze, onClose, isPro = 
       }
     : null;
 
+  // Compute breadth client-side from screener items if the backend didn't return it
+  const breadth: BreadthStats | null = result ? (() => {
+    if (result.breadth) return result.breadth;
+    const items = result.results;
+    const n = items.length;
+    if (n === 0) return null;
+    const pct = (count: number) => Math.round((count / n) * 1000) / 10;
+    const aboveSMA30wCount = items.filter(r => r.sma30 != null && r.currentPrice > r.sma30).length;
+    const aboveSMA40wCount = items.filter(r => r.sma40 != null && r.currentPrice > r.sma40).length;
+    const aboveSMA30wPct = pct(aboveSMA30wCount);
+    const aboveSMA40wPct = pct(aboveSMA40wCount);
+    const s1 = items.filter(r => r.stage === 'STAGE_1').length;
+    const s2 = items.filter(r => r.stage === 'STAGE_2').length;
+    const s3 = items.filter(r => r.stage === 'STAGE_3').length;
+    const s4 = items.filter(r => r.stage === 'STAGE_4').length;
+    const stage2Pct = pct(s2);
+    const regime: BreadthStats['regime'] = aboveSMA40wPct >= 60 ? 'bull' : aboveSMA40wPct >= 40 ? 'mixed' : 'bear';
+    const tradingSignal: BreadthStats['tradingSignal'] =
+      regime === 'bull' && stage2Pct >= 20 ? 'GO' :
+      regime === 'bear' ? 'AVOID' : 'CAUTION';
+    return {
+      scanned: n,
+      aboveSMA30wCount,
+      aboveSMA30wPct,
+      aboveSMA40wCount,
+      aboveSMA40wPct,
+      stageDist: { stage1Pct: pct(s1), stage2Pct, stage3Pct: pct(s3), stage4Pct: pct(s4) },
+      regime,
+      tradingSignal,
+      breadthScore: Math.min(100, Math.round(aboveSMA40wPct * 0.5 + stage2Pct * 0.3 + aboveSMA30wPct * 0.2)),
+    };
+  })() : null;
+
   const es = language === Language.ES;
 
   return (
@@ -369,8 +402,8 @@ const ScreenerPanel: React.FC<Props> = ({ language, onAnalyze, onClose, isPro = 
             </div>
 
             {/* ── Market Breadth Gauge ── */}
-            {result.breadth && (() => {
-              const b = result.breadth;
+            {breadth && (() => {
+              const b = breadth;
               const regimeStyle = b.regime === 'bull'
                 ? { badge: 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30', bar: 'bg-emerald-500', icon: 'fa-arrow-trend-up' }
                 : b.regime === 'mixed'

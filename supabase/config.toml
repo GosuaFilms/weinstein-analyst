@@ -48,3 +48,6 @@ verify_jwt = true
 
 [functions.check-alerts]
 verify_jwt = false
+
+[functions.watchlist-scan]
+verify_jwt = true

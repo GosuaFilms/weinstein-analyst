@@ -20,14 +20,13 @@ export default defineConfig({
           'vendor-react': ['react', 'react-dom'],
           // Supabase client — always needed (auth, realtime)
           'vendor-supabase': ['@supabase/supabase-js'],
-          // PDF / canvas — loaded on demand via dynamic import,
-          // but Rollup still needs a chunk boundary here
-          'vendor-pdf': ['jspdf', 'html2canvas'],
+          // jspdf / html2canvas are deliberately NOT listed: forcing them into a
+          // manual chunk made Rollup put shared helpers there, so the entry
+          // imported it eagerly. Left alone, they stay lazy (dynamic import only).
         },
       },
     },
-    // Raise warning threshold — individual chunks over 400 kB
-    // (jspdf + html2canvas) are intentional lazy chunks
+    // Raise warning threshold — the lazy jspdf chunk is ~400 kB on its own
     chunkSizeWarningLimit: 600,
   },
 });

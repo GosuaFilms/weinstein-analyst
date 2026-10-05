@@ -1,7 +1,8 @@
 // Minimal Anthropic REST client — raw fetch para mantener cold-starts rápidos.
 // Reemplaza gemini.ts. No usa SDK para evitar peso en el Edge runtime.
 
-const MODEL_ANALYSIS = 'claude-opus-4-7'; // Análisis de mercado y operaciones
+const MODEL_ANALYSIS = 'claude-opus-5-5'; // Análisis de mercado y operaciones
+const MODEL_ANALYSIS_FALLBACK = 'claude-opus-4-7'; // Si la cuenta aún no tiene acceso a Opus 5.5
 export const MODEL_CHAT = 'claude-haiku-4-5'; // Chat: rápido y eficiente
 const API_BASE = 'https://api.anthropic.com/v1';
 const ANTHROPIC_VERSION = '2023-06-01';
@@ -40,36 +41,46 @@ export interface AnthropicRequest {
 
 // ─── Cliente ───────────────────────────────────────────────────────────────
 
-export async function generate(req: AnthropicRequest): Promise<string> {
-  const model = req.model ?? MODEL_ANALYSIS;
-
-  const body: Record<string, unknown> = {
-    model,
-    max_tokens: req.maxTokens ?? 4096,
-    messages: req.messages,
-  };
-
-  if (req.system) {
-    body.system = req.system;
-  }
-
-  const res = await fetch(`${API_BASE}/messages`, {
+// POST /messages. If the account can't reach MODEL_ANALYSIS (404 model not
+// found), retry once with MODEL_ANALYSIS_FALLBACK so analyses never break.
+async function postMessages(body: Record<string, unknown>): Promise<Response> {
+  const send = (b: Record<string, unknown>) => fetch(`${API_BASE}/messages`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': getKey(),
       'anthropic-version': ANTHROPIC_VERSION,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(b),
   });
+
+  let res = await send(body);
+  if (res.status === 404 && body.model === MODEL_ANALYSIS) {
+    console.warn(`[anthropic] ${MODEL_ANALYSIS} unavailable, falling back to ${MODEL_ANALYSIS_FALLBACK}`);
+    res = await send({ ...body, model: MODEL_ANALYSIS_FALLBACK });
+  }
 
   if (!res.ok) {
     const errText = await res.text();
     throw new Error(`Anthropic API error ${res.status}: ${errText.slice(0, 300)}`);
   }
+  return res;
+}
 
-  const json = await res.json();
-  const text: string | undefined = json?.content?.[0]?.text;
+export async function generate(req: AnthropicRequest): Promise<string> {
+  const body: Record<string, unknown> = {
+    model: req.model ?? MODEL_ANALYSIS,
+    max_tokens: req.maxTokens ?? 4096,
+    messages: req.messages,
+  };
+  if (req.system) body.system = req.system;
+
+  const json = await (await postMessages(body)).json();
+  // Join every text block — don't assume content[0] is text
+  const text = ((json?.content ?? []) as Array<{ type: string; text?: string }>)
+    .filter(b => b.type === 'text' && b.text)
+    .map(b => b.text)
+    .join('');
   if (!text) throw new Error('Anthropic returned empty response');
   return text;
 }
@@ -79,32 +90,15 @@ export async function generate(req: AnthropicRequest): Promise<string> {
 // piping / transforming the body.
 
 export async function generateStream(req: AnthropicRequest): Promise<Response> {
-  const model = req.model ?? MODEL_ANALYSIS;
-
   const body: Record<string, unknown> = {
-    model,
+    model: req.model ?? MODEL_ANALYSIS,
     max_tokens: req.maxTokens ?? 4096,
     messages: req.messages,
     stream: true,
   };
   if (req.system) body.system = req.system;
 
-  const res = await fetch(`${API_BASE}/messages`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': getKey(),
-      'anthropic-version': ANTHROPIC_VERSION,
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Anthropic API error ${res.status}: ${errText.slice(0, 300)}`);
-  }
-
-  return res;
+  return await postMessages(body);
 }
 
 // ─── Utilidad JSON ─────────────────────────────────────────────────────────

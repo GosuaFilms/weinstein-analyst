@@ -118,7 +118,7 @@ const HistorySidebar: React.FC<Props> = ({ isOpen, onClose, history, onSelect, o
                 onClick={() => setConfirmClear(true)}
                 className="w-full py-2 text-xs font-bold text-slate-500 hover:text-rose-500 transition-colors flex items-center justify-center gap-2"
               >
-                <i className="fas fa-trash-sweep"></i> BORRAR TODO EL HISTORIAL
+                <i className="fas fa-broom"></i> BORRAR TODO EL HISTORIAL
               </button>
             )}
           </div>

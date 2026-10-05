@@ -335,6 +335,8 @@ Deno.serve(async (req) => {
   try {
     const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {};
     const testMode = body.test === true;
+    // Only the cron may send to every user; a user JWT may only trigger a test send to itself
+    if (!isCron && !testMode) return jsonResponse({ error: 'Unauthorized' }, 401);
 
     const adminClient = createClient(
       Deno.env.get('SUPABASE_URL')!,

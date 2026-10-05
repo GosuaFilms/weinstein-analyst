@@ -4,6 +4,7 @@
 // Used by the WatchlistSidebar to enrich basic watchlist items with live data.
 
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
+import { requireUser } from '../_shared/auth.ts';
 import { getTechnicalSnapshot } from '../_shared/marketData.ts';
 import { classifyStage } from '../_shared/weinstein.ts';
 
@@ -78,6 +79,9 @@ async function pooledMap<T, R>(
 Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
+
+  const authed = await requireUser(req);
+  if (authed instanceof Response) return authed;
 
   try {
     const { symbols } = await req.json() as { symbols: string[] };

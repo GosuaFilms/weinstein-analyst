@@ -3,6 +3,7 @@
 // Response: NDJSON stream — each line is {"chunk":"..."} or {"done":true} or {"error":"..."}
 
 import { handleCors, corsHeaders } from '../_shared/cors.ts';
+import { requireUser } from '../_shared/auth.ts';
 import { generateStream, MODEL_CHAT, type AnthropicMessage } from '../_shared/anthropic.ts';
 import { getTechnicalSnapshot } from '../_shared/marketData.ts';
 import { classifyStage } from '../_shared/weinstein.ts';
@@ -167,6 +168,9 @@ function ndjsonStream(
 Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
+
+  const authed = await requireUser(req);
+  if (authed instanceof Response) return authed;
 
   const encoder = new TextEncoder();
 

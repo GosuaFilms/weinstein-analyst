@@ -598,7 +598,7 @@ const App: React.FC = () => {
                           : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-400 hover:text-blue-500'
                       }`}
                     >
-                      <i className="fas fa-chart-candlestick"></i>
+                      <i className="fas fa-chart-column"></i>
                       {isChartOpen
                         ? (language === Language.ES ? 'Ocultar Gráfico' : 'Hide Chart')
                         : (language === Language.ES ? 'Ver Gráfico' : 'View Chart')}
@@ -642,7 +642,7 @@ const App: React.FC = () => {
                       <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                            <i className="fas fa-chart-candlestick text-blue-500"></i>
+                            <i className="fas fa-chart-column text-blue-500"></i>
                           </div>
                           <div>
                             <h3 className="font-bold text-slate-900 dark:text-white text-sm">

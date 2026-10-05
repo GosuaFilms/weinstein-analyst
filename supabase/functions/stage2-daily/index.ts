@@ -10,6 +10,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
+import { requireUser } from '../_shared/auth.ts';
 import { getTechnicalSnapshot } from '../_shared/marketData.ts';
 import { classifyStage } from '../_shared/weinstein.ts';
 import { INDICES } from '../_shared/indices.ts';
@@ -117,12 +118,12 @@ Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
-  // Auth: cron secret or user JWT
-  const cronSecret    = Deno.env.get('CRON_SECRET');
+  // Auth: cron secret or a valid user JWT
+  const cronSecret     = Deno.env.get('CRON_SECRET');
   const providedSecret = req.headers.get('x-cron-secret');
-  const authHeader    = req.headers.get('Authorization');
-  if (cronSecret && providedSecret !== cronSecret && !authHeader?.startsWith('Bearer ')) {
-    return jsonResponse({ error: 'unauthorized' }, 401);
+  if (!cronSecret || providedSecret !== cronSecret) {
+    const authed = await requireUser(req);
+    if (authed instanceof Response) return authed;
   }
 
   const supabase = createClient(

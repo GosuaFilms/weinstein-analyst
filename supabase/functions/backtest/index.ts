@@ -5,6 +5,7 @@
 // Weinstein price targets derived from the preceding base pattern.
 
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
+import { requireUser } from '../_shared/auth.ts';
 
 export interface Stage2Period {
   entryDate: string;       // ISO date string
@@ -220,6 +221,9 @@ function computePriceTargets(
 Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
+
+  const authed = await requireUser(req);
+  if (authed instanceof Response) return authed;
 
   const ticker = new URL(req.url).searchParams.get('ticker')?.toUpperCase();
   if (!ticker) return jsonResponse({ error: 'ticker required' }, 400);

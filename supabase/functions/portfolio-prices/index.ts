@@ -3,6 +3,7 @@
 // Returns current price, name and currency for each ticker via TwelveData.
 
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
+import { requireUser } from '../_shared/auth.ts';
 
 interface PriceResult {
   price: number | null;
@@ -52,6 +53,9 @@ async function fetchPrices(tickers: string[]): Promise<Record<string, PriceResul
 Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
+
+  const authed = await requireUser(req);
+  if (authed instanceof Response) return authed;
 
   try {
     const { tickers } = await req.json() as { tickers: string[] };

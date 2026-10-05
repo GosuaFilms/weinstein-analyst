@@ -311,7 +311,7 @@ const ScreenerPanel: React.FC<Props> = ({ language, onAnalyze, onClose, isPro = 
               {scanning ? (
                 <><i className="fas fa-circle-notch animate-spin"></i>{es ? 'ESCANEANDO…' : 'SCANNING…'}</>
               ) : (
-                <><i className="fas fa-radar"></i>{es ? 'ESCANEAR' : 'SCAN'}</>
+                <><i className="fas fa-satellite-dish"></i>{es ? 'ESCANEAR' : 'SCAN'}</>
               )}
             </button>
           </div>
@@ -324,7 +324,7 @@ const ScreenerPanel: React.FC<Props> = ({ language, onAnalyze, onClose, isPro = 
               <div className="absolute inset-0 border-4 border-emerald-500/20 rounded-full"></div>
               <div className="absolute inset-0 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
               <div className="absolute inset-4 flex items-center justify-center">
-                <i className="fas fa-radar text-emerald-500 text-xl animate-pulse"></i>
+                <i className="fas fa-satellite-dish text-emerald-500 text-xl animate-pulse"></i>
               </div>
             </div>
             <div className="text-center">
@@ -351,7 +351,7 @@ const ScreenerPanel: React.FC<Props> = ({ language, onAnalyze, onClose, isPro = 
         {/* Empty state */}
         {!scanning && !result && !error && (
           <div className="flex flex-col items-center justify-center py-20 text-center opacity-50">
-            <i className="fas fa-radar text-5xl mb-4 text-slate-300 dark:text-slate-600"></i>
+            <i className="fas fa-satellite-dish text-5xl mb-4 text-slate-300 dark:text-slate-600"></i>
             <p className="text-slate-500 dark:text-slate-400 font-medium">
               {es ? 'Selecciona un índice y pulsa ESCANEAR' : 'Select an index and press SCAN'}
             </p>
@@ -499,7 +499,7 @@ const ScreenerPanel: React.FC<Props> = ({ language, onAnalyze, onClose, isPro = 
                   {/* Bear market warning */}
                   {b.tradingSignal === 'AVOID' && (
                     <div className="mt-3 pt-3 border-t border-rose-200 dark:border-rose-500/30 text-[9px] font-bold text-rose-700 dark:text-rose-400 flex items-center gap-2">
-                      <i className="fas fa-shield-exclamation"></i>
+                      <i className="fas fa-shield-halved"></i>
                       {es
                         ? `Solo el ${b.aboveSMA40wPct}% de los valores cotiza por encima de su MA200d. Mercado bajista — evitar nuevas posiciones largas y reducir exposición.`
                         : `Only ${b.aboveSMA40wPct}% of stocks trade above their MA200d. Bear market — avoid new long positions and reduce exposure.`}

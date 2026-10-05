@@ -2,6 +2,7 @@
 // Body: { ticker, purchaseDate, purchasePrice, shares, settings }
 
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
+import { requireUser } from '../_shared/auth.ts';
 import { getTechnicalSnapshot } from '../_shared/marketData.ts';
 import { classifyStage } from '../_shared/weinstein.ts';
 import { generate, extractJson } from '../_shared/anthropic.ts';
@@ -15,6 +16,9 @@ interface Settings {
 Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
+
+  const authed = await requireUser(req);
+  if (authed instanceof Response) return authed;
 
   try {
     const body = await req.json();

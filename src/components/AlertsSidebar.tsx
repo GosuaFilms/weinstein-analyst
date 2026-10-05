@@ -316,7 +316,7 @@ const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, o
             {isChecking ? (
               <><i className="fas fa-circle-notch animate-spin"></i> ESCANEANDO...</>
             ) : (
-              <><i className="fas fa-radar"></i> ESCANEAR ALERTAS ACTIVAS</>
+              <><i className="fas fa-satellite-dish"></i> ESCANEAR ALERTAS ACTIVAS</>
             )}
           </button>
 

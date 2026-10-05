@@ -916,7 +916,7 @@ const VirtualPortfolioPanel: React.FC<Props> = ({ language, onAnalyze, onClose, 
                       </div>
                       {b.tradingSignal !== 'GO' && (
                         <p className="mt-3 pt-3 border-t border-current/20 text-[9px] font-bold opacity-80 flex items-center gap-1.5">
-                          <i className={`fas ${b.tradingSignal === 'AVOID' ? 'fa-shield-exclamation' : 'fa-triangle-exclamation'}`}></i>
+                          <i className={`fas ${b.tradingSignal === 'AVOID' ? 'fa-shield-halved' : 'fa-triangle-exclamation'}`}></i>
                           {b.tradingSignal === 'AVOID'
                             ? (es ? `Solo el ${b.aboveSMA40wPct}% de los valores cotiza sobre MA200d. Amplitud bajista — considera reducir tamaños o evitar nuevas posiciones largas.` : `Only ${b.aboveSMA40wPct}% of stocks are above MA200d. Bearish breadth — consider reducing size or avoiding new longs.`)
                             : (es ? `Mercado mixto (${b.aboveSMA40wPct}% sobre MA200d). Reducir tamaño de posición y priorizar Stage 2 de alta confianza.` : `Mixed market (${b.aboveSMA40wPct}% above MA200d). Reduce position size and prioritize high-confidence Stage 2.`)}

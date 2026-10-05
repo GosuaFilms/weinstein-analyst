@@ -9,6 +9,7 @@
 // ⚠️  NOT INVESTMENT ADVICE — educational/illustrative only.
 
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
+import { requireUser } from '../_shared/auth.ts';
 import { getTechnicalSnapshot } from '../_shared/marketData.ts';
 import { classifyStage } from '../_shared/weinstein.ts';
 import { INDICES } from '../_shared/indices.ts';
@@ -228,6 +229,9 @@ function buildPortfolio(
 Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
+
+  const authed = await requireUser(req);
+  if (authed instanceof Response) return authed;
 
   try {
     const {

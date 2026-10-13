@@ -346,7 +346,7 @@ const HelpPanel: React.FC<Props> = ({ isOpen, onClose }) => {
         <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80">
           <p className="text-[10px] text-slate-400 text-center leading-relaxed">
             ¿Tienes dudas? Escríbenos a{' '}
-            <a href="mailto:juantxu@gosua.com" className="text-blue-500 hover:underline">juantxu@gosua.com</a>
+            <a href="mailto:contabilidad@gosua.com" className="text-blue-500 hover:underline">contabilidad@gosua.com</a>
           </p>
         </div>
       </div>

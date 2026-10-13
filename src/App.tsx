@@ -885,7 +885,7 @@ const App: React.FC = () => {
               {language === Language.ES ? 'Política de privacidad' : 'Privacy Policy'}
             </a>
             <span>·</span>
-            <a href="mailto:juantxu@gosua.com" className="hover:text-slate-400 transition-colors">
+            <a href="mailto:contabilidad@gosua.com" className="hover:text-slate-400 transition-colors">
               {language === Language.ES ? 'Contacto' : 'Contact'}
             </a>
           </div>

@@ -47,11 +47,11 @@ const EpicHero: React.FC<Props> = ({ language = Language.ES }) => {
 
         <p className="max-w-2xl text-slate-200 text-xl sm:text-2xl font-bold mb-10 leading-tight italic drop-shadow-md">
           {es
-            ? <>"La única cosa que se interpone entre tú y tu meta es la <span className="text-amber-400">historia</span> que te sigues contando sobre por qué no puedes lograrla."</>
-            : <>"The only thing standing between you and your goal is the <span className="text-amber-400">story</span> you keep telling yourself about why you can't achieve it."</>
+            ? <>"Ganar no te enseña nada. Perder puede ser el mejor <span className="text-amber-400">maestro</span> de todos."</>
+            : <>"Winning teaches you nothing. Losing can be the greatest <span className="text-amber-400">teacher</span> of all."</>
           }
           <br/>
-          <span className="text-slate-400 text-sm font-black mt-4 block uppercase tracking-[0.3em]">— Weinstein Strategy Terminal —</span>
+          <span className="text-slate-400 text-sm font-black mt-4 block uppercase tracking-[0.3em]">— Stan Weinstein —</span>
         </p>
 
         {/* High-Octane Badges */}

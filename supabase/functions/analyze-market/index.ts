@@ -115,11 +115,12 @@ Deno.serve(async (req) => {
     }
 
     let snap: TechnicalSnapshot | null = null;
+    let cls: ReturnType<typeof classifyStage> | null = null;
     let stageHint = 'N/A';
     if (ticker) {
       try {
         snap = await getTechnicalSnapshot(ticker.toUpperCase().trim(), settings.smaPeriod ?? 30);
-        const cls = classifyStage(snap);
+        cls = classifyStage(snap);
         stageHint = `${cls.stage} (${cls.confidence}) — ${cls.reasoning}`;
       } catch (e) {
         // Ticker not available on TwelveData or Yahoo — fall through to chart-only analysis
@@ -157,6 +158,18 @@ Deno.serve(async (req) => {
       result.tickerSymbol = snap.symbol;
       if (!result.companyName) result.companyName = snap.name;
       result.technicalSnapshot = snap;
+
+      // Rule-based levels win over the model's: the prompt asks for them, this guarantees them
+      if (snap.suggestedStopLoss != null) result.stopLoss = snap.suggestedStopLoss.toFixed(2);
+      if (snap.recentSwingLow != null) result.support = snap.recentSwingLow.toFixed(2);
+
+      // The rule-based stage has the last word: no BUY outside Stage 2
+      if (cls && cls.stage !== 'STAGE_2' && result.verdictType === 'BUY') {
+        result.verdictType = 'WAIT';
+        result.verdict = settings.language === 'es'
+          ? 'Esperar: según las reglas Weinstein el valor no está en Etapa 2'
+          : 'Wait: by Weinstein rules the stock is not in Stage 2';
+      }
     }
 
     return jsonResponse(result);

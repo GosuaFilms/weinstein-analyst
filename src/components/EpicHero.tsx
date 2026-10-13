@@ -54,6 +54,20 @@ const EpicHero: React.FC<Props> = ({ language = Language.ES }) => {
           <span className="text-slate-400 text-sm font-black mt-4 block uppercase tracking-[0.3em]">— Stan Weinstein —</span>
         </p>
 
+        {/* Weinstein's core rule */}
+        <div className="max-w-2xl mb-10 px-6 py-5 rounded-2xl bg-slate-950/50 backdrop-blur-md border border-rose-500/30 shadow-xl">
+          <p className="text-[11px] font-black uppercase tracking-[0.3em] text-rose-400 mb-3 flex items-center justify-center gap-2">
+            <i className="fas fa-triangle-exclamation"></i> {es ? 'La regla de oro' : 'The golden rule'}
+          </p>
+          <p className="text-slate-200 text-base sm:text-lg font-bold leading-snug">
+            {es
+              ? <>«Recuerde que nunca ha de comprar una acción, sin importar lo barata que parezca basándose en sus datos fundamentales o debido a un reciente declive importante, si está cotizándose <span className="text-rose-400">por debajo de la MM de 30 semanas orientada a la baja</span>.»</>
+              : <>"Remember never to buy a stock, no matter how cheap it looks on its fundamentals or after a recent major decline, if it is trading <span className="text-rose-400">below its declining 30-week moving average</span>."</>
+            }
+          </p>
+          <span className="text-slate-400 text-xs font-black mt-3 block uppercase tracking-[0.3em]">— Stan Weinstein —</span>
+        </div>
+
         {/* High-Octane Badges */}
         <div className="flex flex-wrap justify-center gap-6">
           <div className="px-8 py-3 bg-amber-500 text-slate-900 rounded-full text-[11px] font-[1000] uppercase tracking-[0.2em] shadow-[0_10px_30px_rgba(245,158,11,0.3)] flex items-center gap-3 transition-transform hover:scale-105 cursor-default">

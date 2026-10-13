@@ -125,6 +125,25 @@ Deno.serve(async (req) => {
     if (authed instanceof Response) return authed;
   }
 
+  // Cron-only diagnostic: which bot is configured and what the channel id points to
+  const body = await req.clone().json().catch(() => ({})) as { diagnose?: string };
+  if (body.diagnose === 'telegram') {
+    const token = Deno.env.get('TELEGRAM_BOT_TOKEN') ?? '';
+    const chat  = Deno.env.get('TELEGRAM_CHANNEL_ID') || Deno.env.get('TELEGRAM_CHAT_ID') || '';
+    const tg = (method: string, params = '') =>
+      fetch(`https://api.telegram.org/bot${token}/${method}${params}`).then((r) => r.json()).catch((e) => ({ error: String(e) }));
+    const me = await tg('getMe');
+    const chatInfo = await tg('getChat', `?chat_id=${encodeURIComponent(chat)}`);
+    const hook = await tg('getWebhookInfo');
+    return jsonResponse({
+      bot: me.ok ? `@${me.result.username}` : me.description ?? me,
+      bot_username_setting: Deno.env.get('TELEGRAM_BOT_USERNAME') ?? null,
+      webhook: hook.ok ? { url: hook.result.url, pending: hook.result.pending_update_count, last_error: hook.result.last_error_message ?? null } : hook.description ?? hook,
+      channel_id: chat,
+      channel: chatInfo.ok ? { title: chatInfo.result.title, type: chatInfo.result.type, username: chatInfo.result.username ?? null } : chatInfo.description ?? chatInfo,
+    });
+  }
+
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
@@ -173,11 +192,17 @@ Deno.serve(async (req) => {
     // ── 4. Send Telegram summary ─────────────────────────────────────────────
     const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
     const chatId   = Deno.env.get('TELEGRAM_CHANNEL_ID') || Deno.env.get('TELEGRAM_CHAT_ID');
+    // One channel summary per day: re-runs (the panel's "Actualizar" button) refresh data only
     let telegram = 'not configured';
-    if (botToken && chatId) {
+    const sentKey = `tg:stage2:${today}`;
+    const { data: alreadySent } = await supabase.from('market_cache').select('key').eq('key', sentKey).maybeSingle();
+    if (alreadySent) {
+      telegram = 'already sent today';
+    } else if (botToken && chatId) {
       const msg = formatTelegramMessage(today, newEntries, exits, allStage2.length);
       const sent = await trySendTelegram(chatId, msg, botToken);
       telegram = sent.ok ? 'sent' : `failed: ${sent.error}`;
+      if (sent.ok) await supabase.from('market_cache').upsert({ key: sentKey, payload: { sent_at: new Date().toISOString() } });
     }
 
     return jsonResponse({

@@ -47,7 +47,7 @@ const EpicHero: React.FC<Props> = ({ language = Language.ES }) => {
 
         <p className="max-w-2xl text-slate-200 text-xl sm:text-2xl font-bold mb-10 leading-tight italic drop-shadow-md">
           {es
-            ? <>"La única cosa que se interpone entre tú y tu meta es la historia de <span className="text-amber-400">mierda</span> que te sigues contando sobre por qué no puedes lograrla."</>
+            ? <>"La única cosa que se interpone entre tú y tu meta es la <span className="text-amber-400">historia</span> que te sigues contando sobre por qué no puedes lograrla."</>
             : <>"The only thing standing between you and your goal is the <span className="text-amber-400">story</span> you keep telling yourself about why you can't achieve it."</>
           }
           <br/>

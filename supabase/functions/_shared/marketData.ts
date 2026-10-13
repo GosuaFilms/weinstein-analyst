@@ -1,10 +1,16 @@
-// Global market data client backed by TwelveData.
-// Covers stocks (US + global exchanges via suffix e.g. SAN.MC, 7203.T),
-// forex (EUR/USD), crypto (BTC/USD) and indices.
+// Market data client backed by Twelve Data (Venture plan: external display).
+// Every price in the app comes from here. Tickers keep the app's Yahoo-style
+// spelling (SAN.MC, BRK-B, BT-A.L) and are translated to a Twelve Data symbol
+// plus its market (MIC): a bare symbol can match another listing ("SPX" is a
+// Canadian penny stock, "EQR" a German line). Weekly series are cached in
+// public.market_cache and shared by every function and user.
 // Docs: https://twelvedata.com/docs
-// Free tier: 800 req/day, 8 req/min.
+
+import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import { ALL_TICKERS } from './indices.ts';
 
 const TD_BASE = 'https://api.twelvedata.com';
+const WEEKS = 130; // ≥ 52w Mansfield RS + its 13w MA + slope buffer
 
 function getKey(): string {
   const key = Deno.env.get('TWELVEDATA_API_KEY');
@@ -15,7 +21,6 @@ function getKey(): string {
 interface TDQuote {
   symbol: string;
   name?: string;
-  exchange?: string;
   currency?: string;
   datetime?: string;
   timestamp?: number;
@@ -26,25 +31,233 @@ interface TDQuote {
   previous_close?: string;
   change?: string;
   percent_change?: string;
-  fifty_two_week?: { high?: string; low?: string };
   status?: string;
   code?: number;
   message?: string;
 }
 
-interface TDTimeSeries {
-  meta?: { symbol: string; currency?: string; exchange?: string };
-  values?: Array<{
-    datetime: string;
-    open: string;
-    high: string;
-    low: string;
-    close: string;
-    volume?: string;
-  }>;
-  status?: string;
-  code?: number;
-  message?: string;
+// ─── Ticker ↔ Twelve Data instrument ────────────────────────────────────────
+
+/** A Twelve Data instrument: symbol plus the market that disambiguates it. */
+export interface TdRef {
+  symbol: string;
+  mic_code?: string;
+  country?: string;
+}
+
+// Yahoo-style suffix → ISO market code (MIC)
+const SUFFIX_MIC: Record<string, string> = {
+  MC: 'XMAD', DE: 'XETR', F: 'XFRA', PA: 'XPAR', AS: 'XAMS', BR: 'XBRU', L: 'XLON',
+  MI: 'XMIL', LS: 'XLIS', SW: 'XSWX', HE: 'XHEL', ST: 'XSTO', CO: 'XCSE', OL: 'XOSL',
+  IR: 'XDUB', VI: 'XWBO', T: 'XTKS', HK: 'XHKG', AX: 'XASX', TO: 'XTSE', V: 'XTSX',
+};
+const MIC_SUFFIX: Record<string, string> = Object.fromEntries(
+  Object.entries(SUFFIX_MIC).map(([suffix, mic]) => [mic, suffix]),
+);
+const US_MICS = new Set(['XNAS', 'XNYS', 'ARCX', 'BATS', 'XASE']);
+const CRYPTO_BASE = /^(BTC|ETH|SOL|XRP|ADA|DOGE|BNB|LTC|AVAX|DOT|MATIC|LINK|ATOM|TRX|UNI|SHIB)$/;
+
+/** App ticker → Twelve Data instrument; null when it needs a search (a company name). */
+export function toTdRef(ticker: string): TdRef | null {
+  const t = ticker.trim().toUpperCase();
+  const pair = t.match(/^([A-Z]{2,6})[/-]([A-Z]{3,4})$/);
+  if (pair && (t.includes('/') || CRYPTO_BASE.test(pair[1]))) return { symbol: `${pair[1]}/${pair[2]}` };
+  const dot = t.lastIndexOf('.');
+  if (dot > 0) {
+    const mic = SUFFIX_MIC[t.slice(dot + 1)];
+    if (mic) return { symbol: t.slice(0, dot).replace(/-/g, '.'), mic_code: mic };
+  }
+  if (/^[A-Z][A-Z0-9]{0,5}([.-][A-Z])?$/.test(t)) return { symbol: t.replace('-', '.'), country: 'United States' };
+  return null;
+}
+
+/** Twelve Data instrument → the app's ticker spelling. */
+function toAppTicker(symbol: string, mic?: string): string {
+  if (!mic || US_MICS.has(mic)) return symbol.replace('.', '-');
+  const suffix = MIC_SUFFIX[mic];
+  return suffix ? `${symbol.replace(/\./g, '-')}.${suffix}` : symbol;
+}
+
+const tdParams = (ref: TdRef): Record<string, string> => ({
+  symbol: ref.symbol,
+  ...(ref.mic_code ? { mic_code: ref.mic_code } : ref.country ? { country: ref.country } : {}),
+});
+const refKey = (ref: TdRef) => `${ref.symbol}@${ref.mic_code ?? ref.country ?? ''}`;
+
+// ─── HTTP with per-minute credit back-off ───────────────────────────────────
+
+// deno-lint-ignore no-explicit-any
+async function tdGet(path: string, params: Record<string, string>): Promise<any> {
+  const url = `${TD_BASE}/${path}?${new URLSearchParams({ ...params, apikey: getKey() })}`;
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url);
+    const body = await res.json().catch(() => ({}));
+    if (res.status !== 429 && body?.code !== 429) return body;
+    if (attempt >= 2) throw new Error('Twelve Data: límite de consultas por minuto alcanzado; inténtalo en un minuto');
+    // Credits reset at the start of each minute
+    await new Promise((r) => setTimeout(r, (61 - new Date().getUTCSeconds()) * 1000));
+  }
+}
+
+// Brand names whose legal name in the exchange directory doesn't contain them
+const NAME_ALIASES: Record<string, string> = {
+  inditex: 'ITX.MC', zara: 'ITX.MC', iberia: 'IAG.MC', 'red electrica': 'RED.MC',
+  google: 'GOOGL', facebook: 'META', 'coca cola': 'KO', mcdonalds: 'MCD',
+};
+
+// Markets searched by company name, in tie-break order (the app's users are Spanish)
+const NAME_MARKETS = ['XMAD', 'US', 'XETR', 'XPAR', 'XAMS', 'XBRU', 'XLON'];
+
+const UNIVERSE = new Set(ALL_TICKERS);
+const LEGAL_FORM = /\b(s a|sa|s a u|ag|aktiengesellschaft|se|nv|n v|plc|inc|corp|corporation|co|company|ltd|limited|group|holding|holdings|class [a-c]|the)\b/g;
+
+const normalize = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+type DirEntry = [symbol: string, name: string, market: string];
+
+/** Listed stocks of the searchable markets, refreshed weekly (a few credits a week). */
+async function stockDirectory(): Promise<DirEntry[]> {
+  const cached = await cacheGet<DirEntry[]>('dir:v1', 7 * 24 * 60);
+  if (cached) return cached;
+  const entries: DirEntry[] = [];
+  for (const market of NAME_MARKETS) {
+    const body = await tdGet('stocks', market === 'US' ? { country: 'United States' } : { mic_code: market })
+      .catch(() => null);
+    for (const r of (body?.data ?? []) as Array<{ symbol: string; name: string; mic_code?: string }>) {
+      if (market === 'US' && !US_MICS.has(r.mic_code ?? '') && r.mic_code !== 'XNGS' && r.mic_code !== 'XNMS' && r.mic_code !== 'XNCM') continue;
+      entries.push([r.symbol, r.name, market]);
+    }
+  }
+  if (entries.length) await cachePut('dir:v1', entries);
+  return entries;
+}
+
+/** Company name or unknown ticker → candidate listings, best first. */
+async function searchTdRef(query: string): Promise<Array<{ ref: TdRef; ticker: string }>> {
+  const q = normalize(query);
+  const alias = NAME_ALIASES[q];
+  if (alias) {
+    const ref = toTdRef(alias);
+    if (ref) return [{ ref, ticker: alias }];
+  }
+  const appTicker = ([symbol, , market]: DirEntry) =>
+    market === 'US' ? symbol.replace('.', '-') : toAppTicker(symbol, market);
+  // Rank: exact name (legal form aside) > in the app's index universe > home market > prefix match > shorter
+  const scored: Array<{ e: DirEntry; exact: number; known: number; prefix: number }> = [];
+  for (const e of await stockDirectory()) {
+    const n = normalize(e[1]);
+    if (!` ${n} `.includes(` ${q} `)) continue;
+    const bare = n.replace(LEGAL_FORM, ' ').replace(/\s+/g, ' ').trim();
+    scored.push({ e, exact: bare === q ? 1 : 0, known: UNIVERSE.has(appTicker(e)) ? 1 : 0, prefix: n.startsWith(q) ? 1 : 0 });
+  }
+  scored.sort((x, y) =>
+    y.exact - x.exact || y.known - x.known ||
+    NAME_MARKETS.indexOf(x.e[2]) - NAME_MARKETS.indexOf(y.e[2]) ||
+    y.prefix - x.prefix || x.e[1].length - y.e[1].length);
+  return scored.slice(0, 3).map(({ e: [symbol, , market] }) =>
+    market === 'US'
+      ? { ref: { symbol, country: 'United States' }, ticker: symbol.replace('.', '-') }
+      : { ref: { symbol, mic_code: market }, ticker: toAppTicker(symbol, market) });
+}
+
+// ─── Shared cache (public.market_cache, service role only) ──────────────────
+
+let cacheDb: SupabaseClient | null | undefined;
+function cache(): SupabaseClient | null {
+  if (cacheDb === undefined) {
+    const url = Deno.env.get('SUPABASE_URL');
+    const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    cacheDb = url && key ? createClient(url, key) : null;
+  }
+  return cacheDb;
+}
+
+async function cacheGet<T>(key: string, maxAgeMin: number): Promise<T | null> {
+  const db = cache();
+  if (!db) return null;
+  try {
+    const { data } = await db.from('market_cache').select('payload, fetched_at').eq('key', key).maybeSingle();
+    if (!data || Date.now() - Date.parse(data.fetched_at) > maxAgeMin * 60_000) return null;
+    return data.payload as T;
+  } catch {
+    return null;
+  }
+}
+
+async function cachePut(key: string, payload: unknown): Promise<void> {
+  try {
+    await cache()?.from('market_cache').upsert({ key, payload, fetched_at: new Date().toISOString() });
+  } catch {
+    // A missing cache only costs credits
+  }
+}
+
+// ─── Weekly bars, names, quotes ─────────────────────────────────────────────
+
+export interface WeeklyBars {
+  timestamps: number[]; // unix seconds, oldest → newest
+  closes: number[];
+  highs: number[];
+  lows: number[];
+  volumes: number[];    // 0 when unknown
+  currency: string;
+  exchange: string;
+  name: string | null;
+  fetchedAt: string;
+}
+
+async function getName(ref: TdRef): Promise<string | null> {
+  const key = `n:${refKey(ref)}`;
+  const cached = await cacheGet<{ name: string | null }>(key, 30 * 24 * 60);
+  if (cached) return cached.name;
+  if (ref.symbol.includes('/')) return ref.symbol;
+  let name: string | null = null;
+  for (const path of ['stocks', 'etfs']) {
+    const body = await tdGet(path, tdParams(ref)).catch(() => null);
+    name = body?.data?.[0]?.name ?? null;
+    if (name) break;
+  }
+  await cachePut(key, { name });
+  return name;
+}
+
+/** Weekly OHLCV for one instrument, from the shared cache when fresh enough (1 credit otherwise). */
+export async function getWeeklyBars(ref: TdRef, maxAgeMin = 30): Promise<WeeklyBars> {
+  const key = `w:${refKey(ref)}`;
+  const cached = await cacheGet<WeeklyBars>(key, maxAgeMin);
+  if (cached) return cached;
+
+  const body = await tdGet('time_series', { ...tdParams(ref), interval: '1week', outputsize: String(WEEKS) });
+  if (body?.status !== 'ok' || !body.values?.length) {
+    throw new Error(`"${ref.symbol}" sin datos en Twelve Data${body?.message ? `: ${body.message}` : ''}`);
+  }
+  const bars: WeeklyBars = {
+    timestamps: [], closes: [], highs: [], lows: [], volumes: [],
+    currency: body.meta?.currency ?? 'USD',
+    exchange: body.meta?.exchange ?? '',
+    name: null,
+    fetchedAt: new Date().toISOString(),
+  };
+  // Twelve Data returns newest → oldest
+  for (const v of [...body.values].reverse()) {
+    const c = num(v.close);
+    if (!Number.isFinite(c)) continue;
+    const h = num(v.high), l = num(v.low), vol = num(v.volume ?? '0');
+    bars.timestamps.push(Math.floor(Date.parse(v.datetime) / 1000));
+    bars.closes.push(c);
+    bars.highs.push(Number.isFinite(h) ? h : c);
+    bars.lows.push(Number.isFinite(l) ? l : c);
+    bars.volumes.push(Number.isFinite(vol) && vol > 0 ? vol : 0);
+  }
+  bars.name = await getName(ref);
+  await cachePut(key, bars);
+  return bars;
+}
+
+async function getQuote(ref: TdRef): Promise<TDQuote | null> {
+  const q = await tdGet('quote', tdParams(ref)).catch(() => null) as TDQuote | null;
+  return q && q.status !== 'error' && q.close ? q : null;
 }
 
 function num(v: string | number | undefined | null): number {
@@ -114,58 +327,32 @@ interface WeeklySeries {
   volumes?: number[];  // aligned with closes index (0 for unknown)
 }
 
-function pickBenchmark(symbol: string, currency: string): { symbol: string; name: string } {
-  const u = symbol.toUpperCase();
-  if (u.endsWith('.MC')) return { symbol: '^IBEX', name: 'IBEX 35' };
-  if (u.endsWith('.DE') || u.endsWith('.F') || u.endsWith('.XETRA')) return { symbol: '^GDAXI', name: 'DAX' };
-  if (u.endsWith('.L')) return { symbol: '^FTSE', name: 'FTSE 100' };
-  if (u.endsWith('.PA')) return { symbol: '^FCHI', name: 'CAC 40' };
-  if (u.endsWith('.MI')) return { symbol: 'FTSEMIB.MI', name: 'FTSE MIB' };
-  if (u.endsWith('.AS')) return { symbol: '^AEX', name: 'AEX' };
-  if (u.endsWith('.BR')) return { symbol: '^BFX', name: 'BEL 20' };
-  if (u.endsWith('.LS')) return { symbol: 'PSI20.LS', name: 'PSI 20' };
-  if (u.endsWith('.SW')) return { symbol: '^SSMI', name: 'SMI' };
-  if (u.endsWith('.T') || /^\d{4}\.T$/.test(u)) return { symbol: '^N225', name: 'Nikkei 225' };
-  if (u.endsWith('.HK')) return { symbol: '^HSI', name: 'Hang Seng' };
-  if (u.endsWith('.AX')) return { symbol: '^AXJO', name: 'ASX 200' };
-  if (u.endsWith('.TO') || u.endsWith('.V')) return { symbol: '^GSPTSE', name: 'TSX Composite' };
-  if (u.endsWith('.SA')) return { symbol: '^BVSP', name: 'Bovespa' };
-  if (u.endsWith('.MX')) return { symbol: '^MXX', name: 'IPC Mexico' };
-  if (u.endsWith('.NS') || u.endsWith('.BO')) return { symbol: '^NSEI', name: 'NIFTY 50' };
-  if (u.endsWith('-USD') || /^[A-Z]{3,5}\/USD$/.test(u)) return { symbol: 'BTC-USD', name: 'Bitcoin' };
-  if (currency === 'EUR') return { symbol: '^STOXX50E', name: 'Euro Stoxx 50' };
-  return { symbol: '^GSPC', name: 'S&P 500' };
+// Mansfield RS benchmark: the index's ETF on the stock's own market (same currency
+// and calendar). Index series themselves are not part of the Venture plan.
+function pickBenchmark(ticker: string, currency: string): { ref: TdRef; symbol: string; name: string } {
+  const u = ticker.toUpperCase();
+  const etf = (symbol: string, mic: string, name: string) => ({ ref: { symbol, mic_code: mic }, symbol: `${symbol}.${MIC_SUFFIX[mic]}`, name });
+  if (u.endsWith('.MC')) return etf('LYXIB', 'XMAD', 'IBEX 35');
+  if (u.endsWith('.DE') || u.endsWith('.F')) return etf('EXS1', 'XETR', 'DAX');
+  if (u.endsWith('.L')) return etf('ISF', 'XLON', 'FTSE 100');
+  if (u.endsWith('.PA')) return etf('CAC', 'XPAR', 'CAC 40');
+  if (u.endsWith('.AS')) return etf('IAEX', 'XAMS', 'AEX');
+  if (u.endsWith('.BR')) return etf('BEL', 'XBRU', 'BEL 20');
+  const ref = toTdRef(u);
+  if (ref?.symbol.includes('/') && CRYPTO_BASE.test(ref.symbol.split('/')[0])) {
+    return { ref: { symbol: 'BTC/USD' }, symbol: 'BTC/USD', name: 'Bitcoin' };
+  }
+  if (currency === 'EUR') return etf('EXW1', 'XETR', 'Euro Stoxx 50');
+  return { ref: { symbol: 'SPY', country: 'United States' }, symbol: 'SPY', name: 'S&P 500' };
 }
 
 function weekKey(ts: number): string {
-  // Bucket by ISO monday so TwelveData (Mon close) and Yahoo (Sun/Mon) align.
+  // Bucket by ISO Monday so weekly candles from different markets align.
   const d = new Date(ts * 1000);
   const day = d.getUTCDay();
   const monday = new Date(d.getTime());
   monday.setUTCDate(d.getUTCDate() - ((day + 6) % 7));
   return monday.toISOString().slice(0, 10);
-}
-
-async function yahooWeeklyCloses(symbol: string, weeks: number): Promise<WeeklySeries | null> {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1wk&range=${weeks}wk`;
-  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-  if (!res.ok) return null;
-  const body = await res.json() as {
-    chart: { result?: Array<{ timestamp?: number[]; indicators: { quote: Array<{ close: Array<number | null> }> } }> };
-  };
-  const r = body.chart.result?.[0];
-  if (!r) return null;
-  const ts = r.timestamp ?? [];
-  const closes = r.indicators.quote[0]?.close ?? [];
-  const out: WeeklySeries = { timestamps: [], closes: [] };
-  for (let i = 0; i < ts.length; i++) {
-    const c = closes[i];
-    if (typeof c === 'number' && !Number.isNaN(c)) {
-      out.timestamps.push(ts[i]);
-      out.closes.push(c);
-    }
-  }
-  return out.closes.length ? out : null;
 }
 
 function computeMansfieldRS(
@@ -201,76 +388,6 @@ function computeMansfieldRS(
   const slope3 = computeSlope(series, 3);
   const trend = classifyTrend(slope3, 0.3);
   return { current, prev, ma13, trend, series };
-}
-
-interface SymbolResolution {
-  symbol: string;
-  exchange?: string;
-  mic_code?: string;
-}
-
-async function resolveSymbol(raw: string): Promise<SymbolResolution> {
-  // Strip Yahoo-style suffix (e.g. SAN.MC, 7203.T, VOW.DE) — TwelveData uses
-  // native `symbol` + `exchange`/`mic_code` instead.
-  const dot = raw.lastIndexOf('.');
-  const base = dot > 0 && raw.length - dot <= 4 ? raw.slice(0, dot) : raw;
-
-  const url = `${TD_BASE}/symbol_search?symbol=${encodeURIComponent(base)}&outputsize=5&apikey=${getKey()}`;
-  const res = await fetch(url);
-  if (!res.ok) return { symbol: raw };
-  const data = await res.json() as { data?: Array<{ symbol: string; exchange?: string; mic_code?: string; instrument_type?: string }> };
-  const match = data.data?.[0];
-  if (!match) return { symbol: raw };
-  return { symbol: match.symbol, exchange: match.exchange, mic_code: match.mic_code };
-}
-
-async function quoteCall(params: URLSearchParams): Promise<TDQuote> {
-  const res = await fetch(`${TD_BASE}/quote?${params.toString()}`);
-  if (!res.ok) throw new Error(`TwelveData quote failed: ${res.status}`);
-  return await res.json() as TDQuote;
-}
-
-async function fetchQuote(symbol: string): Promise<{ quote: TDQuote; resolved: SymbolResolution }> {
-  // First try the raw symbol (covers AAPL, BTC/USD, EUR/USD directly).
-  const p1 = new URLSearchParams({ symbol, apikey: getKey() });
-  let data = await quoteCall(p1);
-  if (data.status !== 'error' && data.close) {
-    return { quote: data, resolved: { symbol } };
-  }
-  // Fallback: symbol_search to disambiguate international tickers.
-  const resolved = await resolveSymbol(symbol);
-  if (resolved.symbol !== symbol || resolved.mic_code || resolved.exchange) {
-    const p2 = new URLSearchParams({ symbol: resolved.symbol, apikey: getKey() });
-    if (resolved.mic_code) p2.set('mic_code', resolved.mic_code);
-    else if (resolved.exchange) p2.set('exchange', resolved.exchange);
-    data = await quoteCall(p2);
-    if (data.status !== 'error' && data.close) {
-      return { quote: data, resolved };
-    }
-  }
-  throw new Error(`Ticker "${symbol}" not found on TwelveData: ${data.message ?? 'unknown'}`);
-}
-
-async function fetchWeekly(resolved: SymbolResolution, weeks: number): Promise<TDTimeSeries | null> {
-  const params = new URLSearchParams({
-    symbol: resolved.symbol,
-    interval: '1week',
-    outputsize: String(weeks),
-    apikey: getKey(),
-  });
-  if (resolved.mic_code) params.set('mic_code', resolved.mic_code);
-  else if (resolved.exchange) params.set('exchange', resolved.exchange);
-  const res = await fetch(`${TD_BASE}/time_series?${params.toString()}`);
-  if (!res.ok) {
-    console.warn(`TwelveData time_series unavailable for ${resolved.symbol}: ${res.status}`);
-    return null;
-  }
-  const data = await res.json() as TDTimeSeries;
-  if (data.status === 'error' || !data.values?.length) {
-    console.warn(`TwelveData time_series error for ${resolved.symbol}: ${data.message ?? 'empty'}`);
-    return null;
-  }
-  return data;
 }
 
 export function computeSMA(values: number[], period: number): number | null {
@@ -372,26 +489,6 @@ export function suggestStopLoss(
   };
 }
 
-async function yahooSearch(query: string): Promise<string | null> {
-  // Resolve company names / loose input to a Yahoo ticker.
-  // e.g. "Atrys" -> "ATRY.MC", "Apple" -> "AAPL", "Toyota" -> "7203.T"
-  const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=10&newsCount=0`;
-  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-  if (!res.ok) return null;
-  const body = await res.json() as { quotes?: Array<{ symbol?: string; quoteType?: string; isYahooFinance?: boolean; exchange?: string; exchDisp?: string }> };
-  const eligible = body.quotes?.filter((q) =>
-    q.isYahooFinance && q.symbol && ['EQUITY', 'ETF', 'INDEX', 'CRYPTOCURRENCY', 'CURRENCY', 'MUTUALFUND'].includes(q.quoteType ?? '')
-  ) ?? [];
-  if (!eligible.length) return null;
-  // Prefer primary/liquid listings. Downrank thin-mirror exchanges that Yahoo
-  // sometimes returns first (Berlin, Düsseldorf, Hamburg, Munich, Stuttgart,
-  // Frankfurt secondary, XETRA Dark, etc.) over the true primary listing.
-  const thinSuffixes = ['.BE', '.DU', '.HM', '.MU', '.SG', '.F', '.XD', '.NE', '.VI'];
-  const isThin = (s: string) => thinSuffixes.some((suf) => s.toUpperCase().endsWith(suf));
-  const primary = eligible.find((q) => q.symbol && !isThin(q.symbol));
-  return (primary ?? eligible[0]).symbol ?? null;
-}
-
 /** 14-period Average True Range from aligned weekly OHLC arrays. */
 function computeATR(closes: number[], highs: number[], lows: number[], period = 14): number | null {
   const len = Math.min(closes.length, highs.length, lows.length);
@@ -486,7 +583,13 @@ async function attachWeinsteinExtras(
 
   // Mansfield RS + benchmark stage.
   const bench = pickBenchmark(base.symbol, base.currency);
-  const benchSeries = await yahooWeeklyCloses(bench.symbol, Math.max(stock.closes.length + 10, 120));
+  let benchSeries: WeeklySeries | null = null;
+  try {
+    const b = await getWeeklyBars(bench.ref, 6 * 60);
+    benchSeries = { timestamps: b.timestamps, closes: b.closes };
+  } catch (e) {
+    console.warn(`[marketData] benchmark ${bench.symbol}: ${(e as Error).message}`);
+  }
   let mansfield: ReturnType<typeof computeMansfieldRS> = {
     current: null, prev: null, ma13: null, trend: null, series: [],
   };
@@ -548,214 +651,89 @@ async function attachWeinsteinExtras(
   };
 }
 
-async function yahooSnapshot(symbol: string, smaPeriod: number): Promise<TechnicalSnapshot> {
-  // Yahoo Finance public chart endpoint — no API key, covers virtually every
-  // exchange (Madrid .MC, Frankfurt .DE, Tokyo .T, London .L, Paris .PA,
-  // HK, ASX, TSX, indices ^GSPC, etc.). Used as fallback when TwelveData
-  // rejects a symbol on free tier.
-  // Need ≥ 52 weeks for Mansfield RS plus ≥ 13 extra weeks for its MA13.
-  // Fetch a comfortable buffer so slope/MA calculations are stable.
-  const weeks = Math.max(smaPeriod + 90, 130);
-  // Translate TwelveData-style symbols to Yahoo conventions:
-  //   BTC/USD -> BTC-USD (crypto)
-  //   EUR/USD -> EURUSD=X (forex)
-  let yahooSym = symbol;
-  const slash = symbol.match(/^([A-Z]{2,5})\/([A-Z]{3})$/i);
-  if (slash) {
-    const cryptoBase = /^(BTC|ETH|SOL|XRP|ADA|DOGE|BNB|LTC|AVAX|DOT|MATIC|LINK|ATOM|TRX|UNI|SHIB)$/i;
-    yahooSym = cryptoBase.test(slash[1]) ? `${slash[1]}-${slash[2]}` : `${slash[1]}${slash[2]}=X`;
-  }
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSym)}?interval=1wk&range=${weeks}wk`;
-  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-  if (!res.ok) throw new Error(`Yahoo chart failed: ${res.status}`);
-  const body = await res.json() as {
-    chart: {
-      result?: Array<{
-        meta: {
-          currency?: string;
-          symbol: string;
-          shortName?: string;
-          longName?: string;
-          regularMarketPrice?: number;
-          regularMarketTime?: number;
-          regularMarketDayHigh?: number;
-          regularMarketDayLow?: number;
-          regularMarketVolume?: number;
-          chartPreviousClose?: number;
-          previousClose?: number;
-          fiftyTwoWeekHigh?: number;
-          fiftyTwoWeekLow?: number;
-        };
-        timestamp?: number[];
-        indicators: { quote: Array<{ open: number[]; high: number[]; low: number[]; close: number[]; volume: number[] }> };
-      }>;
-      error?: { description?: string } | null;
-    };
-  };
-  const r = body.chart.result?.[0];
-  if (!r) throw new Error(`Ticker "${symbol}" not found on Yahoo: ${body.chart.error?.description ?? 'unknown'}`);
+/** Live price for one app ticker: a quote (1 credit), else the latest cached weekly close. */
+export async function getLivePrice(ticker: string): Promise<{ price: number | null; name: string; currency: string }> {
+  const ref = toTdRef(ticker);
+  if (!ref) throw new Error(`Ticker no reconocido: ${ticker}`);
+  const q = await getQuote(ref);
+  if (q) return { price: num(q.close), name: q.name ?? ticker, currency: q.currency ?? 'USD' };
+  const bars = await getWeeklyBars(ref, 60);
+  return { price: bars.closes.at(-1) ?? null, name: bars.name ?? ticker, currency: bars.currency };
+}
 
-  const meta = r.meta;
-  const q = r.indicators.quote[0];
-  const allTs = r.timestamp ?? [];
-  const alignedTs: number[] = [];
-  const alignedCloses: number[] = [];
-  const alignedHighs: number[] = [];
-  const alignedLows: number[] = [];
-  const alignedVolumes: number[] = [];
-  for (let i = 0; i < (q.close ?? []).length; i++) {
-    const c = q.close[i];
-    if (typeof c === 'number' && !Number.isNaN(c)) {
-      alignedTs.push(allTs[i] ?? 0);
-      alignedCloses.push(c);
-      const h = q.high?.[i], l = q.low?.[i], v = q.volume?.[i];
-      alignedHighs.push(typeof h === 'number' && !Number.isNaN(h) ? h : c);
-      alignedLows.push(typeof l === 'number' && !Number.isNaN(l) ? l : c);
-      alignedVolumes.push(typeof v === 'number' && !Number.isNaN(v) && v > 0 ? v : 0);
+export interface SnapshotOptions {
+  maxAgeMin?: number;  // accept cached weekly bars up to this age (default 30)
+  withQuote?: boolean; // +1 credit: live daily fields (change, day range) for single-ticker views
+}
+
+export async function getTechnicalSnapshot(
+  symbol: string,
+  smaPeriod = 30,
+  opts: SnapshotOptions = {},
+): Promise<TechnicalSnapshot> {
+  let ticker = symbol.trim().toUpperCase();
+  let ref = toTdRef(ticker);
+  let bars: WeeklyBars | null = null;
+  if (ref) {
+    try {
+      bars = await getWeeklyBars(ref, opts.maxAgeMin ?? 30);
+    } catch (e) {
+      // "APPLE", "NVIDIA": a one-word name reads like a US ticker — search it as a name
+      if (ref.country !== 'United States') throw e;
+      ref = null;
     }
   }
-  const closes = alignedCloses;
-  const highs = alignedHighs;
-  const lows = alignedLows;
-  const volumes = alignedVolumes.filter(v => v > 0);
+  if (!bars) {
+    // A company name: first candidate listing that has data
+    for (const c of await searchTdRef(symbol)) {
+      try {
+        bars = await getWeeklyBars(c.ref, opts.maxAgeMin ?? 30);
+        ref = c.ref;
+        ticker = c.ticker;
+        break;
+      } catch { /* try the next listing */ }
+    }
+    if (!bars || !ref) throw new Error(`No se encontró "${symbol}" en Twelve Data`);
+  }
+  if (!ref) throw new Error(`No se encontró "${symbol}" en Twelve Data`);
+  const quote = opts.withQuote ? await getQuote(ref) : null;
+
+  const closes = bars.closes;
+  const highs = bars.highs;
+  const lows = bars.lows;
+  const volumes = bars.volumes.filter((v) => v > 0);
 
   const sma = closes.length ? computeSMA(closes, smaPeriod) : null;
   const volAvg = volumes.length ? computeVolumeAvg(volumes, smaPeriod) : null;
   const lastVol = volumes.length ? volumes[volumes.length - 1] : null;
-  const currentPrice = meta.regularMarketPrice ?? (closes.length ? closes[closes.length - 1] : NaN);
-  const prevClose = meta.chartPreviousClose ?? meta.previousClose ?? NaN;
-  const change = Number.isNaN(prevClose) ? NaN : currentPrice - prevClose;
-  const changePct = Number.isNaN(prevClose) || prevClose === 0 ? NaN : (change / prevClose) * 100;
+
+  // Without a quote, the latest weekly close is the price and the change is week-on-week
+  const lastClose = closes.at(-1) ?? NaN;
+  const prevWeekClose = closes.at(-2) ?? NaN;
+  const currentPrice = quote ? num(quote.close) : lastClose;
+  const previousClose = quote ? num(quote.previous_close) : prevWeekClose;
+  const change = quote ? num(quote.change) : currentPrice - previousClose;
+  const changePercent = quote
+    ? num(quote.percent_change)
+    : Number.isFinite(previousClose) && previousClose !== 0 ? (change / previousClose) * 100 : NaN;
 
   const base: TechnicalSnapshot = {
-    symbol: meta.symbol?.toUpperCase() ?? symbol.toUpperCase(),
-    name: meta.longName ?? meta.shortName ?? symbol.toUpperCase(),
-    currency: meta.currency ?? 'USD',
+    symbol: ticker,
+    name: quote?.name ?? bars.name ?? ticker,
+    currency: bars.currency || quote?.currency || 'USD',
     currentPrice,
-    priceTimestamp: meta.regularMarketTime
-      ? new Date(meta.regularMarketTime * 1000).toISOString()
-      : new Date().toISOString(),
+    priceTimestamp: quote?.timestamp ? new Date(quote.timestamp * 1000).toISOString() : bars.fetchedAt,
     change,
-    changePercent: changePct,
-    dayHigh: meta.regularMarketDayHigh ?? NaN,
-    dayLow: meta.regularMarketDayLow ?? NaN,
-    open: closes.length ? closes[closes.length - 1] : NaN,
-    previousClose: prevClose,
+    changePercent,
+    dayHigh: quote ? num(quote.high) : NaN,
+    dayLow: quote ? num(quote.low) : NaN,
+    open: quote ? num(quote.open) : NaN,
+    previousClose,
     sma30Weekly: sma,
     distanceFromSMA30Pct: sma ? ((currentPrice - sma) / sma) * 100 : null,
     avgVolume30Weekly: volAvg,
     lastWeekVolume: lastVol,
     volumeRatio: volAvg && lastVol ? lastVol / volAvg : null,
-    weekly52High: meta.fiftyTwoWeekHigh ?? (highs.length ? Math.max(...highs.slice(-52)) : null),
-    weekly52Low: meta.fiftyTwoWeekLow ?? (lows.length ? Math.min(...lows.slice(-52)) : null),
-    mansfieldRS: null,
-    mansfieldRSPrev: null,
-    mansfieldRSMA13: null,
-    mansfieldRSTrend: null,
-    benchmarkSymbol: null,
-    benchmarkName: null,
-    sma30Slope: null,
-    sma30Trend: null,
-    recentSwingLow: null,
-    suggestedStopLoss: null,
-    stopLossBasis: null,
-    stopLossRiskPct: null,
-    extendedStage2: false,
-    benchmarkStage: null,
-    benchmarkStageReason: null,
-    sma10Weekly: null,
-    sma40Weekly: null,
-    sma10WeeklyTrend: null,
-    sma40WeeklyTrend: null,
-    multiMaAlignment: null,
-    atr14Weekly: null,
-    atr14WeeklyPct: null,
-    volumeDryUp: null,
-    baseResistance: null,
-    entryLevel: null,
-    entryBasis: null,
-  };
-  return await attachWeinsteinExtras(base, { timestamps: alignedTs, closes: alignedCloses, highs: alignedHighs, volumes: alignedVolumes }, lows, smaPeriod);
-}
-
-export async function getTechnicalSnapshot(
-  symbol: string,
-  smaPeriod = 30
-): Promise<TechnicalSnapshot> {
-  let quote: TDQuote;
-  let resolved: SymbolResolution;
-  try {
-    const r = await fetchQuote(symbol);
-    quote = r.quote;
-    resolved = r.resolved;
-  } catch (err) {
-    const msg = (err as Error).message;
-    console.warn(`TwelveData failed for ${symbol} (${msg}). Falling back to Yahoo.`);
-    try {
-      return await yahooSnapshot(symbol, smaPeriod);
-    } catch (yahooErr) {
-      // Last resort: resolve company name / loose input via Yahoo search.
-      const resolvedSymbol = await yahooSearch(symbol);
-      if (!resolvedSymbol || resolvedSymbol === symbol) throw yahooErr;
-      console.warn(`Yahoo search resolved "${symbol}" -> "${resolvedSymbol}".`);
-      return await yahooSnapshot(resolvedSymbol, smaPeriod);
-    }
-  }
-  const series = await fetchWeekly(resolved, Math.max(smaPeriod + 90, 130));
-
-  // TwelveData returns time_series newest -> oldest. Reverse to oldest -> newest.
-  const candles = series?.values ? [...series.values].reverse() : null;
-  const stockTs: number[] = [];
-  const closes: number[] = [];
-  const stockHighs: number[] = [];
-  const stockLowsAligned: number[] = [];
-  const stockVolumes: number[] = [];
-  if (candles) {
-    for (const v of candles) {
-      const c = num(v.close);
-      if (!Number.isNaN(c)) {
-        stockTs.push(Math.floor(new Date(v.datetime).getTime() / 1000));
-        closes.push(c);
-        const h = num(v.high), l = num(v.low), vol = num(v.volume ?? '0');
-        stockHighs.push(Number.isFinite(h) ? h : c);
-        stockLowsAligned.push(Number.isFinite(l) ? l : c);
-        stockVolumes.push(Number.isFinite(vol) && vol > 0 ? vol : 0);
-      }
-    }
-  }
-  const highs = stockHighs;
-  const lows = stockLowsAligned;
-  const volumes = stockVolumes.filter(v => v > 0);
-
-  const sma = closes.length ? computeSMA(closes, smaPeriod) : null;
-  const volAvg = volumes.length ? computeVolumeAvg(volumes, smaPeriod) : null;
-  const lastVol = volumes.length ? volumes[volumes.length - 1] : null;
-  const lastValidVol = lastVol && !Number.isNaN(lastVol) && lastVol > 0 ? lastVol : null;
-
-  const currentPrice = num(quote.close);
-  const priceTs = quote.timestamp
-    ? new Date(quote.timestamp * 1000).toISOString()
-    : quote.datetime
-    ? new Date(quote.datetime).toISOString()
-    : new Date().toISOString();
-
-  const base: TechnicalSnapshot = {
-    symbol: (resolved.symbol ?? symbol).toUpperCase(),
-    name: quote.name ?? symbol.toUpperCase(),
-    currency: quote.currency ?? series?.meta?.currency ?? 'USD',
-    currentPrice,
-    priceTimestamp: priceTs,
-    change: num(quote.change),
-    changePercent: num(quote.percent_change),
-    dayHigh: num(quote.high),
-    dayLow: num(quote.low),
-    open: num(quote.open),
-    previousClose: num(quote.previous_close),
-    sma30Weekly: sma,
-    distanceFromSMA30Pct: sma ? ((currentPrice - sma) / sma) * 100 : null,
-    avgVolume30Weekly: volAvg,
-    lastWeekVolume: lastValidVol,
-    volumeRatio: volAvg && lastValidVol ? lastValidVol / volAvg : null,
     weekly52High: highs.length ? Math.max(...highs.slice(-52)) : null,
     weekly52Low: lows.length ? Math.min(...lows.slice(-52)) : null,
     mansfieldRS: null,
@@ -785,5 +763,10 @@ export async function getTechnicalSnapshot(
     entryLevel: null,
     entryBasis: null,
   };
-  return await attachWeinsteinExtras(base, { timestamps: stockTs, closes, highs: stockHighs, volumes: stockVolumes }, lows, smaPeriod);
+  return await attachWeinsteinExtras(
+    base,
+    { timestamps: bars.timestamps, closes, highs, volumes: bars.volumes },
+    lows,
+    smaPeriod,
+  );
 }

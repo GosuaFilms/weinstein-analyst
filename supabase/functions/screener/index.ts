@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
 
     const results = await pooledMap<string, ScreenerItem>(
       indexDef.tickers,
-      8, // max 8 concurrent Yahoo requests
+      8, // max 8 concurrent Twelve Data requests
       async (ticker) => {
         try {
           const snap = await getTechnicalSnapshot(ticker, smaPeriod);

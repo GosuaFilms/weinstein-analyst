@@ -82,7 +82,7 @@ async function tryFetchMarketData(userMessage: string, language: 'es' | 'en'): P
   if (!query) return null;
 
   try {
-    const snap = await getTechnicalSnapshot(query, 30);
+    const snap = await getTechnicalSnapshot(query, 30, { maxAgeMin: 10, withQuote: true });
     if (!snap?.currentPrice || isNaN(snap.currentPrice)) return null;
 
     const cls = classifyStage(snap);

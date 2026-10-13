@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
 
     if (!ticker) return jsonResponse({ error: 'ticker is required' }, 400);
 
-    const snap = await getTechnicalSnapshot(ticker.toUpperCase().trim(), settings.smaPeriod ?? 30);
+    const snap = await getTechnicalSnapshot(ticker.toUpperCase().trim(), settings.smaPeriod ?? 30, { maxAgeMin: 10, withQuote: true });
     const cls = classifyStage(snap);
 
     const pp = parseFloat(purchasePrice);

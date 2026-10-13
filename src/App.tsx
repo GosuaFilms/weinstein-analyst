@@ -870,6 +870,10 @@ const App: React.FC = () => {
           <p className="text-[11px] text-slate-500 tracking-[0.3em] font-black uppercase">
             &copy; {new Date().getFullYear()} ALPHA STAGE TERMINAL — WEINSTEIN STRATEGY CERTIFIED
           </p>
+          <p className="text-[11px] text-slate-500">
+            Datos de mercado proporcionados por{' '}
+            <a href="https://twelvedata.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-slate-300">Twelve Data</a>
+          </p>
 
           {/* Ko-fi donation button */}
           <div className="flex justify-center">

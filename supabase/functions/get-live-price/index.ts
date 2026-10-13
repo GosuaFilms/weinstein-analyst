@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
     if (!ticker || typeof ticker !== 'string') {
       return jsonResponse({ error: 'ticker is required' }, 400);
     }
-    const snap = await getTechnicalSnapshot(ticker.toUpperCase().trim(), smaPeriod ?? 30);
+    const snap = await getTechnicalSnapshot(ticker.toUpperCase().trim(), smaPeriod ?? 30, { maxAgeMin: 10, withQuote: true });
     return jsonResponse(snap);
   } catch (err) {
     return jsonResponse({ error: (err as Error).message }, 500);

@@ -18,9 +18,8 @@ import { sendTelegramMessage } from '../_shared/telegram.ts';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-// Indices to scan every day — ordered by priority
-// Kept to the most actionable indices to stay within function timeout
-const DAILY_INDICES = ['IBEX35', 'SP100', 'NASDAQ50', 'DAX40', 'EUROSTOXX50'];
+// Indices to scan every day (Venture plan + shared cache: all of them fit in one run)
+const DAILY_INDICES = ['IBEX35', 'SP100', 'NASDAQ50', 'DAX40', 'CAC40', 'FTSE100', 'EUROSTOXX50'];
 
 // ─── Concurrency helper ───────────────────────────────────────────────────────
 
@@ -68,7 +67,7 @@ async function scanIndexStage2(indexId: string) {
     }
   });
 
-  return results.filter(Boolean);
+  return results.filter((r): r is NonNullable<typeof r> => r !== null);
 }
 
 // ─── Telegram formatter ───────────────────────────────────────────────────────

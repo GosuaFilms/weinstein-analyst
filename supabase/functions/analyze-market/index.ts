@@ -37,7 +37,7 @@ function buildSystemInstruction(lang: 'es' | 'en', snap: TechnicalSnapshot | nul
   const langName = lang === 'es' ? 'Spanish' : 'English';
   const anchor = snap
     ? `
-REAL-TIME TECHNICAL ANCHOR (source: TwelveData + Yahoo Finance — DO NOT invent prices):
+REAL-TIME TECHNICAL ANCHOR (source: Twelve Data — DO NOT invent prices):
 - Symbol: ${snap.symbol} (${snap.name})
 - Current price: ${snap.currentPrice} ${snap.currency}
 - Price timestamp: ${snap.priceTimestamp}
@@ -121,11 +121,11 @@ Deno.serve(async (req) => {
     let stageHint = 'N/A';
     if (ticker) {
       try {
-        snap = await getTechnicalSnapshot(ticker.toUpperCase().trim(), settings.smaPeriod ?? 30);
+        snap = await getTechnicalSnapshot(ticker.toUpperCase().trim(), settings.smaPeriod ?? 30, { maxAgeMin: 10, withQuote: true });
         cls = classifyStage(snap);
         stageHint = `${cls.stage} (${cls.confidence}) — ${cls.reasoning}`;
       } catch (e) {
-        // Ticker not available on TwelveData or Yahoo — fall through to chart-only analysis
+        // Ticker not available on Twelve Data — fall through to chart-only analysis
         console.error('Market data snapshot failed, falling back:', (e as Error).message);
       }
     }

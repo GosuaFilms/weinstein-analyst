@@ -1,11 +1,12 @@
 // GET /functions/v1/backtest?ticker=AAPL
-// Fetches 2 years of weekly closes from Yahoo Finance, applies rolling SMA30,
+// Fetches 2 years of weekly closes from Twelve Data, applies rolling SMA30,
 // classifies each week as Stage 2 or not, and returns all Stage 2 periods
 // with their entry/exit prices, return %, duration and — for the active entry —
 // Weinstein price targets derived from the preceding base pattern.
 
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
 import { requireUser } from '../_shared/auth.ts';
+import { getWeeklyBars, toTdRef } from '../_shared/marketData.ts';
 
 export interface Stage2Period {
   entryDate: string;       // ISO date string
@@ -229,23 +230,18 @@ Deno.serve(async (req) => {
   if (!ticker) return jsonResponse({ error: 'ticker required' }, 400);
 
   try {
-    // 2 years of weekly data from Yahoo Finance
-    const yUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}` +
-      `?interval=1wk&range=2y`;
-    const res = await fetch(yUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-    if (!res.ok) return jsonResponse({ error: 'market data unavailable' }, 502);
-
-    const json = await res.json();
-    const result = json?.chart?.result?.[0];
-    if (!result) return jsonResponse({ error: 'no data' }, 404);
-
-    const timestamps: number[] = result.timestamp ?? [];
-    const closes: number[] = result.indicators?.quote?.[0]?.close ?? [];
-
-    // Filter out null/NaN closes
-    const data: { ts: number; close: number }[] = timestamps
-      .map((ts, i) => ({ ts, close: closes[i] }))
-      .filter(d => d.close != null && !isNaN(d.close));
+    // 2 years of weekly closes from Twelve Data (shared cache)
+    const ref = toTdRef(ticker);
+    if (!ref) return jsonResponse({ error: 'ticker no reconocido' }, 400);
+    let bars;
+    try {
+      bars = await getWeeklyBars(ref, 6 * 60);
+    } catch {
+      return jsonResponse({ error: 'market data unavailable' }, 502);
+    }
+    const data: { ts: number; close: number }[] = bars.timestamps
+      .map((ts, i) => ({ ts, close: bars.closes[i] }))
+      .slice(-104);
 
     if (data.length < 35) return jsonResponse({ error: 'not enough history' }, 422);
 

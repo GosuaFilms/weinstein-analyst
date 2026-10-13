@@ -1,6 +1,6 @@
 // POST /functions/v1/check-alerts
 // Invoked by pg_cron every 5 minutes. Evaluates all active alerts using
-// real market data (TwelveData + Yahoo, not LLM), updates rows, inserts
+// real market data (Twelve Data, not LLM), updates rows, inserts
 // alert_events (triggers Realtime push to browser) and sends email via Resend.
 //
 // Auth: requires header x-cron-secret matching CRON_SECRET env var.
@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
   for (const [ticker, group] of byTicker) {
     let snap;
     try {
-      snap = await getTechnicalSnapshot(ticker);
+      snap = await getTechnicalSnapshot(ticker, 30, { maxAgeMin: 15 });
     } catch (e) {
       console.error(`Snapshot failed for ${ticker}:`, (e as Error).message);
       continue;

@@ -14,7 +14,7 @@ import { requireUser } from '../_shared/auth.ts';
 import { getTechnicalSnapshot } from '../_shared/marketData.ts';
 import { classifyStage } from '../_shared/weinstein.ts';
 import { INDICES } from '../_shared/indices.ts';
-import { sendTelegramMessage } from '../_shared/telegram.ts';
+import { trySendTelegram } from '../_shared/telegram.ts';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -173,9 +173,11 @@ Deno.serve(async (req) => {
     // ── 4. Send Telegram summary ─────────────────────────────────────────────
     const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
     const chatId   = Deno.env.get('TELEGRAM_CHANNEL_ID') || Deno.env.get('TELEGRAM_CHAT_ID');
+    let telegram = 'not configured';
     if (botToken && chatId) {
       const msg = formatTelegramMessage(today, newEntries, exits, allStage2.length);
-      await sendTelegramMessage(chatId, msg, botToken);
+      const sent = await trySendTelegram(chatId, msg, botToken);
+      telegram = sent.ok ? 'sent' : `failed: ${sent.error}`;
     }
 
     return jsonResponse({
@@ -185,6 +187,7 @@ Deno.serve(async (req) => {
       new_entries: newEntries.length,
       exits:       exits.length,
       indices:     DAILY_INDICES.length,
+      telegram,
     });
   } catch (err) {
     console.error('[stage2-daily] error:', err);

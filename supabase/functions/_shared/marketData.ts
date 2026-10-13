@@ -101,6 +101,10 @@ export interface TechnicalSnapshot {
   atr14WeeklyPct: number | null;       // ATR as % of current price
   // Volume dry-up: last 3 weeks all below 85% of 30w avg (potential breakout signal)
   volumeDryUp: boolean | null;
+  // Rule-based levels: top of the Weinstein base and where to enter against it
+  baseResistance: number | null;
+  entryLevel: number | null;
+  entryBasis: 'breakout' | 'pullback' | null;
 }
 
 interface WeeklySeries {
@@ -322,6 +326,26 @@ export function findRecentSwingLow(lows: number[], lookback = 10): number | null
   return finite.length ? Math.min(...finite) : null;
 }
 
+// Top of the Weinstein base: highest weekly high of the `lookback` weeks before the
+// last `skipRecent`, so a fresh breakout is not mistaken for the ceiling it broke.
+export function findBaseResistance(highs: number[], skipRecent = 4, lookback = 26): number | null {
+  if (highs.length < skipRecent + 8) return null;
+  const window = highs.slice(-(skipRecent + lookback), -skipRecent).filter((n) => Number.isFinite(n) && n > 0);
+  return window.length ? Math.max(...window) : null;
+}
+
+// Below the base ceiling → enter on a breakout 1% above it. Already above it →
+// Weinstein's classic entry is the pullback towards the broken resistance.
+export function suggestEntry(
+  currentPrice: number,
+  resistance: number | null
+): { level: number; basis: 'breakout' | 'pullback' } | null {
+  if (resistance == null) return null;
+  return currentPrice > resistance
+    ? { level: resistance, basis: 'pullback' }
+    : { level: resistance * 1.01, basis: 'breakout' };
+}
+
 // Weinstein-style stop: prefer the nearest swing-low below current price (with 2% buffer),
 // otherwise fall back to just below MM30 (3% buffer).
 export function suggestStopLoss(
@@ -430,6 +454,10 @@ async function attachWeinsteinExtras(
   const recentSwingLow = findRecentSwingLow(stockLows, 10);
   const stop = suggestStopLoss(base.currentPrice, base.sma30Weekly, recentSwingLow);
 
+  // Base ceiling and the entry against it.
+  const baseResistance = stock.highs ? findBaseResistance(stock.highs) : null;
+  const entry = suggestEntry(base.currentPrice, baseResistance);
+
   // Late Stage 2 warning: Weinstein recommends partial exits once price is
   // 15%+ extended above the MM30 weekly.
   const extendedStage2 = (base.distanceFromSMA30Pct ?? 0) > 15;
@@ -514,6 +542,9 @@ async function attachWeinsteinExtras(
     atr14Weekly,
     atr14WeeklyPct,
     volumeDryUp,
+    baseResistance,
+    entryLevel: entry?.level ?? null,
+    entryBasis: entry?.basis ?? null,
   };
 }
 
@@ -640,6 +671,9 @@ async function yahooSnapshot(symbol: string, smaPeriod: number): Promise<Technic
     atr14Weekly: null,
     atr14WeeklyPct: null,
     volumeDryUp: null,
+    baseResistance: null,
+    entryLevel: null,
+    entryBasis: null,
   };
   return await attachWeinsteinExtras(base, { timestamps: alignedTs, closes: alignedCloses, highs: alignedHighs, volumes: alignedVolumes }, lows, smaPeriod);
 }
@@ -747,6 +781,9 @@ export async function getTechnicalSnapshot(
     atr14Weekly: null,
     atr14WeeklyPct: null,
     volumeDryUp: null,
+    baseResistance: null,
+    entryLevel: null,
+    entryBasis: null,
   };
   return await attachWeinsteinExtras(base, { timestamps: stockTs, closes, highs: stockHighs, volumes: stockVolumes }, lows, smaPeriod);
 }

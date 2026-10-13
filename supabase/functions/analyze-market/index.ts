@@ -60,6 +60,8 @@ REAL-TIME TECHNICAL ANCHOR (source: TwelveData + Yahoo Finance — DO NOT invent
 - Volume dry-up (last 3w all <85% avg): ${snap.volumeDryUp != null ? (snap.volumeDryUp ? 'YES ⚡' : 'no') : 'N/A'}
 - Suggested Weinstein stop-loss: ${snap.suggestedStopLoss?.toFixed(2) ?? 'N/A'} ${snap.currency} (basis: ${snap.stopLossBasis ?? 'N/A'}, risk ${snap.stopLossRiskPct?.toFixed(2) ?? 'N/A'}%)
 - Recent swing-low (last 10w): ${snap.recentSwingLow?.toFixed(2) ?? 'N/A'}
+- Base resistance (highest weekly high of the 26w before the last 4w): ${snap.baseResistance?.toFixed(2) ?? 'N/A'}
+- Rule-based entry: ${snap.entryLevel != null ? `${snap.entryLevel.toFixed(2)} (${snap.entryBasis === 'pullback' ? 'pullback to the broken resistance' : 'breakout 1% above resistance'})` : 'N/A'}
 - Rule-based stage verdict: ${stageHint}
 
 You MUST use exactly these numbers — do not substitute them with search results.
@@ -80,8 +82,8 @@ Output STRICT JSON in ${langName} with this exact schema:
   "relativeStrength": "Fuerza Relativa Mansfield — cita el valor numérico, el benchmark y su MA13. Indica si está positiva/negativa y subiendo/bajando. Weinstein: Etapa 2 requiere RS > 0 Y subiendo; Etapa 4 típicamente RS < 0 Y bajando.",
   "volumeAnalysis": "Perfil de volumen usando el ratio del anchor. Weinstein: ruptura válida de Etapa 1→2 requiere volumen ≥2× la media de 30 semanas.",
   "support": "Soporte numérico (sin texto) — usa el swing-low reciente del anchor si aplica",
-  "resistance": "Resistencia numérica (sin texto) — nivel horizontal más relevante en el rango previo",
-  "entryPrice": "Nivel de disparo (breakout de resistencia o pullback a la resistencia rota)",
+  "resistance": "Usa la base resistance del anchor tal cual (numérico, sin texto)",
+  "entryPrice": "Usa la rule-based entry del anchor (ruptura o retroceso a la resistencia rota)",
   "stopLoss": "Usa el suggestedStopLoss del anchor tal cual (basado en swing-low o MM30 según Weinstein)",
   "verdict": "Frase corta de acción",
   "verdictType": "BUY | SELL | WAIT | CLOSE",
@@ -162,6 +164,14 @@ Deno.serve(async (req) => {
       // Rule-based levels win over the model's: the prompt asks for them, this guarantees them
       if (snap.suggestedStopLoss != null) result.stopLoss = snap.suggestedStopLoss.toFixed(2);
       if (snap.recentSwingLow != null) result.support = snap.recentSwingLow.toFixed(2);
+      if (snap.baseResistance != null) result.resistance = snap.baseResistance.toFixed(2);
+      if (snap.entryLevel != null) {
+        const lvl = snap.entryLevel.toFixed(2);
+        const es = settings.language === 'es';
+        result.entryPrice = snap.entryBasis === 'pullback'
+          ? (es ? `Retroceso hacia ${lvl} (resistencia rota)` : `Pullback towards ${lvl} (broken resistance)`)
+          : (es ? `Ruptura por encima de ${lvl}` : `Breakout above ${lvl}`);
+      }
 
       // The rule-based stage has the last word: no BUY outside Stage 2
       if (cls && cls.stage !== 'STAGE_2' && result.verdictType === 'BUY') {

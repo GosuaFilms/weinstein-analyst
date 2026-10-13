@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { User } from '../types';
 import { useUserSettings } from '../hooks/useUserSettings';
+import AdminMetricsPanel, { type AdminMetrics } from './AdminMetricsPanel';
 
 interface Props {
   isOpen: boolean;
@@ -26,6 +27,22 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
   // Security State
   const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
   const [securityMsg, setSecurityMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+  // Admin metrics: the function answers 403 to everyone but ADMIN_EMAILS, so the
+  // button only appears for the owner
+  const [adminMetrics, setAdminMetrics] = useState<AdminMetrics | null>(null);
+  const [metricsOpen, setMetricsOpen] = useState(false);
+  useEffect(() => {
+    if (!isOpen || !user) return;
+    let cancelled = false;
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) supabase.functions.setAuth(session.access_token);
+      const { data, error } = await supabase.functions.invoke('admin-metrics', { body: {} });
+      if (!cancelled && !error && data && !data.error) setAdminMetrics(data as AdminMetrics);
+    })();
+    return () => { cancelled = true; };
+  }, [isOpen, user]);
 
   if (!isOpen || !user) return null;
 
@@ -140,6 +157,22 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
             </div>
           </div>
         </div>
+
+        {adminMetrics && (
+          <div className="space-y-2">
+            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Administración</h4>
+            <button
+              onClick={() => setMetricsOpen(true)}
+              className="w-full flex items-center justify-between p-4 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <i className="fas fa-chart-line text-slate-400 group-hover:text-blue-500 transition-colors"></i>
+                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Métricas del negocio</span>
+              </div>
+              <i className="fas fa-chevron-right text-[10px] text-slate-300"></i>
+            </button>
+          </div>
+        )}
 
         <div className="space-y-2">
            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Ajustes de Cuenta</h4>
@@ -432,6 +465,9 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
         {currentView === 'notifications' && renderNotificationsView()}
 
       </div>
+      {metricsOpen && adminMetrics && (
+        <AdminMetricsPanel metrics={adminMetrics} onClose={() => setMetricsOpen(false)} />
+      )}
     </div>
   );
 };

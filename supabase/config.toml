@@ -82,6 +82,9 @@ verify_jwt = false
 [functions.stripe-webhook]
 verify_jwt = false
 
+[functions.admin-metrics]
+verify_jwt = false
+
 [functions.daily-brief]
 verify_jwt = false
 

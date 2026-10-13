@@ -8,17 +8,23 @@ import { jsonResponse } from '../_shared/cors.ts';
 const ACTIVE_STATUSES = new Set(['active', 'trialing']);
 
 // Verify Stripe webhook signature manually (HMAC-SHA256)
+// Stripe signature check (https://stripe.com/docs/webhooks#verify-manually):
+// HMAC-SHA256 of "t.body", any of the v1 signatures may match (secret rotation),
+// and the timestamp must be recent so a captured event can't be replayed later.
+const TOLERANCE_SECONDS = 300;
+
 async function verifyStripeSignature(body: string, signature: string, secret: string): Promise<boolean> {
-  const parts: Record<string, string> = {};
+  let timestamp = '';
+  const signatures: string[] = [];
   for (const pair of signature.split(',')) {
     const [k, v] = pair.split('=');
-    parts[k] = v;
+    if (k === 't') timestamp = v ?? '';
+    if (k === 'v1' && v) signatures.push(v);
   }
-  const timestamp = parts['t'];
-  const sig = parts['v1'];
-  if (!timestamp || !sig) return false;
+  if (!timestamp || signatures.length === 0) return false;
+  const age = Math.abs(Date.now() / 1000 - Number(timestamp));
+  if (!Number.isFinite(age) || age > TOLERANCE_SECONDS) return false;
 
-  const payload = `${timestamp}.${body}`;
   const key = await crypto.subtle.importKey(
     'raw',
     new TextEncoder().encode(secret),
@@ -26,9 +32,16 @@ async function verifyStripeSignature(body: string, signature: string, secret: st
     false,
     ['sign']
   );
-  const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload));
+  const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${timestamp}.${body}`));
   const computed = Array.from(new Uint8Array(mac)).map(b => b.toString(16).padStart(2, '0')).join('');
-  return computed === sig;
+  return signatures.some((sig) => timingSafeEqual(computed, sig));
+}
+
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 }
 
 async function setPlan(

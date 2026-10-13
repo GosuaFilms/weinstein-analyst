@@ -358,8 +358,6 @@ const LandingPage: React.FC<Props> = ({ onGetStarted }) => {
           <div className="flex items-center gap-6 text-xs text-slate-600">
             <a href="mailto:juantxu@gosua.com" className="hover:text-slate-400 transition-colors">Contacto</a>
             <span>·</span>
-            <a href="https://ko-fi.com/weinstein" target="_blank" rel="noopener noreferrer" className="hover:text-slate-400 transition-colors">Ko-fi</a>
-            <span>·</span>
             <span>© {new Date().getFullYear()} Alpha Stage Terminal</span>
           </div>
           <p className="text-[10px] text-slate-700 text-center sm:text-right">

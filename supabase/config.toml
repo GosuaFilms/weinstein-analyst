@@ -78,9 +78,6 @@ verify_jwt = false
 [functions.daily-digest]
 verify_jwt = false
 
-[functions.get-news]
-verify_jwt = false
-
 [functions.push-subscribe]
 verify_jwt = false
 

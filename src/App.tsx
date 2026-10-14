@@ -583,7 +583,7 @@ const App: React.FC = () => {
                   {language === Language.ES ? 'Crujiendo Datos...' : 'Crunching Data...'}
                 </h3>
                 <p className="text-slate-500 text-sm text-center max-w-xs italic">
-                  {language === Language.ES ? 'Consultando TwelveData y Yahoo Finance y aplicando método Weinstein.' : 'Fetching TwelveData and Yahoo Finance data and applying Weinstein method.'}
+                  {language === Language.ES ? 'Consultando Twelve Data y aplicando el método Weinstein.' : 'Fetching Twelve Data and applying the Weinstein method.'}
                 </p>
               </div>
             )}

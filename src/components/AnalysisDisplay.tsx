@@ -3,7 +3,6 @@ import React, { useState, useRef } from 'react';
 import { AnalysisResult, Verdict, Language } from '../types';
 // html2canvas and jspdf are loaded on-demand to keep the initial bundle small
 import TradingViewWidget from './TradingViewWidget';
-import { useTickerNews } from '../hooks/useTickerNews';
 import { useBacktest } from '../hooks/useBacktest';
 import { usePlan } from '../hooks/usePlan';
 
@@ -29,7 +28,6 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
   const [posCalcAtrMult, setPosCalcAtrMult] = useState(2);
   const displayRef = useRef<HTMLDivElement>(null);
   const shareCardRef = useRef<HTMLDivElement>(null);
-  const { articles: news, loading: newsLoading } = useTickerNews(ticker, language === Language.ES ? 'es' : 'en');
   const { data: backtest, loading: backtestLoading } = useBacktest(ticker);
   const { isPro } = usePlan();
 
@@ -1036,54 +1034,33 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
         </div>
       )}
 
-      {/* ── News section ── */}
-      {ticker && (newsLoading || news.length > 0) && (
-        <div className="mt-8 px-1" data-html2canvas-ignore="true">
-          <div className="flex items-center gap-2 mb-3">
-            <i className="fas fa-newspaper text-slate-400 text-xs"></i>
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-              {language === Language.ES ? 'Últimas noticias' : 'Latest news'} · {ticker.toUpperCase()}
-            </span>
+      {/* ── News: link out to Google News (no headlines are fetched or stored,
+           so there's no third-party news licence involved) ── */}
+      {(ticker || data.companyName) && (() => {
+        const es = language === Language.ES;
+        const query = data.companyName ? `"${data.companyName}"` : ticker!.toUpperCase();
+        const href = `https://news.google.com/search?q=${encodeURIComponent(query)}` +
+          (es ? '&hl=es&gl=ES&ceid=ES:es' : '&hl=en-US&gl=US&ceid=US:en');
+        return (
+          <div className="mt-8 px-1" data-html2canvas-ignore="true">
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/50 hover:border-slate-300 dark:hover:border-slate-600 transition-all group"
+            >
+              <i className="fas fa-newspaper text-slate-400 group-hover:text-emerald-500 transition-colors"></i>
+              <div className="min-w-0 flex-grow">
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                  {es ? 'Ver últimas noticias de' : 'See latest news on'} {data.companyName || ticker!.toUpperCase()}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">{es ? 'Se abre Google Noticias en una pestaña nueva' : 'Opens Google News in a new tab'}</p>
+              </div>
+              <i className="fas fa-arrow-up-right-from-square text-[10px] text-slate-400 group-hover:text-emerald-500 transition-colors"></i>
+            </a>
           </div>
-          {newsLoading ? (
-            <div className="flex gap-2 items-center text-xs text-slate-400 py-2">
-              <i className="fas fa-circle-notch animate-spin text-[10px]"></i>
-              {language === Language.ES ? 'Cargando noticias…' : 'Loading news…'}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {news.map((article, i) => {
-                const age = article.publishedAt
-                  ? Math.round((Date.now() / 1000 - article.publishedAt) / 3600)
-                  : null;
-                const ageStr = age != null
-                  ? age < 24 ? `hace ${age}h` : `hace ${Math.round(age / 24)}d`
-                  : '';
-                return (
-                  <a
-                    key={i}
-                    href={article.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/50 hover:border-slate-300 dark:hover:border-slate-600 transition-all group"
-                  >
-                    <i className="fas fa-arrow-up-right-from-square text-[9px] text-slate-400 group-hover:text-emerald-500 mt-1 flex-shrink-0 transition-colors"></i>
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-snug line-clamp-2 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                        {article.title}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] text-slate-400 font-medium">{article.publisher}</span>
-                        {ageStr && <span className="text-[10px] text-slate-300 dark:text-slate-600">{ageStr}</span>}
-                      </div>
-                    </div>
-                  </a>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
+        );
+      })()}
 
       <div className="text-center text-[9px] text-slate-400 dark:text-slate-500 max-w-xs mx-auto italic font-black uppercase tracking-[0.2em] opacity-40 mt-8">
         {labels.disclaimer}

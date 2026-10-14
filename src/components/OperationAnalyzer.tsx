@@ -8,9 +8,10 @@ interface Props {
   settings: Settings;
   onSave?: (result: OperationAnalysisResult, ticker: string) => void;
   initialResult?: OperationAnalysisResult | null;
+  onQuotaExceeded?: () => void;
 }
 
-const OperationAnalyzer: React.FC<Props> = ({ language, settings, onSave, initialResult }) => {
+const OperationAnalyzer: React.FC<Props> = ({ language, settings, onSave, initialResult, onQuotaExceeded }) => {
   const [ticker, setTicker] = useState(initialResult?.tickerSymbol || '');
   const [purchaseDate, setPurchaseDate] = useState(initialResult?.purchaseDate || '');
   const [purchasePrice, setPurchasePrice] = useState(initialResult?.purchasePrice || '');
@@ -59,7 +60,9 @@ const OperationAnalyzer: React.FC<Props> = ({ language, settings, onSave, initia
       setResult(analysisResult);
       setIsSaved(false);
     } catch (err: any) {
-      setError(err.message || 'Error analizando la operación.');
+      const message: string = err.message || 'Error analizando la operación.';
+      if (message.startsWith('QUOTA_EXCEEDED')) onQuotaExceeded?.();
+      setError(message.replace(/^QUOTA_EXCEEDED: /, ''));
     } finally {
       setIsAnalyzing(false);
     }

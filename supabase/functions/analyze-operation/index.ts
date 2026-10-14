@@ -3,6 +3,7 @@
 
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
 import { requireUser } from '../_shared/auth.ts';
+import { checkAiQuota, recordAiUsage } from '../_shared/quota.ts';
 import { getTechnicalSnapshot } from '../_shared/marketData.ts';
 import { classifyStage } from '../_shared/weinstein.ts';
 import { generate, extractJson } from '../_shared/anthropic.ts';
@@ -19,6 +20,9 @@ Deno.serve(async (req) => {
 
   const authed = await requireUser(req);
   if (authed instanceof Response) return authed;
+
+  const overQuota = await checkAiQuota(authed.id, 'operation');
+  if (overQuota) return overQuota;
 
   try {
     const body = await req.json();
@@ -91,6 +95,7 @@ Return STRICT JSON in ${langName}:
     result.tickerSymbol = snap.symbol;
     result.shares = sh;
 
+    await recordAiUsage(authed.id, 'operation');
     return jsonResponse(result);
   } catch (err) {
     console.error('analyze-operation error:', err);

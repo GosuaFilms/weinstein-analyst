@@ -124,25 +124,25 @@ const AlertsSidebar: React.FC<Props> = ({ isOpen, onClose, alerts, onAddAlert, o
 
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
           {/* Plan limit reached — show paywall */}
-          {!isPro && alerts.length >= maxAlerts ? (
+          {alerts.length >= maxAlerts ? (
             <div className="rounded-xl border border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-4 text-center">
               <div className="w-9 h-9 bg-amber-500/20 rounded-xl flex items-center justify-center mx-auto mb-2">
                 <i className="fas fa-lock text-amber-500"></i>
               </div>
-              <p className="text-xs font-black text-slate-800 dark:text-white mb-0.5">Límite de plan gratuito</p>
+              <p className="text-xs font-black text-slate-800 dark:text-white mb-0.5">Límite de tu plan</p>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
-                Tienes {maxAlerts} de {maxAlerts} alertas activas. Pro permite hasta 20.
+                Tienes {maxAlerts} de {maxAlerts} alertas activas. {isPro ? 'Élite permite hasta 100.' : 'Pro permite hasta 20 y Élite hasta 100.'}
               </p>
               <button
                 onClick={onUpgrade}
                 className="w-full py-2 bg-amber-500 hover:bg-amber-400 text-slate-900 font-black rounded-lg text-xs transition-all shadow-md shadow-amber-500/20 flex items-center justify-center gap-2"
               >
-                <i className="fas fa-crown"></i> Actualizar a Pro
+                <i className="fas fa-crown"></i> Mejorar plan
               </button>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-3">
-              {!isPro && (
+              {maxAlerts > 0 && (
                 <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 rounded-lg px-2.5 py-1.5">
                   <span>Alertas activas</span>
                   <span className={`font-black ${alerts.length >= maxAlerts ? 'text-rose-500' : 'text-emerald-600 dark:text-emerald-400'}`}>

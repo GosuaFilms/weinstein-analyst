@@ -46,12 +46,13 @@ const TermsPage: React.FC = () => {
 
           <section>
             <h2 className="text-white font-black text-lg mb-3">4. Planes y suscripciones</h2>
-            <p className="mb-3">La Plataforma ofrece dos modalidades de acceso:</p>
+            <p className="mb-3">La Plataforma ofrece tres modalidades de acceso:</p>
             <ul className="space-y-2 list-none">
-              <li className="flex gap-2"><span className="text-amber-400 mt-0.5">→</span><span><strong className="text-white">Plan Gratuito:</strong> acceso limitado a 10 análisis mensuales y 2 alertas activas.</span></li>
-              <li className="flex gap-2"><span className="text-amber-400 mt-0.5">→</span><span><strong className="text-white">Plan Pro:</strong> acceso completo con análisis ilimitados, screener, hasta 20 alertas, cartera IA y notificaciones Telegram, mediante suscripción mensual o anual.</span></li>
+              <li className="flex gap-2"><span className="text-amber-400 mt-0.5">→</span><span><strong className="text-white">Plan Gratuito:</strong> acceso limitado a 3 análisis mensuales y 1 alerta activa.</span></li>
+              <li className="flex gap-2"><span className="text-amber-400 mt-0.5">→</span><span><strong className="text-white">Plan Pro:</strong> 40 análisis mensuales, 10 análisis de operaciones mensuales, screener completo, hasta 20 alertas, cartera IA y notificaciones Telegram, mediante suscripción mensual o anual.</span></li>
+              <li className="flex gap-2"><span className="text-amber-400 mt-0.5">→</span><span><strong className="text-white">Plan Élite:</strong> todo lo del Plan Pro, con análisis y análisis de operaciones ilimitados sujetos a un uso razonable de hasta 15 de cada tipo al día, hasta 100 alertas y soporte prioritario, mediante suscripción mensual o anual.</span></li>
             </ul>
-            <p className="mt-3">Los pagos se procesan a través de <strong className="text-white">Stripe</strong>. El usuario puede cancelar su suscripción en cualquier momento desde el portal de gestión de Stripe; el acceso Pro permanecerá activo hasta el final del periodo facturado. No se realizan reembolsos por periodos parciales salvo obligación legal.</p>
+            <p className="mt-3">Los pagos se procesan a través de <strong className="text-white">Stripe</strong>. El usuario puede cancelar su suscripción en cualquier momento desde el portal de gestión de Stripe; el acceso de pago permanecerá activo hasta el final del periodo facturado. No se realizan reembolsos por periodos parciales salvo obligación legal.</p>
           </section>
 
           <section>

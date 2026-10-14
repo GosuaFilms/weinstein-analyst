@@ -4,6 +4,7 @@
 
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
 import { requireUser } from '../_shared/auth.ts';
+import { checkAiQuota, recordAiUsage } from '../_shared/quota.ts';
 import { getTechnicalSnapshot, type TechnicalSnapshot } from '../_shared/marketData.ts';
 import { classifyStage } from '../_shared/weinstein.ts';
 import { generate, extractJson, type ContentBlock } from '../_shared/anthropic.ts';
@@ -104,6 +105,9 @@ Deno.serve(async (req) => {
   const authed = await requireUser(req);
   if (authed instanceof Response) return authed;
 
+  const overQuota = await checkAiQuota(authed.id, 'analysis');
+  if (overQuota) return overQuota;
+
   try {
     const body = await req.json();
     const { ticker, images, settings } = body as {
@@ -182,6 +186,7 @@ Deno.serve(async (req) => {
       }
     }
 
+    await recordAiUsage(authed.id, 'analysis');
     return jsonResponse(result);
   } catch (err) {
     console.error('analyze-market error:', err);

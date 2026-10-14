@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { User } from '../types';
 import { useUserSettings } from '../hooks/useUserSettings';
 import AdminMetricsPanel, { type AdminMetrics } from './AdminMetricsPanel';
+import { PLAN_LABEL, type Plan } from '../hooks/usePlan';
 
 interface Props {
   isOpen: boolean;
@@ -13,12 +14,13 @@ interface Props {
   alertsCount: number;
   onLogout: () => void;
   isPro?: boolean;
+  plan?: Plan;
   onUpgrade?: () => void;
 }
 
 type ViewState = 'main' | 'security' | 'export' | 'notifications';
 
-const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCount, alertsCount, onLogout, isPro = false, onUpgrade }) => {
+const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCount, alertsCount, onLogout, isPro = false, plan = 'free', onUpgrade }) => {
   const [currentView, setCurrentView] = useState<ViewState>('main');
   const [exporting,   setExporting]   = useState(false);
   const { settings: notifSettings, loading: notifLoading, saving: notifSaving, update: updateNotif } = useUserSettings();
@@ -134,7 +136,7 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
         {/* Plan badge */}
         {isPro ? (
           <div className="mt-3 inline-flex items-center gap-2 px-4 py-1.5 bg-amber-500 text-slate-900 rounded-full text-[11px] font-black uppercase tracking-widest shadow-lg shadow-amber-500/30">
-            <i className="fas fa-crown"></i> Plan Pro
+            <i className="fas fa-crown"></i> Plan {PLAN_LABEL[plan === 'free' ? 'pro' : plan]}
           </div>
         ) : (
           <div className="mt-3 inline-flex items-center gap-2 px-4 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-full text-[11px] font-black uppercase tracking-widest">

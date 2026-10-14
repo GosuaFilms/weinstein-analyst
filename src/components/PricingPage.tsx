@@ -4,20 +4,23 @@ interface Props {
   onGetStarted: () => void;
 }
 
-const FREE_FEATURES = [
-  { label: 'Análisis Weinstein IA', free: '10 / mes', pro: 'Ilimitados' },
-  { label: 'Screener Stage 2', free: '5 resultados', pro: 'Completo — todos los índices' },
-  { label: 'Alertas técnicas activas', free: '2', pro: '20' },
-  { label: 'Historial de análisis', free: true, pro: true },
-  { label: 'Watchlist', free: true, pro: true },
-  { label: 'Gráfico TradingView', free: true, pro: true },
-  { label: 'Compartir análisis (redes)', free: true, pro: true },
-  { label: 'Cartera IA Weinstein', free: false, pro: true },
-  { label: 'Backtest Stage 2', free: false, pro: true },
-  { label: 'Notificaciones Telegram', free: false, pro: true },
-  { label: 'Informe semanal de mercado', free: false, pro: true },
-  { label: 'Resumen diario 09:00 Madrid', free: false, pro: true },
-  { label: 'Soporte prioritario', free: false, pro: true },
+type Cell = string | boolean;
+
+const FEATURES: { label: string; free: Cell; pro: Cell; elite: Cell }[] = [
+  { label: 'Análisis Weinstein IA', free: '3 / mes', pro: '40 / mes', elite: 'Ilimitados*' },
+  { label: 'Análisis de operaciones', free: false, pro: '10 / mes', elite: 'Ilimitados*' },
+  { label: 'Screener Stage 2', free: '5 resultados', pro: 'Completo', elite: 'Completo' },
+  { label: 'Alertas técnicas activas', free: '1', pro: '20', elite: '100' },
+  { label: 'Historial de análisis', free: true, pro: true, elite: true },
+  { label: 'Watchlist', free: true, pro: true, elite: true },
+  { label: 'Gráfico TradingView', free: true, pro: true, elite: true },
+  { label: 'Compartir análisis (redes)', free: true, pro: true, elite: true },
+  { label: 'Cartera IA Weinstein', free: false, pro: true, elite: true },
+  { label: 'Backtest Stage 2', free: false, pro: true, elite: true },
+  { label: 'Notificaciones Telegram', free: false, pro: true, elite: true },
+  { label: 'Informe semanal de mercado', free: false, pro: true, elite: true },
+  { label: 'Resumen diario 09:00 Madrid', free: false, pro: true, elite: true },
+  { label: 'Soporte prioritario', free: false, pro: false, elite: true },
 ];
 
 const FAQS = [
@@ -26,8 +29,12 @@ const FAQS = [
     a: 'No. La IA analiza el activo y te da un veredicto claro: COMPRAR, ESPERAR o CERRAR. Explica el razonamiento para que vayas aprendiendo el método.',
   },
   {
-    q: '¿Qué incluye el plan Pro?',
-    a: 'El plan Pro desbloquea análisis Weinstein ilimitados, screener completo de todos los índices, hasta 20 alertas activas, cartera IA, notificaciones Telegram, informe fundamental IA y resumen diario de mercado a las 09:00 (Madrid).',
+    q: '¿Qué diferencia hay entre Pro y Élite?',
+    a: 'Pro incluye 40 análisis Weinstein al mes, 10 análisis de operaciones, screener completo, hasta 20 alertas, cartera IA, Telegram, informe semanal y resumen diario a las 09:00 (Madrid). Élite añade análisis ilimitados (uso razonable de hasta 15 al día), análisis de operaciones ilimitados, hasta 100 alertas y soporte prioritario.',
+  },
+  {
+    q: '¿Puedo cambiar de plan?',
+    a: 'Sí. Desde «Gestionar suscripción» puedes pasar de Pro a Élite o al revés en cualquier momento; Stripe prorratea la diferencia automáticamente.',
   },
   {
     q: '¿Qué mercados cubre el screener?',
@@ -56,8 +63,11 @@ const PricingPage: React.FC<Props> = ({ onGetStarted }) => {
   const [billing, setBilling] = useState<'monthly' | 'yearly'>('yearly');
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
-  const monthlyPrice = billing === 'monthly' ? '14.99' : '10.75';
-  const yearlyTotal = '129';
+  const PRICES = {
+    pro:   { monthly: '14.99', yearlyPerMonth: '12.42', yearly: '149', saving: '30.88' },
+    elite: { monthly: '39.99', yearlyPerMonth: '33.25', yearly: '399', saving: '80.88' },
+  };
+  const perMonth = (p: 'pro' | 'elite') => billing === 'monthly' ? PRICES[p].monthly : PRICES[p].yearlyPerMonth;
 
   return (
     <div className="min-h-screen" style={{ background: 'linear-gradient(160deg, #080e1a 0%, #0b1525 60%, #080e1a 100%)' }}>
@@ -92,7 +102,7 @@ const PricingPage: React.FC<Props> = ({ onGetStarted }) => {
         <div className="text-center mb-16">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-emerald-400 text-xs font-black uppercase tracking-widest mb-6">
             <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping" />
-            Plan Pro disponible ahora
+            Planes Pro y Élite disponibles
           </div>
           <h1 className="text-4xl sm:text-6xl font-black text-white mb-5 leading-tight">
             Planes simples.<br />
@@ -101,7 +111,7 @@ const PricingPage: React.FC<Props> = ({ onGetStarted }) => {
             </span>
           </h1>
           <p className="text-slate-400 text-xl max-w-xl mx-auto">
-            Empieza gratis hoy o activa el plan Pro y accede al terminal Weinstein más completo del mercado.
+            Empieza gratis hoy o activa Pro o Élite y accede al terminal Weinstein más completo del mercado.
           </p>
         </div>
 
@@ -136,12 +146,12 @@ const PricingPage: React.FC<Props> = ({ onGetStarted }) => {
           </button>
           <span className={`text-sm font-bold transition-colors ${billing === 'yearly' ? 'text-white' : 'text-slate-500'}`}>
             Anual
-            <span className="ml-2 text-xs px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded-full font-black">−28%</span>
+            <span className="ml-2 text-xs px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded-full font-black">−17%</span>
           </span>
         </div>
 
         {/* ── Plan cards ── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-20">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-20">
 
           {/* Free */}
           <div className="rounded-3xl border border-white/10 p-8 flex flex-col" style={{ background: 'rgba(255,255,255,0.02)' }}>
@@ -151,14 +161,14 @@ const PricingPage: React.FC<Props> = ({ onGetStarted }) => {
                 <span className="text-5xl font-black text-white">€0</span>
                 <span className="text-slate-500 text-sm">/ siempre</span>
               </div>
-              <p className="text-slate-500 text-sm">Para explorar el método Weinstein sin compromiso.</p>
+              <p className="text-slate-500 text-sm">Para probar el método Weinstein sin compromiso.</p>
             </div>
 
             <ul className="space-y-3.5 flex-grow mb-8">
               {[
-                '10 análisis Weinstein al mes',
+                '3 análisis Weinstein al mes',
                 'Screener — 5 primeros resultados',
-                '2 alertas técnicas activas',
+                '1 alerta técnica activa',
                 'Historial de análisis',
                 'Watchlist ilimitada',
                 'Gráfico TradingView integrado',
@@ -191,19 +201,20 @@ const PricingPage: React.FC<Props> = ({ onGetStarted }) => {
             <div className="mb-8 mt-2">
               <div className="text-amber-400 text-xs font-black uppercase tracking-widest mb-3">Pro</div>
               <div className="flex items-baseline gap-2 mb-1">
-                <span className="text-5xl font-black text-white">€{monthlyPrice}</span>
+                <span className="text-5xl font-black text-white">€{perMonth('pro')}</span>
                 <span className="text-slate-500 text-sm">/ mes</span>
               </div>
               {billing === 'yearly' && (
-                <div className="text-amber-400 text-xs font-bold mb-2">€{yearlyTotal}/año · ahorras €50.88</div>
+                <div className="text-amber-400 text-xs font-bold mb-2">€{PRICES.pro.yearly}/año · ahorras €{PRICES.pro.saving}</div>
               )}
-              <p className="text-slate-400 text-sm">Análisis profesional sin límites para el inversor serio.</p>
+              <p className="text-slate-400 text-sm">Todo el método Weinstein para el inversor activo.</p>
             </div>
 
             <ul className="space-y-3.5 flex-grow mb-8">
               {[
                 { label: 'Todo lo del plan Gratis', highlight: false },
-                { label: 'Análisis ilimitados', highlight: true },
+                { label: '40 análisis Weinstein al mes', highlight: true },
+                { label: '10 análisis de operaciones al mes', highlight: false },
                 { label: 'Screener completo — todos los índices', highlight: true },
                 { label: 'Hasta 20 alertas activas', highlight: false },
                 { label: 'Cartera IA Weinstein', highlight: true },
@@ -211,7 +222,6 @@ const PricingPage: React.FC<Props> = ({ onGetStarted }) => {
                 { label: 'Notificaciones Telegram', highlight: true },
                 { label: 'Informe semanal de mercado', highlight: true },
                 { label: 'Resumen diario a las 09:00 Madrid', highlight: false },
-                { label: 'Soporte prioritario', highlight: false },
               ].map(({ label, highlight }) => (
                 <li key={label} className={`flex items-center gap-3 text-sm ${highlight ? 'text-white font-semibold' : 'text-slate-400'}`}>
                   <i className={`fas fa-check text-xs ${highlight ? 'text-amber-400' : 'text-slate-600'}`} />
@@ -229,43 +239,75 @@ const PricingPage: React.FC<Props> = ({ onGetStarted }) => {
             </button>
             <p className="text-center text-slate-600 text-xs mt-3">Cancela cuando quieras · Sin permanencia</p>
           </div>
+
+          {/* Élite */}
+          <div className="rounded-3xl border-2 border-violet-500/50 p-8 flex flex-col relative" style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.10), rgba(99,102,241,0.03))' }}>
+            <div className="mb-8 mt-2">
+              <div className="text-violet-400 text-xs font-black uppercase tracking-widest mb-3">Élite</div>
+              <div className="flex items-baseline gap-2 mb-1">
+                <span className="text-5xl font-black text-white">€{perMonth('elite')}</span>
+                <span className="text-slate-500 text-sm">/ mes</span>
+              </div>
+              {billing === 'yearly' && (
+                <div className="text-violet-400 text-xs font-bold mb-2">€{PRICES.elite.yearly}/año · ahorras €{PRICES.elite.saving}</div>
+              )}
+              <p className="text-slate-400 text-sm">Sin límites para quien analiza el mercado a diario.</p>
+            </div>
+
+            <ul className="space-y-3.5 flex-grow mb-8">
+              {[
+                { label: 'Todo lo del plan Pro', highlight: false },
+                { label: 'Análisis ilimitados*', highlight: true },
+                { label: 'Análisis de operaciones ilimitados*', highlight: true },
+                { label: 'Hasta 100 alertas activas', highlight: true },
+                { label: 'Soporte prioritario', highlight: false },
+              ].map(({ label, highlight }) => (
+                <li key={label} className={`flex items-center gap-3 text-sm ${highlight ? 'text-white font-semibold' : 'text-slate-400'}`}>
+                  <i className={`fas fa-check text-xs ${highlight ? 'text-violet-400' : 'text-slate-600'}`} />
+                  {label}
+                </li>
+              ))}
+            </ul>
+
+            <button
+              onClick={onGetStarted}
+              className="w-full py-3.5 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white font-black text-sm transition-all shadow-lg shadow-violet-500/20 hover:scale-[1.02] flex items-center justify-center gap-2"
+            >
+              <i className="fas fa-gem" />
+              Empezar con Élite
+            </button>
+            <p className="text-center text-slate-600 text-xs mt-3">* Uso razonable: hasta 15 análisis al día</p>
+          </div>
         </div>
+        <p className="text-center text-slate-600 text-xs -mt-14 mb-20">Precios con IVA incluido.</p>
 
         {/* ── Comparison table ── */}
         <div className="mb-20">
           <h2 className="text-2xl font-black text-white text-center mb-8">Comparativa completa</h2>
           <div className="rounded-2xl border border-white/5 overflow-hidden">
             {/* Header */}
-            <div className="grid grid-cols-3 bg-white/5 px-6 py-4 text-xs font-black uppercase tracking-widest">
+            <div className="grid grid-cols-4 bg-white/5 px-4 sm:px-6 py-4 text-xs font-black uppercase tracking-widest">
               <div className="text-slate-400">Función</div>
               <div className="text-center text-slate-400">Gratis</div>
               <div className="text-center text-amber-400">Pro</div>
+              <div className="text-center text-violet-400">Élite</div>
             </div>
             {/* Rows */}
-            {FREE_FEATURES.map(({ label, free, pro }, i) => (
+            {FEATURES.map(({ label, free, pro, elite }, i) => (
               <div
                 key={label}
-                className={`grid grid-cols-3 px-6 py-4 border-t border-white/5 text-sm items-center ${i % 2 === 0 ? '' : 'bg-white/[0.01]'}`}
+                className={`grid grid-cols-4 px-4 sm:px-6 py-4 border-t border-white/5 text-sm items-center ${i % 2 === 0 ? '' : 'bg-white/[0.01]'}`}
               >
                 <div className="text-slate-300 font-medium">{label}</div>
-                <div className="text-center">
-                  {typeof free === 'boolean' ? (
-                    free
-                      ? <i className="fas fa-check text-emerald-500" />
-                      : <i className="fas fa-minus text-slate-700" />
-                  ) : (
-                    <span className="text-slate-400 text-xs font-bold">{free}</span>
-                  )}
-                </div>
-                <div className="text-center">
-                  {typeof pro === 'boolean' ? (
-                    pro
-                      ? <i className="fas fa-check text-amber-400" />
-                      : <i className="fas fa-minus text-slate-700" />
-                  ) : (
-                    <span className="text-amber-400 text-xs font-bold">{pro}</span>
-                  )}
-                </div>
+                {([[free, 'text-slate-400', 'text-emerald-500'], [pro, 'text-amber-400', 'text-amber-400'], [elite, 'text-violet-400', 'text-violet-400']] as [Cell, string, string][]).map(([v, text, check], j) => (
+                  <div key={j} className="text-center">
+                    {typeof v === 'boolean' ? (
+                      v ? <i className={`fas fa-check ${check}`} /> : <i className="fas fa-minus text-slate-700" />
+                    ) : (
+                      <span className={`${text} text-xs font-bold`}>{v}</span>
+                    )}
+                  </div>
+                ))}
               </div>
             ))}
           </div>

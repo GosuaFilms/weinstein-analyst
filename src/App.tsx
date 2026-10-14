@@ -31,7 +31,7 @@ import { useAnalyses } from './hooks/useAnalyses';
 import { useAlerts } from './hooks/useAlerts';
 import { useWatchlist } from './hooks/useWatchlist';
 import WatchlistSidebar from './components/WatchlistSidebar';
-import { usePlan } from './hooks/usePlan';
+import { usePlan, PLAN_LABEL } from './hooks/usePlan';
 import { PricingModal } from './components/PricingModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
@@ -67,7 +67,7 @@ interface ImageFile {
 
 const App: React.FC = () => {
   const { user, signOut, loading: authLoading } = useAuth();
-  const { isPro, limits, plan } = usePlan();
+  const { isPro, limits, plan, analysesUsed, analysisLimitReached, refreshUsage } = usePlan();
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
   const { history, save: saveAnalysis, remove: removeAnalysis, clear: clearHistory } = useAnalyses();
@@ -77,13 +77,6 @@ const App: React.FC = () => {
   const [isChartOpen, setIsChartOpen] = useState(false);
   const { watchlist, loading: watchlistLoading, add: addToWatchlist, remove: removeFromWatchlist, has: isInWatchlist } = useWatchlist();
 
-  // ── Monthly analysis count (fix #4) ───────────────────────────────────────
-  const monthlyAnalysisCount = React.useMemo(() => {
-    const start = new Date();
-    start.setDate(1); start.setHours(0, 0, 0, 0);
-    return history.filter(h => h.timestamp >= start.getTime()).length;
-  }, [history]);
-  const analysisLimitReached = !isPro && monthlyAnalysisCount >= limits.maxAnalysesPerMonth;
 
   const [ticker, setTicker] = useState('');
   const [tickerError, setTickerError] = useState<string | null>(null);
@@ -95,6 +88,11 @@ const App: React.FC = () => {
   });
 
   const [language, setLanguage] = useState<Language>(() => (localStorage.getItem(LANG_KEY) as Language) || Language.ES);
+
+  // Analysis quota: counted server-side (ai_usage), so deleting history doesn't reset it
+  const quotaPeriod = limits.analysesPer === 'day'
+    ? (language === Language.ES ? 'hoy' : 'today')
+    : (language === Language.ES ? 'mes' : 'month');
 
   const [settings, setSettings] = useState<Settings>({
     smaPeriod: 30,
@@ -143,6 +141,8 @@ const App: React.FC = () => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('checkout') === 'success') {
       setCheckoutSuccess(true);
+      // The Stripe webhook may land a moment after the redirect
+      setTimeout(refreshUsage, 3000);
       // Clean URL without reload
       window.history.replaceState({}, '', window.location.pathname);
     }
@@ -217,6 +217,7 @@ const App: React.FC = () => {
         settings,
       });
       setAnalysis({ isAnalyzing: false, result, error: null });
+      refreshUsage();
 
       // Upload images to Supabase Storage; fall back to base64 data URLs if upload fails
       let previewUrls: string[] = [];
@@ -232,11 +233,13 @@ const App: React.FC = () => {
       await saveAnalysis('scan', ticker || `${images.length} Graphics`, result, previewUrls.length > 0 ? previewUrls : images.map(i => i.url));
       setIsSaved(true);
     } catch (err) {
-      setAnalysis({ isAnalyzing: false, result: null, error: (err as Error).message || 'Error connecting to analysis engine.' });
+      const message = (err as Error).message || 'Error connecting to analysis engine.';
+      if (message.startsWith('QUOTA_EXCEEDED')) { refreshUsage(); setIsPricingOpen(true); }
+      setAnalysis({ isAnalyzing: false, result: null, error: message.replace(/^QUOTA_EXCEEDED: /, '') });
       setIsSaved(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ticker, images, settings, user]);
+  }, [ticker, images, settings, user, analysisLimitReached]);
 
   const selectHistoryItem = (item: SavedAnalysis) => {
     if (item.label.startsWith('[Operation]')) {
@@ -394,7 +397,7 @@ const App: React.FC = () => {
               </a>
             </Tip>
 
-            <Tip label={isPro ? 'Tu plan: Pro ⚡' : 'Actualizar a Pro'}>
+            <Tip label={isPro ? `Tu plan: ${PLAN_LABEL[plan]} ⚡` : 'Mejorar plan'}>
               <button
                 onClick={() => setIsPricingOpen(true)}
                 className="hidden sm:flex w-10 h-10 rounded-full bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 border border-amber-200 dark:border-amber-500/30 items-center justify-center text-amber-600 dark:text-amber-400"
@@ -523,9 +526,9 @@ const App: React.FC = () => {
                     {analysis.isAnalyzing ? (
                       <><i className="fas fa-circle-notch animate-spin"></i> {language === Language.ES ? 'CALCULANDO...' : 'CALCULATING...'}</>
                     ) : analysisLimitReached ? (
-                      <><i className="fas fa-crown"></i> {language === Language.ES ? 'LÍMITE ALCANZADO · PRO' : 'LIMIT REACHED · PRO'}</>
+                      <><i className="fas fa-crown"></i> {language === Language.ES ? 'LÍMITE ALCANZADO · MEJORAR PLAN' : 'LIMIT REACHED · UPGRADE'}</>
                     ) : (
-                      <><i className="fas fa-chart-simple"></i> {language === Language.ES ? `ANALIZAR · ${monthlyAnalysisCount}/${limits.maxAnalysesPerMonth}` : `ANALYZE · ${monthlyAnalysisCount}/${limits.maxAnalysesPerMonth}`}</>
+                      <><i className="fas fa-chart-simple"></i> {language === Language.ES ? `ANALIZAR · ${analysesUsed}/${limits.maxAnalyses} ${quotaPeriod}` : `ANALYZE · ${analysesUsed}/${limits.maxAnalyses} ${quotaPeriod}`}</>
                     )}
                   </button>
                 </form>
@@ -676,6 +679,7 @@ const App: React.FC = () => {
               settings={settings}
               onSave={async (result, t) => { await saveAnalysis('operation', `[Operation] ${t}`, result); }}
               initialResult={operationResult}
+              onQuotaExceeded={() => setIsPricingOpen(true)}
             />
           </Suspense>
         )}
@@ -806,15 +810,15 @@ const App: React.FC = () => {
               <i className="fas fa-crown text-slate-900 text-3xl"></i>
             </div>
             <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2 tracking-tight">
-              ¡Bienvenido a Pro! 🎉
+              ¡Bienvenido a {PLAN_LABEL[plan === 'free' ? 'pro' : plan]}! 🎉
             </h2>
             <p className="text-slate-500 dark:text-slate-400 text-sm mb-6 leading-relaxed">
-              Tu cuenta ya tiene acceso completo a todas las funcionalidades Pro: análisis ilimitados, screener completo, alertas, cartera IA y Telegram.
+              Tu suscripción está activa: screener completo, alertas, cartera IA, Telegram y más análisis Weinstein cada mes. Si aún ves el plan anterior, recarga la página en unos segundos.
             </p>
             <div className="grid grid-cols-2 gap-2 mb-6 text-left">
               {[
-                'Análisis ilimitados',
-                '20 alertas activas',
+                plan === 'elite' ? 'Análisis ilimitados' : '40 análisis al mes',
+                plan === 'elite' ? '100 alertas activas' : '20 alertas activas',
                 'Screener completo',
                 'Cartera IA',
                 'Notificaciones Telegram',
@@ -829,7 +833,7 @@ const App: React.FC = () => {
               onClick={() => setCheckoutSuccess(false)}
               className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-900 font-black rounded-xl transition-all shadow-lg shadow-amber-500/20"
             >
-              Empezar a usar Pro →
+              Empezar →
             </button>
           </div>
         </div>
@@ -842,6 +846,7 @@ const App: React.FC = () => {
         alertsCount={alerts.length}
         onLogout={handleLogout}
         isPro={isPro}
+        plan={plan}
         onUpgrade={() => { setIsProfileOpen(false); setIsPricingOpen(true); }}
       />
 

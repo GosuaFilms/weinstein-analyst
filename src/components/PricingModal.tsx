@@ -3,56 +3,60 @@ import { supabase } from '../lib/supabase';
 import { Language } from '../types';
 import { usePlan } from '../hooks/usePlan';
 
-// ── Env vars (set in .env and Vercel) ────────────────────────────────────────
-// VITE_STRIPE_PRICE_MONTHLY — Stripe price ID for monthly Pro
-// VITE_STRIPE_PRICE_YEARLY  — Stripe price ID for yearly Pro
+// Stripe prices are chosen server-side (stripe-checkout) from the plan + billing
+// period; see supabase/functions/_shared/stripePrices.ts.
 
-const PRICE_MONTHLY = import.meta.env.VITE_STRIPE_PRICE_MONTHLY ?? '';
-const PRICE_YEARLY  = import.meta.env.VITE_STRIPE_PRICE_YEARLY ?? '';
+type PaidPlan = 'pro' | 'elite';
 
 interface Props {
   language?: Language;
   onClose: () => void;
 }
 
-const FREE_FEATURES = [
-  { es: 'Análisis Weinstein (hasta 10)', en: 'Weinstein analyses (up to 10)' },
+interface Feature { es: string; en: string; highlight?: boolean }
+
+const FREE_FEATURES: Feature[] = [
+  { es: '3 análisis Weinstein al mes', en: '3 Weinstein analyses a month' },
   { es: 'Screener — 5 primeros resultados', en: 'Screener — first 5 results' },
-  { es: '2 alertas activas', en: '2 active alerts' },
-  { es: 'Historial de análisis', en: 'Analysis history' },
-  { es: 'Watchlist', en: 'Watchlist' },
+  { es: '1 alerta activa', en: '1 active alert' },
+  { es: 'Historial y watchlist', en: 'History and watchlist' },
   { es: 'Gráfico TradingView', en: 'TradingView chart' },
 ];
 
-const PRO_FEATURES = [
-  { es: 'Análisis ilimitados', en: 'Unlimited analyses', highlight: true },
+const PRO_FEATURES: Feature[] = [
+  { es: '40 análisis Weinstein al mes', en: '40 Weinstein analyses a month', highlight: true },
   { es: 'Screener completo — todos los índices', en: 'Full screener — all indices', highlight: true },
   { es: 'Hasta 20 alertas activas', en: 'Up to 20 active alerts' },
-  { es: 'Cartera virtual Weinstein', en: 'Weinstein virtual portfolio', highlight: true },
-  { es: 'Backtest Stage 2 + objetivos de precio', en: 'Stage 2 backtest + price targets', highlight: true },
-  { es: 'Notificaciones Telegram', en: 'Telegram notifications', highlight: true },
-  { es: 'Resumen diario de Stage 2 (09:00 Madrid)', en: 'Daily Stage 2 digest (09:00 Madrid)', highlight: true },
-  { es: 'Re-escaneo automático de cartera', en: 'Auto portfolio re-scan' },
+  { es: '10 análisis de operaciones al mes', en: '10 position reviews a month' },
+  { es: 'Cartera virtual y backtest Stage 2', en: 'Virtual portfolio and Stage 2 backtest', highlight: true },
+  { es: 'Telegram y resumen diario (09:00 Madrid)', en: 'Telegram and daily digest (09:00 Madrid)', highlight: true },
+  { es: 'Informe semanal de mercado', en: 'Weekly market report' },
+];
+
+const ELITE_FEATURES: Feature[] = [
+  { es: 'Todo lo de Pro', en: 'Everything in Pro' },
+  { es: 'Análisis ilimitados*', en: 'Unlimited analyses*', highlight: true },
+  { es: 'Análisis de operaciones ilimitados*', en: 'Unlimited position reviews*', highlight: true },
+  { es: 'Hasta 100 alertas activas', en: 'Up to 100 active alerts', highlight: true },
   { es: 'Soporte prioritario', en: 'Priority support' },
 ];
+
+const PRICES: Record<PaidPlan, { monthly: string; yearly: string; yearlyPerMonth: string; saving: string }> = {
+  pro:   { monthly: '€14.99', yearly: '€149', yearlyPerMonth: '€12.42', saving: '€30.88' },
+  elite: { monthly: '€39.99', yearly: '€399', yearlyPerMonth: '€33.25', saving: '€80.88' },
+};
 
 export const PricingModal: React.FC<Props> = ({ language = Language.ES, onClose }) => {
   const es = language === Language.ES;
   const { plan, loading: planLoading } = usePlan();
   const [billing, setBilling] = useState<'monthly' | 'yearly'>('monthly');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<PaidPlan | 'portal' | null>(null);
   const [error, setError]     = useState<string | null>(null);
 
-  const priceId = billing === 'monthly' ? PRICE_MONTHLY : PRICE_YEARLY;
-
-  const handleCheckout = async () => {
-    if (!priceId) {
-      setError(es
-        ? 'Stripe no está configurado. Contacta al administrador.'
-        : 'Stripe is not configured. Contact the administrator.');
-      return;
-    }
-    setLoading(true);
+  const handleCheckout = async (target: PaidPlan) => {
+    // Already paying: switching plan happens in Stripe's billing portal
+    if (plan !== 'free') return handlePortal();
+    setLoading(target);
     setError(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -70,21 +74,22 @@ export const PricingModal: React.FC<Props> = ({ language = Language.ES, onClose 
             'Content-Type':  'application/json',
             Authorization:   `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({ priceId, successUrl, cancelUrl }),
+          body: JSON.stringify({ plan: target, billing, successUrl, cancelUrl }),
         }
       );
       const json = await res.json();
+      if (json.code === 'USE_PORTAL') return handlePortal();
       if (!res.ok || json.error) throw new Error(json.error ?? 'checkout failed');
       if (json.url) window.location.href = json.url;
     } catch (err) {
       setError((err as Error).message);
     } finally {
-      setLoading(false);
+      setLoading(null);
     }
   };
 
-  const handlePortal = async () => {
-    setLoading(true);
+  async function handlePortal() {
+    setLoading('portal');
     setError(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -107,13 +112,64 @@ export const PricingModal: React.FC<Props> = ({ language = Language.ES, onClose 
     } catch (err) {
       setError((err as Error).message);
     } finally {
-      setLoading(false);
+      setLoading(null);
     }
+  }
+
+  const renderFeatures = (features: Feature[], accent: string) => (
+    <ul className="space-y-3 flex-grow mb-6">
+      {features.map((f, i) => (
+        <li key={i} className={`flex items-start gap-2.5 text-sm ${f.highlight ? 'text-slate-800 dark:text-slate-200 font-semibold' : 'text-slate-600 dark:text-slate-400'}`}>
+          <i className={`fas fa-check text-xs mt-0.5 flex-shrink-0 ${f.highlight ? accent : 'text-slate-400'}`}></i>
+          {es ? f.es : f.en}
+        </li>
+      ))}
+    </ul>
+  );
+
+  const renderPrice = (p: PaidPlan, accent: string) => (
+    <>
+      <div className="flex items-baseline gap-2">
+        <span className="text-4xl font-black text-slate-900 dark:text-white">
+          {billing === 'monthly' ? PRICES[p].monthly : PRICES[p].yearly}
+        </span>
+        <span className="text-slate-400 text-sm">
+          / {billing === 'monthly' ? (es ? 'mes' : 'month') : (es ? 'año' : 'year')}
+        </span>
+      </div>
+      {billing === 'yearly' && (
+        <p className={`text-xs font-bold mt-1 ${accent}`}>
+          {PRICES[p].yearlyPerMonth} / {es ? `mes · ahorras ${PRICES[p].saving}/año` : `month · save ${PRICES[p].saving}/year`}
+        </p>
+      )}
+    </>
+  );
+
+  const renderCta = (p: PaidPlan, label: string, classes: string) => {
+    const busy = loading === p || (plan !== 'free' && loading === 'portal');
+    const current = plan === p;
+    return (
+      <button
+        onClick={() => handleCheckout(p)}
+        disabled={loading !== null || planLoading}
+        className={`w-full py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2 ${classes}`}
+      >
+        {busy ? (
+          <><i className="fas fa-circle-notch animate-spin"></i>{es ? 'Cargando…' : 'Loading…'}</>
+        ) : current ? (
+          <><i className="fas fa-gear"></i>{es ? 'Gestionar suscripción' : 'Manage subscription'}</>
+        ) : plan !== 'free' ? (
+          <><i className="fas fa-arrow-right-arrow-left"></i>{es ? `Cambiar a ${p === 'pro' ? 'Pro' : 'Élite'}` : `Switch to ${p === 'pro' ? 'Pro' : 'Elite'}`}</>
+        ) : (
+          <><i className="fas fa-crown text-yellow-300"></i>{label}</>
+        )}
+      </button>
+    );
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-      <div className="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden max-h-[95vh] overflow-y-auto">
+      <div className="w-full max-w-6xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden max-h-[95vh] overflow-y-auto">
 
         {/* Header */}
         <div className="relative px-8 pt-10 pb-6 text-center bg-gradient-to-br from-violet-600 via-violet-500 to-indigo-500 text-white overflow-hidden">
@@ -155,7 +211,7 @@ export const PricingModal: React.FC<Props> = ({ language = Language.ES, onClose 
         </div>
 
         {/* Plan cards */}
-        <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
 
           {/* Free plan */}
           <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-6 flex flex-col">
@@ -168,28 +224,13 @@ export const PricingModal: React.FC<Props> = ({ language = Language.ES, onClose 
                 <span className="text-slate-400 text-sm">/ {es ? 'siempre' : 'forever'}</span>
               </div>
               <p className="text-sm text-slate-500 mt-2">
-                {es ? 'Para explorar la metodología Weinstein' : 'To explore the Weinstein methodology'}
+                {es ? 'Para probar el método Weinstein' : 'To try the Weinstein method'}
               </p>
             </div>
-
-            <ul className="space-y-3 flex-grow mb-6">
-              {FREE_FEATURES.map((f, i) => (
-                <li key={i} className="flex items-start gap-2.5 text-sm text-slate-600 dark:text-slate-400">
-                  <i className="fas fa-check text-slate-400 text-xs mt-0.5 flex-shrink-0"></i>
-                  {es ? f.es : f.en}
-                </li>
-              ))}
-            </ul>
-
-            {plan === 'free' ? (
-              <div className="w-full text-center py-2.5 rounded-xl text-sm font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
-                {es ? 'Plan actual' : 'Current plan'}
-              </div>
-            ) : (
-              <div className="w-full text-center py-2.5 rounded-xl text-sm font-bold border border-slate-200 dark:border-slate-700 text-slate-500">
-                {es ? 'Plan base' : 'Base plan'}
-              </div>
-            )}
+            {renderFeatures(FREE_FEATURES, 'text-slate-400')}
+            <div className={`w-full text-center py-2.5 rounded-xl text-sm font-bold ${plan === 'free' ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400' : 'border border-slate-200 dark:border-slate-700 text-slate-500'}`}>
+              {plan === 'free' ? (es ? 'Plan actual' : 'Current plan') : (es ? 'Plan base' : 'Base plan')}
+            </div>
           </div>
 
           {/* Pro plan */}
@@ -199,58 +240,34 @@ export const PricingModal: React.FC<Props> = ({ language = Language.ES, onClose 
                 {es ? 'Más popular' : 'Most popular'}
               </span>
             </div>
-
             <div className="mb-6">
               <p className="text-xs font-black uppercase tracking-widest text-violet-500 mb-2">Pro</p>
-              <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-black text-slate-900 dark:text-white">
-                  {billing === 'monthly' ? '€14.99' : '€129'}
-                </span>
-                <span className="text-slate-400 text-sm">
-                  / {billing === 'monthly' ? (es ? 'mes' : 'month') : (es ? 'año' : 'year')}
-                </span>
-              </div>
-              {billing === 'yearly' && (
-                <p className="text-xs text-violet-500 font-bold mt-1">
-                  €10.75 / {es ? 'mes · ahorras €50.88/año' : 'month · save €50.88/year'}
-                </p>
-              )}
+              {renderPrice('pro', 'text-violet-500')}
               <p className="text-sm text-slate-500 mt-2">
-                {es ? 'Análisis profesional completo sin límites' : 'Full professional analysis without limits'}
+                {es ? 'Todo el método Weinstein para el inversor activo' : 'The full Weinstein method for active investors'}
               </p>
             </div>
+            {renderFeatures(PRO_FEATURES, 'text-violet-500')}
+            {renderCta('pro', es ? 'Empezar con Pro' : 'Get Pro',
+              plan === 'pro'
+                ? 'bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400 hover:bg-violet-200 dark:hover:bg-violet-500/30'
+                : 'bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-500/30')}
+          </div>
 
-            <ul className="space-y-3 flex-grow mb-6">
-              {PRO_FEATURES.map((f, i) => (
-                <li key={i} className={`flex items-start gap-2.5 text-sm ${f.highlight ? 'text-slate-800 dark:text-slate-200 font-semibold' : 'text-slate-600 dark:text-slate-400'}`}>
-                  <i className={`fas fa-check text-xs mt-0.5 flex-shrink-0 ${f.highlight ? 'text-violet-500' : 'text-slate-400'}`}></i>
-                  {es ? f.es : f.en}
-                </li>
-              ))}
-            </ul>
-
-            {plan === 'pro' ? (
-              <button
-                onClick={handlePortal}
-                disabled={loading}
-                className="w-full py-3 rounded-xl text-sm font-bold bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400 hover:bg-violet-200 dark:hover:bg-violet-500/30 transition-all disabled:opacity-50"
-              >
-                <i className={`fas ${loading ? 'fa-circle-notch animate-spin' : 'fa-gear'} mr-2`}></i>
-                {loading ? (es ? 'Cargando…' : 'Loading…') : (es ? 'Gestionar suscripción' : 'Manage subscription')}
-              </button>
-            ) : (
-              <button
-                onClick={handleCheckout}
-                disabled={loading || planLoading}
-                className="w-full py-3 rounded-xl text-sm font-bold bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-500/30 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <><i className="fas fa-circle-notch animate-spin"></i>{es ? 'Cargando…' : 'Loading…'}</>
-                ) : (
-                  <><i className="fas fa-crown text-yellow-300"></i>{es ? 'Empezar con Pro' : 'Get Pro'}</>
-                )}
-              </button>
-            )}
+          {/* Elite plan */}
+          <div className="rounded-2xl border-2 border-amber-500 p-6 flex flex-col relative bg-gradient-to-br from-amber-50/60 to-orange-50/40 dark:from-amber-500/5 dark:to-orange-500/5">
+            <div className="mb-6">
+              <p className="text-xs font-black uppercase tracking-widest text-amber-500 mb-2">{es ? 'Élite' : 'Elite'}</p>
+              {renderPrice('elite', 'text-amber-600 dark:text-amber-400')}
+              <p className="text-sm text-slate-500 mt-2">
+                {es ? 'Sin límites para quien analiza a diario' : 'No limits for daily analysts'}
+              </p>
+            </div>
+            {renderFeatures(ELITE_FEATURES, 'text-amber-500')}
+            {renderCta('elite', es ? 'Empezar con Élite' : 'Get Elite',
+              plan === 'elite'
+                ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-500/30'
+                : 'bg-amber-500 hover:bg-amber-400 text-slate-900 shadow-lg shadow-amber-500/30')}
           </div>
         </div>
 
@@ -265,8 +282,13 @@ export const PricingModal: React.FC<Props> = ({ language = Language.ES, onClose 
         <div className="px-8 pb-8 text-center space-y-2">
           <p className="text-[10px] text-slate-400">
             {es
-              ? 'Pago seguro vía Stripe · Cancela cuando quieras · Sin permanencia'
-              : 'Secure payment via Stripe · Cancel anytime · No lock-in'}
+              ? 'Pago seguro vía Stripe · IVA incluido · Cancela cuando quieras · Sin permanencia'
+              : 'Secure payment via Stripe · VAT included · Cancel anytime · No lock-in'}
+          </p>
+          <p className="text-[10px] text-slate-400">
+            {es
+              ? '* Uso razonable: hasta 15 análisis y 15 análisis de operaciones al día.'
+              : '* Fair use: up to 15 analyses and 15 position reviews a day.'}
           </p>
           <p className="text-[10px] text-slate-400">
             {es

@@ -3,7 +3,8 @@ import React from 'react';
 // Shape returned by the admin-metrics edge function (SQL public.admin_metrics()).
 export interface AdminMetrics {
   users_total: number;
-  users_pro: number;
+  users_pro: number;    // paying users (Pro + Élite)
+  users_elite?: number;
   signups_7d: number;
   dau: number;
   wau: number;
@@ -112,8 +113,8 @@ const AdminMetricsPanel: React.FC<Props> = ({ metrics: m, onClose }) => {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <Kpi label="Usuarios" value={String(m.users_total)} sub={`+${m.signups_7d} en 7 días`} />
             <Kpi label="Activos 7 días" value={String(m.wau)} sub={`${m.dau} hoy · ${m.mau} en 30 días`} />
-            <Kpi label="Plan Pro" value={String(m.users_pro)} />
-            <Kpi label="Conversión a Pro" value={`${conversion.toFixed(1)} %`} sub="Pro / usuarios totales" />
+            <Kpi label="De pago" value={String(m.users_pro)} sub={`${m.users_elite ?? 0} en Élite`} />
+            <Kpi label="Conversión a pago" value={`${conversion.toFixed(1)} %`} sub="Pro + Élite / usuarios totales" />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -1,9 +1,10 @@
 // POST /functions/v1/stripe-checkout
-// Creates a Stripe Checkout session for upgrading to Pro.
+// Creates a Stripe Checkout session for a paid plan (Pro or Élite).
 // Uses raw Stripe REST API — no SDK, fully Deno-compatible.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
+import { priceFor, type PaidPlan, type Billing } from '../_shared/stripePrices.ts';
 
 async function stripePost(path: string, params: Record<string, string>, key: string) {
   const res = await fetch(`https://api.stripe.com/v1${path}`, {
@@ -39,19 +40,27 @@ Deno.serve(async (req) => {
   }
 
   const body = await req.json().catch(() => ({}));
-  const { priceId, successUrl, cancelUrl } = body as {
-    priceId: string; successUrl: string; cancelUrl: string;
+  const { plan, billing, successUrl, cancelUrl } = body as {
+    plan: PaidPlan; billing: Billing; successUrl: string; cancelUrl: string;
   };
-  if (!priceId || !successUrl || !cancelUrl) {
-    return jsonResponse({ error: 'priceId, successUrl and cancelUrl required' }, 400);
+  if (!['pro', 'elite'].includes(plan) || !['monthly', 'yearly'].includes(billing) || !successUrl || !cancelUrl) {
+    return jsonResponse({ error: 'plan, billing, successUrl and cancelUrl required' }, 400);
   }
+  const priceId = priceFor(plan, billing);
+  if (!priceId) return jsonResponse({ error: `price for ${plan} ${billing} not configured` }, 503);
 
   // Fetch or create Stripe customer
   const { data: profile } = await admin
     .from('profiles')
-    .select('stripe_customer_id, email, display_name')
+    .select('stripe_customer_id, stripe_subscription_id, plan, email, display_name')
     .eq('id', user.id)
     .single();
+
+  // Already subscribed: plan changes go through the billing portal, otherwise
+  // Checkout would open a second, parallel subscription
+  if (profile?.plan && profile.plan !== 'free' && profile.stripe_subscription_id) {
+    return jsonResponse({ error: 'already subscribed', code: 'USE_PORTAL' }, 409);
+  }
 
   let customerId: string = profile?.stripe_customer_id ?? '';
   if (!customerId) {
@@ -74,6 +83,7 @@ Deno.serve(async (req) => {
     cancel_url:                            cancelUrl,
     client_reference_id:                   user.id,
     'subscription_data[metadata][supabase_user_id]': user.id,
+    'metadata[plan]':                      plan,
     allow_promotion_codes:                 'true',
   }, stripeKey);
 

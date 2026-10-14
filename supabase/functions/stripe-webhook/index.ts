@@ -4,6 +4,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { jsonResponse } from '../_shared/cors.ts';
+import { planForPrice } from '../_shared/stripePrices.ts';
 
 const ACTIVE_STATUSES = new Set(['active', 'trialing']);
 
@@ -48,7 +49,7 @@ async function setPlan(
   admin: ReturnType<typeof createClient>,
   userId: string | null,
   customerId: string | null,
-  plan: 'free' | 'pro',
+  plan: 'free' | 'pro' | 'elite',
   subscriptionId?: string,
 ) {
   if (!userId && !customerId) return;
@@ -93,7 +94,8 @@ Deno.serve(async (req) => {
         const customerId   = typeof session.customer === 'string' ? session.customer : session.customer?.id ?? null;
         const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
         if (session.mode === 'subscription') {
-          await setPlan(admin, userId, customerId, 'pro', subscriptionId);
+          const plan = session.metadata?.plan === 'elite' ? 'elite' : 'pro';
+          await setPlan(admin, userId, customerId, plan, subscriptionId);
         }
         break;
       }
@@ -101,7 +103,8 @@ Deno.serve(async (req) => {
       case 'customer.subscription.updated': {
         const sub        = event.data.object;
         const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer?.id;
-        const plan: 'free' | 'pro' = ACTIVE_STATUSES.has(sub.status) ? 'pro' : 'free';
+        // Plan follows the subscription's price, so a switch in the billing portal is picked up
+        const plan = ACTIVE_STATUSES.has(sub.status) ? planForPrice(sub.items?.data?.[0]?.price?.id) : 'free';
         const userId     = sub.metadata?.supabase_user_id ?? null;
         await setPlan(admin, userId, customerId, plan, sub.id);
         break;

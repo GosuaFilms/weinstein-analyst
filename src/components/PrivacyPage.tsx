@@ -46,6 +46,11 @@ const PrivacyPage: React.FC = () => {
                   base: 'Ejecución del contrato (art. 6.1.b RGPD)',
                 },
                 {
+                  title: 'Inicio de sesión con Google (opcional)',
+                  items: ['Si eliges «Continuar con Google», Google nos facilita tu nombre, tu dirección de correo electrónico y tu foto de perfil. Solo los usamos para crear tu cuenta e identificarte; no accedemos a ningún otro dato de tu cuenta de Google.'],
+                  base: 'Ejecución del contrato (art. 6.1.b RGPD)',
+                },
+                {
                   title: 'Datos de uso',
                   items: ['Tickers analizados', 'Historial de análisis', 'Alertas configuradas', 'Posiciones de cartera introducidas'],
                   base: 'Ejecución del contrato (art. 6.1.b RGPD)',
@@ -99,7 +104,8 @@ const PrivacyPage: React.FC = () => {
             <div className="space-y-2">
               {[
                 { name: 'Supabase Inc.', role: 'Base de datos y autenticación', country: 'EE.UU. (cláusulas contractuales tipo UE)' },
-                { name: 'Stripe Inc.', role: 'Procesamiento de pagos', country: 'EE.UU. (Privacy Shield / SCC)' },
+                { name: 'Stripe Inc.', role: 'Procesamiento de pagos', country: 'EE.UU. (Marco de Privacidad de Datos UE-EE.UU. / SCC)' },
+                { name: 'Google LLC', role: 'Inicio de sesión con Google (solo si el usuario lo elige)', country: 'EE.UU. (Marco de Privacidad de Datos UE-EE.UU.)' },
                 { name: 'Resend Inc.', role: 'Envío de correos electrónicos transaccionales', country: 'EE.UU. (SCC)' },
                 { name: 'Anthropic PBC', role: 'Generación de análisis por IA (se envía solo el ticker)', country: 'EE.UU. (SCC)' },
                 { name: 'Telegram Messenger', role: 'Notificaciones (solo si el usuario activa la integración)', country: 'Opcional — bajo consentimiento' },
@@ -114,6 +120,7 @@ const PrivacyPage: React.FC = () => {
               ))}
             </div>
             <p className="mt-3 text-slate-500 text-xs">No vendemos ni cedemos sus datos a terceros con fines comerciales.</p>
+            <p className="mt-2 text-slate-500 text-xs">El uso que Alpha Stage hace de la información recibida de las API de Google se ajusta a la <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer" className="underline hover:text-slate-300">Política de datos de usuario de los servicios de API de Google</a>, incluidos los requisitos de uso limitado.</p>
           </section>
 
           <section>

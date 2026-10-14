@@ -356,6 +356,10 @@ const LandingPage: React.FC<Props> = ({ onGetStarted }) => {
             <span className="text-slate-500 text-sm font-bold">Alpha Stage Terminal</span>
           </div>
           <div className="flex items-center gap-6 text-xs text-slate-600">
+            <a href="/legal/privacy" className="hover:text-slate-400 transition-colors">Privacidad</a>
+            <span>·</span>
+            <a href="/legal/terms" className="hover:text-slate-400 transition-colors">Términos</a>
+            <span>·</span>
             <a href="mailto:contabilidad@gosua.com" className="hover:text-slate-400 transition-colors">Contacto</a>
             <span>·</span>
             <span>© {new Date().getFullYear()} Alpha Stage Terminal</span>

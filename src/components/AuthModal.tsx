@@ -33,7 +33,12 @@ const AuthModal: React.FC<Props> = ({ isOpen, onClose }) => {
       }
       onClose();
     } catch (err) {
-      setError((err as Error).message || 'Error de autenticación');
+      const message = (err as Error).message || 'Error de autenticación';
+      // Accounts created with Google have no password, so email login fails
+      // with this generic message; point those users to the Google button.
+      setError(/invalid login credentials/i.test(message)
+        ? 'Email o contraseña incorrectos. Si creaste la cuenta con Google, entra con «Continuar con Google».'
+        : message);
     } finally {
       setLoading(false);
     }

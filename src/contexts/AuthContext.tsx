@@ -20,6 +20,9 @@ interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** True after the user opened a password-recovery link and still has to choose a new password */
+  passwordRecovery: boolean;
+  endPasswordRecovery: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -38,6 +41,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  // The recovery link lands on /reset-password (see AuthModal); Supabase also
+  // fires PASSWORD_RECOVERY once it has signed the user in from that link.
+  const [passwordRecovery, setPasswordRecovery] = useState(() => window.location.pathname === '/reset-password');
 
   async function loadProfile(userId: string) {
     const { data } = await supabase
@@ -55,7 +61,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, newSession) => {
+      if (event === 'PASSWORD_RECOVERY') setPasswordRecovery(true);
       setSession(newSession);
       if (newSession?.user) loadProfile(newSession.user.id);
       else setProfile(null);
@@ -83,6 +90,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     async signOut() {
       await supabase.auth.signOut();
+    },
+    passwordRecovery,
+    endPasswordRecovery() {
+      setPasswordRecovery(false);
+      if (window.location.pathname === '/reset-password') window.history.replaceState({}, '', '/');
     },
   };
 

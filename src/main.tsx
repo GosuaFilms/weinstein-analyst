@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
+import ResetPasswordModal from './components/ResetPasswordModal';
 import './index.css';
 
 // Register service worker unconditionally for PWA installability + offline support
@@ -16,6 +17,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <AuthProvider>
       <App />
+      <ResetPasswordModal />
     </AuthProvider>
   </React.StrictMode>
 );

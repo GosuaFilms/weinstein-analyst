@@ -22,6 +22,24 @@ Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
+  // Cron-secret-only diagnostic: key mode and the configured prices as Stripe sees them
+  const cronSecret = Deno.env.get('CRON_SECRET');
+  if (cronSecret && req.headers.get('x-cron-secret') === cronSecret) {
+    const key = Deno.env.get('STRIPE_SECRET_KEY') ?? '';
+    const prices: Record<string, unknown> = {};
+    for (const plan of ['pro', 'elite'] as const) {
+      for (const billing of ['monthly', 'yearly'] as const) {
+        const id = priceFor(plan, billing);
+        if (!id) { prices[`${plan}_${billing}`] = 'not set'; continue; }
+        const p = await fetch(`https://api.stripe.com/v1/prices/${id}`, { headers: { Authorization: `Bearer ${key}` } }).then((r) => r.json());
+        prices[`${plan}_${billing}`] = p.error
+          ? p.error.message
+          : { amount: p.unit_amount / 100, currency: p.currency, interval: p.recurring?.interval, active: p.active, livemode: p.livemode, tax: p.tax_behavior };
+      }
+    }
+    return jsonResponse({ key_mode: key.startsWith('sk_live') || key.startsWith('rk_live') ? 'live' : key ? 'test' : 'missing', prices });
+  }
+
   const authHeader = req.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) return jsonResponse({ error: 'unauthorized' }, 401);
 

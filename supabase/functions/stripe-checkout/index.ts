@@ -103,6 +103,10 @@ Deno.serve(async (req) => {
     'subscription_data[metadata][supabase_user_id]': user.id,
     'metadata[plan]':                      plan,
     allow_promotion_codes:                 'true',
+    // A 100 % promo code (e.g. a free trial month for a friend) shouldn't ask
+    // for a card; when the free period ends without one, the subscription
+    // lapses and the webhook moves the user back to Free.
+    payment_method_collection:             'if_required',
   }, stripeKey);
 
   if (session.error) return jsonResponse({ error: session.error.message }, 400);

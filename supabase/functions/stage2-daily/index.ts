@@ -16,7 +16,7 @@ import { classifyStage } from '../_shared/weinstein.ts';
 import { INDICES } from '../_shared/indices.ts';
 import { trySendTelegram } from '../_shared/telegram.ts';
 import {
-  stepTrackRecord, saveSignals, symbolCloseOn, daysBetween, MAX_GAP_DAYS,
+  stepTrackRecord, saveSignals, symbolCloseOn, daysBetween, isFriday, MAX_GAP_DAYS,
   type ScanRow, type TrackSignal,
 } from '../_shared/trackRecord.ts';
 
@@ -69,6 +69,7 @@ async function scanIndexStage2(indexId: string) {
         extended:      snap.extendedStage2,
         stop_loss:     snap.suggestedStopLoss,
         stop_risk_pct: snap.stopLossRiskPct,
+        benchmark_stage: snap.benchmarkStage,
       };
     } catch {
       return null;
@@ -251,7 +252,18 @@ Deno.serve(async (req) => {
         .or(`status.eq.open,exit_date.eq.${today}`);
       if (error) throw new Error(error.message);
       const signals = (openRows ?? []) as TrackSignal[];
+      // Weekly entry rules compare Friday with the previous Friday scan
+      const { data: recentDates } = await supabase
+        .from('stage2_snapshots').select('scan_date').lt('scan_date', today)
+        .order('scan_date', { ascending: false }).limit(2000);
+      const prevFridayDate = [...new Set((recentDates ?? []).map((r: { scan_date: string }) => r.scan_date))].find(isFriday) ?? null;
+      let prevFriday: { date: string; symbols: Set<string> } | null = null;
+      if (prevFridayDate) {
+        const { data: fr } = await supabase.from('stage2_snapshots').select('symbol').eq('scan_date', prevFridayDate);
+        prevFriday = { date: prevFridayDate, symbols: new Set((fr ?? []).map((r: { symbol: string }) => r.symbol)) };
+      }
       const res = await stepTrackRecord(signals, {
+        prevFriday,
         date: today,
         prevDate,
         stage2: allStage2 as ScanRow[],
@@ -308,7 +320,7 @@ async function backfillTrack(supabase: any, from: string) {
   for (let page = 0; ; page++) {
     const { data, error } = await supabase
       .from('stage2_snapshots')
-      .select('scan_date, symbol, name, index_id, currency, current_price, confidence, stop_loss, distance_pct, mansfield_rs, extended')
+      .select('scan_date, symbol, name, index_id, currency, current_price, confidence, stop_loss, distance_pct, mansfield_rs, extended, volume_ratio, benchmark_stage')
       .gte('scan_date', from)
       .order('scan_date')
       .range(page * 1000, page * 1000 + 999);
@@ -328,9 +340,11 @@ async function backfillTrack(supabase: any, from: string) {
   for (let i = 1; i < dates.length; i++) {
     const date = dates[i], prevDate = dates[i - 1];
     const today = byDate.get(date)!;
+    const prevFridayDate = dates.slice(0, i).reverse().find(isFriday) ?? null;
     const res = await stepTrackRecord(signals, {
       date,
       prevDate,
+      prevFriday: prevFridayDate ? { date: prevFridayDate, symbols: new Set(byDate.get(prevFridayDate)!.map((r) => r.symbol)) } : null,
       stage2: today,
       prevSymbols: new Set(byDate.get(prevDate)!.map((r) => r.symbol)),
       scannedIndices: new Set(today.map((r) => r.index_id)),

@@ -1,10 +1,14 @@
 // Automatic, rule-based track record built from the daily Stage 2 scan.
 //
 // Rules (shown verbatim on /resultados, keep them in sync):
-//  • Entry: a stock appears in Stage 2 on a scan when it wasn't on the previous
-//    scan, and it is not extended (> 15 % over its MM30). Entry = that day's close.
-//    Entries are only taken when the previous scan is ≤ MAX_GAP_DAYS old — after
-//    a hole in the data we can't tell when the stock really entered.
+//  • Entry (from ENTRY_RULES_FROM): on the Friday scan (weekly close), a stock in
+//    Stage 2 that was not in Stage 2 on the previous Friday's scan, not extended
+//    (≤ 15 % over its MM30), with positive Mansfield RS, and whose market is not
+//    in Stage 4. Entry = Friday's close. The breakout week's volume is recorded,
+//    not required. Before that date: any daily scan, previous scan as reference,
+//    only the not-extended filter.
+//    Entries are only taken when the reference scan is recent — after a hole in
+//    the data we can't tell when the stock really entered.
 //  • Exit: the first daily close at or below the initial stop, or the stock no
 //    longer being in Stage 2 (exit = that day's close). Since WEEKLY_EXIT_FROM the
 //    Stage 2 exit is only confirmed on Friday's scan (weekly close, as Weinstein
@@ -18,7 +22,12 @@ export const MAX_GAP_DAYS = 5;
 /** From this date on, leaving Stage 2 closes a signal only on the Friday (weekly-close) scan. */
 export const WEEKLY_EXIT_FROM = '2026-11-26';
 
-const isFriday = (date: string) => new Date(`${date}T12:00:00Z`).getUTCDay() === 5;
+/** From this date on, entries follow the weekly rules described above. */
+export const ENTRY_RULES_FROM = '2026-11-27';
+/** The previous Friday scan must be the one a week before (7 days, plus slack for holidays). */
+export const MAX_WEEKLY_GAP_DAYS = 9;
+
+export const isFriday = (date: string) => new Date(`${date}T12:00:00Z`).getUTCDay() === 5;
 
 export interface ScanRow {
   symbol: string;
@@ -31,6 +40,8 @@ export interface ScanRow {
   distance_pct: number | null;
   mansfield_rs: number | null;
   extended: boolean | null;
+  volume_ratio?: number | null;
+  benchmark_stage?: string | null;
 }
 
 export interface TrackSignal {
@@ -56,6 +67,8 @@ export interface TrackSignal {
   last_price: number | null;
   benchmark_last: number | null;
   data_gap: boolean;
+  volume_ratio?: number | null;
+  benchmark_stage?: string | null;
 }
 
 export function daysBetween(a: string, b: string): number {
@@ -100,6 +113,8 @@ export interface StepInput {
   stage2: ScanRow[];
   /** Symbols in Stage 2 on prevDate. */
   prevSymbols: Set<string>;
+  /** Weekly rules: date of the previous Friday scan and its Stage 2 symbols (null = none). */
+  prevFriday?: { date: string; symbols: Set<string> } | null;
   /** Indices that actually produced results on `date`: a failed index says nothing about its stocks. */
   scannedIndices: Set<string>;
   /** Price of any symbol on `date`; null = unknown (keep the signal as it is). */
@@ -164,10 +179,17 @@ export async function stepTrackRecord(signals: TrackSignal[], input: StepInput):
     }
   }
 
-  if (!gap) {
+  const weekly = date >= ENTRY_RULES_FROM;
+  const canEnter = weekly
+    ? isFriday(date) && !!input.prevFriday && daysBetween(input.prevFriday.date, date) <= MAX_WEEKLY_GAP_DAYS
+    : !gap;
+  if (canEnter) {
+    const reference = weekly ? input.prevFriday!.symbols : input.prevSymbols;
     for (const r of today.values()) {
-      if (input.prevSymbols.has(r.symbol) || openSymbols.has(r.symbol)) continue;
+      if (reference.has(r.symbol) || openSymbols.has(r.symbol)) continue;
       if (r.extended || r.current_price == null || r.current_price <= 0) continue;
+      if (weekly && !((r.mansfield_rs ?? 0) > 0)) continue;
+      if (weekly && r.benchmark_stage === 'STAGE_4') continue;
       if (signals.some((s) => s.symbol === r.symbol && s.entry_date === date)) continue;
       const bench = await benchmarkOn(r.symbol, r.currency, date);
       signals.push({
@@ -177,6 +199,7 @@ export async function stepTrackRecord(signals: TrackSignal[], input: StepInput):
         benchmark_symbol: bench.symbol, benchmark_entry: bench.price,
         status: 'open', exit_date: null, exit_price: null, exit_reason: null, benchmark_exit: null,
         last_date: date, last_price: r.current_price, benchmark_last: bench.price, data_gap: false,
+        volume_ratio: r.volume_ratio ?? null, benchmark_stage: r.benchmark_stage ?? null,
       });
       openSymbols.add(r.symbol);
       opened++;
@@ -189,6 +212,7 @@ const COLUMNS = [
   'symbol', 'name', 'index_id', 'currency', 'confidence', 'entry_date', 'entry_price', 'stop_loss',
   'distance_pct', 'mansfield_rs', 'benchmark_symbol', 'benchmark_entry', 'status', 'exit_date',
   'exit_price', 'exit_reason', 'benchmark_exit', 'last_date', 'last_price', 'benchmark_last', 'data_gap',
+  'volume_ratio', 'benchmark_stage',
 ] as const;
 
 /** Writes signals back: updates by id, inserts the new ones. */

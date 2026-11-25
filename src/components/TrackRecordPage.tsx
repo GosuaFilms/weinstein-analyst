@@ -27,6 +27,7 @@ interface Signal {
   last_price: number | null;
   benchmark_last: number | null;
   data_gap: boolean;
+  volume_ratio: number | null;
 }
 
 interface Row extends Signal {
@@ -45,9 +46,10 @@ const INDEX_LABEL: Record<string, string> = {
 
 const METHOD = [
   'Cada día laborable, tras el cierre, la app escanea 7 índices (IBEX 35, S&P 100, NASDAQ, DAX, CAC 40, FTSE 100 y Euro Stoxx 50) con las reglas de Weinstein.',
-  'Señal = un valor que entra en Etapa 2 (no estaba en el escaneo anterior) y no está extendido (menos de un 15 % sobre su MM30). Se toma el cierre de ese día.',
+  'Señal = al cierre del viernes, un valor que está en Etapa 2 y no lo estaba el viernes anterior, con fuerza relativa de Mansfield positiva, sin estar extendido (menos de un 15 % sobre su MM30) y con su mercado fuera de Etapa 4. Se toma el cierre del viernes. Se anota el volumen de esa semana frente a su media, para medir si las rupturas con volumen (≥2×) funcionan mejor, como sostiene Weinstein.',
   'Salida = el primer cierre diario en o por debajo del stop inicial, o que el valor deje de estar en Etapa 2 al cierre semanal del viernes. Se toma el cierre de ese día.',
-  'Cambio de regla el 26 nov 2026: hasta esa fecha, la salida por perder la Etapa 2 se tomaba en el primer escaneo diario fuera de Etapa 2. Desde entonces se confirma con el cierre del viernes, como lee los gráficos Weinstein. Las señales cerradas antes no se han recalculado.',
+  'Cambio de reglas de salida el 26 nov 2026: hasta esa fecha, la salida por perder la Etapa 2 se tomaba en el primer escaneo diario fuera de Etapa 2; desde entonces se confirma con el cierre del viernes. Las señales cerradas antes no se han recalculado.',
+  'Cambio de reglas de entrada el 27 nov 2026: hasta esa fecha, una señal se abría cualquier día en que el valor aparecía en Etapa 2 sin estar extendido, sin exigir fuerza relativa positiva ni mirar el mercado. Las señales abiertas antes se mantienen con sus reglas.',
   'Cada señal se compara con el ETF de su índice durante los mismos días.',
   'Sin comisiones, deslizamiento ni dividendos. Las señales abiertas se valoran al último cierre.',
 ];
@@ -111,6 +113,10 @@ const TrackRecordPage: React.FC = () => {
     { value: closed.length ? `${Math.round((winners.length / closed.length) * 100)}%` : '—', label: 'Cerradas en positivo', sub: `${winners.length} de ${closed.length} cerradas`, color: 'text-amber-400' },
   ];
 
+  const withVol = rows.filter((r) => r.volume_ratio != null);
+  const volHi = withVol.filter((r) => (r.volume_ratio as number) >= 2);
+  const volLo = withVol.filter((r) => (r.volume_ratio as number) < 2);
+
   const visible = filter === 'all' ? rows : rows.filter((r) => r.status === filter);
   const FILTERS: { id: Filter; label: string; count: number }[] = [
     { id: 'all', label: 'Todas', count: rows.length },
@@ -159,7 +165,7 @@ const TrackRecordPage: React.FC = () => {
           </p>
           {lastUpdate && <p className="text-slate-600 text-xs mt-3">Actualizado con el cierre del {fmtDate(lastUpdate)}</p>}
           <p className="text-slate-500 text-xs mt-1">
-            Regla actualizada el 26 nov 2026: la salida por perder la Etapa 2 se confirma ahora con el cierre del viernes.{' '}
+            Reglas actualizadas: desde el 26 nov 2026 las salidas, y desde el 27 nov 2026 las entradas, se confirman con el cierre del viernes; las entradas exigen además fuerza relativa positiva y mercado fuera de Etapa 4.{' '}
             <button onClick={() => setShowMethod(true)} className="underline hover:text-slate-300">Ver reglas</button>
           </p>
         </div>
@@ -174,6 +180,15 @@ const TrackRecordPage: React.FC = () => {
             </div>
           ))}
         </div>
+
+        {withVol.length > 0 && (
+          <div className="mb-8 rounded-2xl border border-white/5 bg-white/[0.02] px-5 py-4 text-sm text-slate-400">
+            <span className="text-white font-bold">¿Importa el volumen?</span>{' '}
+            Rupturas con volumen ≥2×: <strong className="text-white">{volHi.length}</strong> señales, resultado medio <strong className="text-white">{pct(avg(volHi.map((r) => r.ret)))}</strong>.
+            {' '}Sin ese volumen: <strong className="text-white">{volLo.length}</strong>, resultado medio <strong className="text-white">{pct(avg(volLo.map((r) => r.ret)))}</strong>.
+            <span className="text-slate-500"> Solo señales desde el 27 nov 2026.</span>
+          </div>
+        )}
 
         {/* ── Method ── */}
         <div className="mb-8 rounded-2xl border border-white/5 bg-white/[0.02]">
@@ -236,6 +251,14 @@ const TrackRecordPage: React.FC = () => {
                         <span className="text-white font-black">{r.symbol}</span>
                         <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${badge.cls}`}>{badge.label}</span>
                         <span className="text-[10px] text-slate-500 font-bold">{INDEX_LABEL[r.index_id] ?? r.index_id}</span>
+                        {r.volume_ratio != null && (
+                          <span
+                            title="Volumen de la semana de entrada frente a su media de 30 semanas"
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${r.volume_ratio >= 2 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'border-white/10 text-slate-500'}`}
+                          >
+                            Vol. {r.volume_ratio.toFixed(1)}×
+                          </span>
+                        )}
                       </div>
                       <div className="text-slate-400 text-xs truncate">{r.name}</div>
                     </div>

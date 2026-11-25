@@ -71,7 +71,7 @@ export function classifyStage(snap: TechnicalSnapshot): StageClassification {
     const extras = [
       nearHigh ? 'cerca de máximos 52sem' : null,
       volBoost ? 'volumen ≥2× la media' : null,
-      extendedStage2 ? '⚠ Etapa 2 extendida (>15% sobre MM30) — considerar salida parcial' : null,
+      extendedStage2 ? '⚠ Etapa 2 extendida (>15% sobre MM30): no es punto de compra; si ya estás dentro, protege con el stop' : null,
     ].filter(Boolean).join(', ');
     const multiMaStr = multiMaAlignment === 'bullish'
       ? ` MA10w(${sma10?.toFixed(2) ?? '?'}) > MA30w > MA40w(${sma40?.toFixed(2) ?? '?'}) alcistas alineadas ✓`
@@ -99,21 +99,34 @@ export function classifyStage(snap: TechnicalSnapshot): StageClassification {
     };
   }
 
-  // Stage 3 — still above MM30 but momentum exhausted: slope flat/negative or RS giving up.
-  if (above && (!smaRising || !rsRising)) {
+  // Stages 1 and 3 look alike (MM30 flat, price around it); Weinstein tells them
+  // apart by what came before: a base follows a decline, a top follows an advance.
+  // priorTrend = MM30 change from ~30 to ~8 weeks ago (52-week range as tie-breaker).
+  const prior = snap.priorTrend ?? 'sideways';
+  const priorPct = snap.priorTrendPct != null ? ` (MM30 ${snap.priorTrendPct > 0 ? '+' : ''}${snap.priorTrendPct.toFixed(0)}% en los meses previos)` : '';
+  const slopeWord = sma30Trend === 'rising' ? 'todavía ascendente' : sma30Trend === 'falling' ? 'descendente' : 'plana';
+  const dryUpNote = volumeDryUp === true ? ' · ⚡ Volumen en contracción (posible ruptura próxima)' : '';
+
+  // Top context: after an advance, or price already lost a still-rising MM30
+  const isTop = prior === 'advance' || (prior === 'sideways' && !above && sma30Trend === 'rising');
+
+  if (isTop) {
     return {
       stage: 'STAGE_3',
-      confidence: 'medium',
-      reasoning: `Etapa 3 (distribución): precio sobre MM30 pero ${!smaRising ? 'MM30 se aplana/baja' : 'Mansfield RS pierde fuerza'}. RS=${rsStr}.`,
+      confidence: prior === 'advance' ? 'medium' : 'low',
+      reasoning: above
+        ? `Etapa 3 (techo): tras una subida${priorPct}, la MM30 se ha vuelto ${slopeWord} y el precio (${dist.toFixed(1)}% sobre ella) ya no avanza. RS=${rsStr}. Weinstein: no comprar; si estás dentro, sube el stop justo bajo la MM30.`
+        : `Etapa 3 (techo): tras una subida${priorPct}, el precio ha perdido la MM30 ${slopeWord} (${Math.abs(dist).toFixed(1)}% por debajo). RS=${rsStr}. Señal de aviso: si la MM30 gira a la baja, pasaría a Etapa 4.`,
     };
   }
 
-  // Stage 1 — price below MM30 but slope flat or turning up → base.
-  const dryUpNote = volumeDryUp === true ? ' · ⚡ Volumen en contracción (posible rotura inminente)' : '';
+  // Base context: after a decline, or sideways without signs of a top
   return {
     stage: 'STAGE_1',
-    confidence: 'medium',
-    reasoning: `Etapa 1 (base): precio ${Math.abs(dist).toFixed(1)}% bajo MM30 ${sma30Trend === 'rising' ? 'girando al alza' : 'plana'}. Esperar ruptura confirmada con volumen ≥2× antes de comprar.${dryUpNote}`,
+    confidence: prior === 'decline' ? 'medium' : 'low',
+    reasoning: above
+      ? `Etapa 1 (base): tras una caída o lateral${priorPct}, el precio está ${dist.toFixed(1)}% sobre una MM30 ${slopeWord}. La base puede estar madurando: comprar solo en la ruptura de su resistencia con volumen ≥2× y la MM30 girando al alza.${dryUpNote}`
+      : `Etapa 1 (base): tras una caída o lateral${priorPct}, el precio está ${Math.abs(dist).toFixed(1)}% bajo una MM30 ${slopeWord}. Esperar a que la MM30 se aplane y el precio rompa la base con volumen.${dryUpNote}`,
   };
 }
 

@@ -327,6 +327,13 @@ export interface TechnicalSnapshot {
   stopLossBasis: string | null;
   stopLossRiskPct: number | null;  // distance from current price to stop (%)
   extendedStage2: boolean;         // true when price > 15% above MM30 (late Stage 2 warning)
+  // Where the stock comes from: MM30 change from ~30 to ~8 weeks ago, with the
+  // 52-week range as tie-breaker. Weinstein tells a base (Stage 1, after a decline)
+  // from a top (Stage 3, after an advance) by what came before the flat MM30.
+  priorTrend: 'advance' | 'decline' | 'sideways' | null;
+  priorTrendPct: number | null;
+  // true when the last weekly candle is the current, unfinished week
+  weekInProgress: boolean;
   benchmarkStage: 'STAGE_1' | 'STAGE_2' | 'STAGE_3' | 'STAGE_4' | null;
   benchmarkStageReason: string | null;
   // Modern Weinstein multi-MA upgrade (weekly equivalents of daily MAs)
@@ -381,7 +388,20 @@ function weekKey(ts: number): string {
   return monday.toISOString().slice(0, 10);
 }
 
-function computeMansfieldRS(
+/**
+ * True when a weekly candle (timestamp = its start) is the current, unfinished week.
+ * The week counts as finished from Friday 21:00 UTC (after the US close; Europe
+ * closes earlier) through the weekend.
+ */
+export function isWeekInProgress(candleTs: number, now: Date = new Date()): boolean {
+  if (weekKey(candleTs) !== weekKey(Math.floor(now.getTime() / 1000))) return false;
+  const day = now.getUTCDay();
+  if (day === 6 || day === 0) return false;
+  if (day === 5 && now.getUTCHours() >= 21) return false;
+  return true;
+}
+
+export function computeMansfieldRS(
   stock: WeeklySeries,
   benchmark: WeeklySeries,
   period = 52
@@ -410,9 +430,10 @@ function computeMansfieldRS(
   const ma13 = series.length >= 13
     ? series.slice(-13).reduce((a, b) => a + b, 0) / 13
     : null;
-  // Weinstein: RS trend is "rising" when current > MA13 and > prev (or simply when slope-3w > 0).
-  const slope3 = computeSlope(series, 3);
-  const trend = classifyTrend(slope3, 0.3);
+  // RS trend = change of the oscillator over 3 weeks, in points. (A percent change
+  // divides by a value that can be negative: −2 → −1 came out as "falling".)
+  const diff3 = series.length >= 4 ? series[series.length - 1] - series[series.length - 4] : null;
+  const trend: Trend | null = diff3 == null ? null : diff3 > 0.3 ? 'rising' : diff3 < -0.3 ? 'falling' : 'flat';
   return { current, prev, ma13, trend, series };
 }
 
@@ -566,12 +587,31 @@ async function attachWeinsteinExtras(
   base: TechnicalSnapshot,
   stock: WeeklySeries,
   stockLows: number[],
-  smaPeriod: number
+  smaPeriod: number,
+  weekInProgress: boolean,
 ): Promise<TechnicalSnapshot> {
   // MM30 slope (% change of the SMA line over the last 5 weeks).
   const smaSeries = computeSMASeries(stock.closes, smaPeriod);
   const sma30Slope = computeSlope(smaSeries, 5);
   const sma30Trend = classifyTrend(sma30Slope, 0.5);
+
+  // What came before: MM30 change from ~30 weeks ago to ~8 weeks ago (before any
+  // recent flattening). Sideways → the position in the 52-week range decides.
+  let priorTrendPct: number | null = null;
+  let priorTrend: TechnicalSnapshot['priorTrend'] = null;
+  if (smaSeries.length >= 31) {
+    const from = smaSeries[smaSeries.length - 31], to = smaSeries[smaSeries.length - 9];
+    if (from > 0) {
+      priorTrendPct = (to / from - 1) * 100;
+      priorTrend = priorTrendPct > 5 ? 'advance' : priorTrendPct < -5 ? 'decline' : 'sideways';
+      const hi = base.weekly52High, lo = base.weekly52Low;
+      if (priorTrend === 'sideways' && hi != null && lo != null && hi > lo) {
+        const pos = (base.currentPrice - lo) / (hi - lo);
+        if (pos >= 2 / 3) priorTrend = 'advance';
+        else if (pos <= 1 / 3) priorTrend = 'decline';
+      }
+    }
+  }
 
   // Swing-low based Weinstein stop.
   const recentSwingLow = findRecentSwingLow(stockLows, 10);
@@ -671,6 +711,9 @@ async function attachWeinsteinExtras(
     atr14Weekly,
     atr14WeeklyPct,
     volumeDryUp,
+    priorTrend,
+    priorTrendPct,
+    weekInProgress,
     baseResistance,
     entryLevel: entry?.level ?? null,
     entryBasis: entry?.basis ?? null,
@@ -727,11 +770,15 @@ export async function getTechnicalSnapshot(
   const closes = bars.closes;
   const highs = bars.highs;
   const lows = bars.lows;
-  const volumes = bars.volumes.filter((v) => v > 0);
+  // Volume is judged on completed weeks only: the running week's volume is partial
+  // (Monday's scan saw ~0.2× of a normal week), so it is left out, and the week being
+  // measured is compared with the average of the completed weeks before it.
+  const weekInProgress = bars.timestamps.length > 0 && isWeekInProgress(bars.timestamps[bars.timestamps.length - 1]);
+  const doneVolumes = (weekInProgress ? bars.volumes.slice(0, -1) : bars.volumes).filter((v) => v > 0);
 
   const sma = closes.length ? computeSMA(closes, smaPeriod) : null;
-  const volAvg = volumes.length ? computeVolumeAvg(volumes, smaPeriod) : null;
-  const lastVol = volumes.length ? volumes[volumes.length - 1] : null;
+  const lastVol = doneVolumes.length ? doneVolumes[doneVolumes.length - 1] : null;
+  const volAvg = doneVolumes.length > 1 ? computeVolumeAvg(doneVolumes.slice(0, -1), smaPeriod) : null;
 
   // Without a quote, the latest weekly close is the price and the change is week-on-week
   const lastClose = closes.at(-1) ?? NaN;
@@ -788,15 +835,19 @@ export async function getTechnicalSnapshot(
     atr14Weekly: null,
     atr14WeeklyPct: null,
     volumeDryUp: null,
+    priorTrend: null,
+    priorTrendPct: null,
+    weekInProgress: false,
     baseResistance: null,
     entryLevel: null,
     entryBasis: null,
   };
   return await attachWeinsteinExtras(
     base,
-    { timestamps: bars.timestamps, closes, highs, volumes: bars.volumes },
+    { timestamps: bars.timestamps, closes, highs, volumes: doneVolumes },
     lows,
     smaPeriod,
+    weekInProgress,
   );
 }
 

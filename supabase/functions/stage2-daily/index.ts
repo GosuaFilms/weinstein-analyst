@@ -169,6 +169,25 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
+  // Cron-only, read-only: classify one index with the current rules (no writes)
+  if ((body as { action?: string }).action === 'classify') {
+    if (!cronSecret || providedSecret !== cronSecret) return jsonResponse({ error: 'forbidden' }, 403);
+    const idx = INDICES[(body as { index?: string }).index ?? 'IBEX35'];
+    if (!idx) return jsonResponse({ error: 'unknown index' }, 400);
+    const out = await pooledMap(idx.tickers, 8, async (t: string) => {
+      try {
+        const snap = await getTechnicalSnapshot(t, 30, { maxAgeMin: 24 * 60 });
+        const cls = classifyStage(snap);
+        return {
+          t, stage: cls.stage, conf: cls.confidence, dist: snap.distanceFromSMA30Pct?.toFixed(1), slope: snap.sma30Trend,
+          prior: snap.priorTrend, priorPct: snap.priorTrendPct?.toFixed(0), rs: snap.mansfieldRS?.toFixed(2), rsTrend: snap.mansfieldRSTrend,
+          vol: snap.volumeRatio?.toFixed(2), inProgress: snap.weekInProgress,
+        };
+      } catch (e) { return { t, error: (e as Error).message }; }
+    });
+    return jsonResponse(out);
+  }
+
   // Cron-only: rebuild the track record by replaying the stored scans
   if ((body as { action?: string; from?: string }).action === 'backfill_track') {
     if (!cronSecret || providedSecret !== cronSecret) return jsonResponse({ error: 'forbidden' }, 403);

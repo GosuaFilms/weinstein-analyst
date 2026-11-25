@@ -49,7 +49,8 @@ REAL-TIME TECHNICAL ANCHOR (source: Twelve Data — DO NOT invent prices):
 - SMA30 (weekly): ${snap.sma30Weekly ?? 'N/A'}
 - MM30 slope (last 5w): ${snap.sma30Slope?.toFixed(2) ?? 'N/A'}% → trend = ${snap.sma30Trend ?? 'N/A'} (Weinstein: Stage 2 requires RISING)
 - Distance from SMA30: ${snap.distanceFromSMA30Pct?.toFixed(2) ?? 'N/A'}%${snap.extendedStage2 ? ' ⚠ EXTENDED (>15% above MM30 — late Stage 2, consider partial exit)' : ''}
-- Weekly volume ratio vs 30-week avg: ${snap.volumeRatio?.toFixed(2) ?? 'N/A'}x (Weinstein breakout filter: ≥2×)
+- Weekly volume ratio, last COMPLETED week vs the average of the 30 completed weeks before it: ${snap.volumeRatio?.toFixed(2) ?? 'N/A'}x (Weinstein breakout filter: ≥2×)${snap.weekInProgress ? ' — the current week is still in progress and is not counted' : ''}
+- Prior trend before the recent MM30 slope (MM30 change ~30→8 weeks ago, 52w range as tie-breaker): ${snap.priorTrend ?? 'N/A'}${snap.priorTrendPct != null ? ` (${snap.priorTrendPct.toFixed(1)}%)` : ''} — Weinstein: a flat MM30 after an advance is a Stage 3 top; after a decline, a Stage 1 base
 - 52-week high / low: ${snap.weekly52High ?? 'N/A'} / ${snap.weekly52Low ?? 'N/A'}
 - Mansfield Relative Strength vs ${snap.benchmarkName ?? 'benchmark'} (${snap.benchmarkSymbol ?? 'N/A'}): ${snap.mansfieldRS?.toFixed(2) ?? 'N/A'} (prev: ${snap.mansfieldRSPrev?.toFixed(2) ?? 'N/A'}, 13w MA: ${snap.mansfieldRSMA13?.toFixed(2) ?? 'N/A'}) → trend = ${snap.mansfieldRSTrend ?? 'N/A'}
   Weinstein rule: Stage 2 requires RS > 0 AND rising; Stage 4 usually RS < 0 AND falling.

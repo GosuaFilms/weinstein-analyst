@@ -126,7 +126,7 @@ function formatTelegramMessage(
     lines.push('✅ Sin cambios respecto a ayer.');
   }
 
-  lines.push('📋 Lista completa: https://www.alphastage.finance/etapa-2');
+  lines.push('📋 Lista completa: https://www.alphastage.finance/etapa-2?utm_source=telegram&utm_medium=canal');
   lines.push('<i>#Stage2Monitor #Weinstein</i>');
   return lines.join('\n');
 }

@@ -13,6 +13,8 @@ export interface AdminMetrics {
   signups_weekly: Array<{ week: string; n: number }>;
   active_weekly: Array<{ week: string; n: number }>;
   events_30d: Array<{ event: string; n: number; users: number }>;
+  // Signups by first-touch source; 'sin datos' = accounts created before it was tracked
+  sources?: Array<{ source: string; users: number; users_30d: number; activated: number; paid: number }>;
 }
 
 // Edge function name → what the owner calls it
@@ -146,6 +148,39 @@ const AdminMetricsPanel: React.FC<Props> = ({ metrics: m, onClose }) => {
                 </tbody>
               </table>
             )}
+          </div>
+
+          <div>
+            <h3 className="text-xs font-black text-slate-700 dark:text-slate-200 mb-2">Origen de los usuarios</h3>
+            {!m.sources?.length ? (
+              <p className="text-sm text-slate-500">Todavía no hay datos.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200 dark:border-slate-700">
+                    <th className="py-2">Origen</th>
+                    <th className="py-2 text-right">Altas</th>
+                    <th className="py-2 text-right">30 días</th>
+                    <th className="py-2 text-right" title="Han hecho al menos un análisis">Activos</th>
+                    <th className="py-2 text-right">De pago</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {m.sources.map(r => (
+                    <tr key={r.source} className="border-b border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-200">
+                      <td className="py-2">{r.source}</td>
+                      <td className="py-2 text-right font-mono">{r.users}</td>
+                      <td className="py-2 text-right font-mono">{r.users_30d}</td>
+                      <td className="py-2 text-right font-mono">{r.activated}</td>
+                      <td className="py-2 text-right font-mono">{r.paid}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <p className="text-[11px] text-slate-400 mt-2">
+              Se registra desde el 26 nov 2026 a partir de las etiquetas <code>utm_source</code> o <code>ref</code> del enlace, o de la web de procedencia. «directo» = sin etiqueta ni web de origen; «sin datos» = cuentas anteriores.
+            </p>
           </div>
 
           <p className="text-[11px] text-slate-400">

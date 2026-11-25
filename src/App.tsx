@@ -22,6 +22,7 @@ import HelpPanel from './components/HelpPanel';
 import LandingPage from './components/LandingPage';
 import TrackRecordPage from './components/TrackRecordPage';
 import StageTwoTodayPage from './components/StageTwoTodayPage';
+import { readSignupSource, alreadySaved, markSaved } from './lib/attribution';
 import PricingPage from './components/PricingPage';
 import TermsPage from './components/TermsPage';
 import PrivacyPage from './components/PrivacyPage';
@@ -170,6 +171,14 @@ const App: React.FC = () => {
     try { sym = sessionStorage.getItem('pending_ticker'); sessionStorage.removeItem('pending_ticker'); } catch { /* ignore */ }
     if (sym) { setTicker(sym); setActiveTab('scan'); setShowOnboarding(false); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Save where a new account came from (first touch), once
+  useEffect(() => {
+    if (!user || alreadySaved()) return;
+    supabase.rpc('set_signup_source', { p: readSignupSource() ?? {} }).then(({ error }) => {
+      if (!error) markSaved();
+    });
   }, [user]);
 
   // Trigger analysis once ticker state has settled (avoids stale closure race with setTimeout)

@@ -4,6 +4,10 @@ import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
 import ResetPasswordModal from './components/ResetPasswordModal';
 import './index.css';
+import { captureSignupSource } from './lib/attribution';
+
+// Before App mounts: App rewrites the URL (e.g. ?analizar=) on its first effects
+captureSignupSource();
 
 // Register service worker unconditionally for PWA installability + offline support
 if ('serviceWorker' in navigator) {

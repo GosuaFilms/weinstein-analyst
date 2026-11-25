@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { readSignupSource } from '../lib/attribution';
 import type { User } from '../types';
 
 interface Profile {
@@ -84,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { display_name: displayName } },
+        options: { data: { display_name: displayName, signup_source: readSignupSource() } },
       });
       if (error) throw error;
     },

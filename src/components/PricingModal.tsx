@@ -29,7 +29,7 @@ const PRO_FEATURES: Feature[] = [
   { es: 'Hasta 20 alertas activas', en: 'Up to 20 active alerts' },
   { es: '10 análisis de operaciones al mes', en: '10 position reviews a month' },
   { es: 'Cartera virtual y backtest Stage 2', en: 'Virtual portfolio and Stage 2 backtest', highlight: true },
-  { es: 'Telegram y resumen diario (09:00 Madrid)', en: 'Telegram and daily digest (09:00 Madrid)', highlight: true },
+  { es: 'Telegram, revisión semanal y briefing diario', en: 'Telegram, weekly review and daily brief', highlight: true },
   { es: 'Informe semanal de mercado', en: 'Weekly market report' },
 ];
 

@@ -154,7 +154,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted }) => {
           {/* Stats */}
           <div className="flex flex-wrap items-center justify-center gap-8 text-center">
             {[
-              { value: '100%', label: 'Gratis durante el beta' },
+              { value: '3 análisis', label: 'Gratis al mes, sin tarjeta' },
               { value: 'S&P · DAX · IBEX', label: 'Mercados cubiertos' },
               { value: 'Semanal', label: 'Informe de mercado' },
             ].map(({ value, label }) => (
@@ -305,7 +305,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted }) => {
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl sm:text-5xl font-black text-white mb-4">Todo lo que necesitas</h2>
-            <p className="text-slate-400 text-lg max-w-2xl mx-auto">Una suite completa de herramientas Weinstein. Gratis durante el beta.</p>
+            <p className="text-slate-400 text-lg max-w-2xl mx-auto">Una suite completa de herramientas Weinstein. Empieza gratis y pasa a Pro cuando lo necesites.</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -332,7 +332,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted }) => {
                 <i className="fas fa-bolt text-slate-900 text-2xl"></i>
               </div>
               <h2 className="text-4xl font-black text-white mb-4">¿Listo para invertir con método?</h2>
-              <p className="text-slate-400 text-lg mb-8 max-w-xl mx-auto">Únete durante el beta — acceso completo, sin límites, sin tarjeta de crédito.</p>
+              <p className="text-slate-400 text-lg mb-8 max-w-xl mx-auto">Empieza gratis: 3 análisis al mes, sin tarjeta de crédito.</p>
               <button
                 onClick={onGetStarted}
                 className="px-12 py-4 bg-amber-500 hover:bg-amber-400 text-slate-900 font-black text-lg rounded-2xl transition-all shadow-2xl shadow-amber-500/30 hover:scale-105 active:scale-95 inline-flex items-center gap-3"

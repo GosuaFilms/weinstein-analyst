@@ -271,11 +271,15 @@ function buildWeeklyReportEmail(report: string, weekStr: string, stage2Count: nu
       <!-- Footer -->
       <tr>
         <td style="background:#0f172a;padding:24px 40px;text-align:center;border-top:1px solid #1e293b;">
-          <p style="margin:0 0 8px;color:#334155;font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:700;">
-            ALPHA STAGE TERMINAL — WEINSTEIN STRATEGY CERTIFIED
+          <p style="margin:0 0 8px;color:#64748b;font-size:11px;line-height:1.5;">
+            Herramienta educativa basada en el método Weinstein. No constituye asesoramiento financiero.
           </p>
-          <p style="margin:0;color:#1e293b;font-size:10px;">
-            © ${new Date().getFullYear()} Alpha Stage Terminal · <a href="${appUrl}" style="color:#334155;">weinsteinanalyst.com</a>
+          <p style="margin:0 0 8px;color:#64748b;font-size:11px;line-height:1.5;">
+            Recibes este informe porque tienes cuenta en Alpha Stage. Puedes darte de baja en
+            <a href="${appUrl}" style="color:#94a3b8;">alphastage.finance</a> → tu perfil → Notificaciones → «Informe del sábado».
+          </p>
+          <p style="margin:0;color:#475569;font-size:10px;">
+            © ${new Date().getFullYear()} Gosua Films S.L. · <a href="${appUrl}" style="color:#64748b;">alphastage.finance</a>
           </p>
         </td>
       </tr>
@@ -423,6 +427,12 @@ Deno.serve(async (req) => {
     return jsonResponse({ sent: 0, stage2Found: stage2.length, channelSent });
   }
 
+  const { data: optedOutRows } = await supabase
+    .from('user_settings')
+    .select('user_id')
+    .eq('weekly_report_enabled', false);
+  const optedOut = new Set((optedOutRows ?? []).map((r: { user_id: string }) => r.user_id));
+
   // ── 6. Build email ─────────────────────────────────────────────────────────
   const emailHtml    = buildWeeklyReportEmail(reportText, weekLabel, stage2.length, appUrl);
   const emailSubject = `📊 Informe Semanal Weinstein — ${weekLabel}`;
@@ -431,6 +441,7 @@ Deno.serve(async (req) => {
   let telegramSent = 0;
 
   for (const profile of profiles as Array<{ id: string; email: string; telegram_chat_id: number | null }>) {
+    if (optedOut.has(profile.id)) continue;
     // Telegram — all connected users
     if (botToken && profile.telegram_chat_id) {
       const ok = await sendTelegramMessage(profile.telegram_chat_id, tgMsg, botToken);

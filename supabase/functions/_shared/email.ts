@@ -98,7 +98,7 @@ function buildHtml(p: AlertEmailPayload): string {
       <tr>
         <td style="background:#0f172a;padding:20px 32px;text-align:center;border-top:1px solid #1e293b;">
           <p style="margin:0;color:#334155;font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:700;">
-            ALPHA STAGE TERMINAL — WEINSTEIN STRATEGY CERTIFIED
+            ALPHA STAGE — HERRAMIENTA EDUCATIVA, NO ES ASESORAMIENTO FINANCIERO
           </p>
         </td>
       </tr>

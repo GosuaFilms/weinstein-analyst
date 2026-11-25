@@ -245,7 +245,7 @@ function generateHtml(userName: string, items: ScannedItem[], dateStr: string): 
       <div style="text-align:center">
         <a href="https://alphastage.finance" style="color:#f59e0b;font-weight:800;font-size:13px;text-decoration:none">alphastage.finance</a>
         <div style="color:#94a3b8;font-size:10px;margin-top:10px;line-height:1.7;max-width:480px;margin-left:auto;margin-right:auto">
-          ⚠️ Herramienta educativa basada en el método Weinstein. No constituye asesoramiento financiero.<br>Los mercados conllevan riesgo de pérdida de capital.
+          ⚠️ Herramienta educativa basada en el método Weinstein. No constituye asesoramiento financiero.<br>Los mercados conllevan riesgo de pérdida de capital.<br>Recibes este email porque activaste el «Briefing diario». Puedes desactivarlo en tu perfil → Notificaciones.
         </div>
       </div>
     </td>
@@ -268,7 +268,7 @@ async function sendEmail(to: string, subject: string, html: string): Promise<boo
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
     body: JSON.stringify({
-      from: 'Alpha Stage <noreply@gosua.com>',
+      from: Deno.env.get('ALERT_FROM_EMAIL') ?? 'Alpha Stage <informes@alphastage.finance>',
       to,
       subject,
       html,
@@ -357,13 +357,12 @@ Deno.serve(async (req) => {
       const name = user.user_metadata?.name ?? user.email.split('@')[0];
       targets = [{ userId: user.id, email: user.email, name }];
     } else {
-      // Cron mode: get all opted-in users with a watchlist
-      // 1. Users who explicitly opted out
-      const { data: optedOut } = await adminClient
+      // Cron mode: only users who switched the daily brief on (opt-in) and have a watchlist
+      const { data: optedIn } = await adminClient
         .from('user_settings')
         .select('user_id')
-        .eq('daily_email_enabled', false);
-      const excludeIds = new Set((optedOut ?? []).map(r => r.user_id));
+        .eq('daily_email_enabled', true);
+      const includeIds = new Set((optedIn ?? []).map(r => r.user_id));
 
       // 2. All users with watchlist items
       const { data: wlUsers } = await adminClient
@@ -371,7 +370,7 @@ Deno.serve(async (req) => {
         .select('user_id')
         .limit(500);
 
-      const uniqueIds = [...new Set((wlUsers ?? []).map(r => r.user_id))].filter(id => !excludeIds.has(id));
+      const uniqueIds = [...new Set((wlUsers ?? []).map(r => r.user_id))].filter(id => includeIds.has(id));
 
       // 3. Fetch their auth data
       const emailPromises = uniqueIds.map(async (userId) => {

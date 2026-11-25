@@ -4,7 +4,11 @@ import { supabase } from '../lib/supabase';
 interface UserSettings {
   daily_email_enabled: boolean;
   weekly_stage_alerts: boolean;
+  weekly_report_enabled: boolean;
 }
+
+// Daily brief is opt-in; the weekly review and Saturday report are on until switched off
+const DEFAULTS: UserSettings = { daily_email_enabled: false, weekly_stage_alerts: true, weekly_report_enabled: true };
 
 interface UseUserSettingsReturn {
   settings: UserSettings | null;
@@ -27,12 +31,12 @@ export function useUserSettings(): UseUserSettingsReturn {
 
       const { data } = await supabase
         .from('user_settings')
-        .select('daily_email_enabled, weekly_stage_alerts')
+        .select('daily_email_enabled, weekly_stage_alerts, weekly_report_enabled')
         .eq('user_id', user.id)
         .maybeSingle();
 
       if (!cancelled) {
-        setSettings(data ?? { daily_email_enabled: true, weekly_stage_alerts: true });
+        setSettings({ ...DEFAULTS, ...(data ?? {}) });
         setLoading(false);
       }
     }
@@ -46,7 +50,7 @@ export function useUserSettings(): UseUserSettingsReturn {
     if (!user) return;
 
     setSaving(true);
-    const next = { ...(settings ?? { daily_email_enabled: true, weekly_stage_alerts: true }), ...patch };
+    const next = { ...(settings ?? DEFAULTS), ...patch };
     setSettings(next);
 
     await supabase.from('user_settings').upsert({

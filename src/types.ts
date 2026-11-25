@@ -73,13 +73,18 @@ export interface TechnicalSnapshotSummary {
   recentSwingLow?: number | null;
   weekly52High?: number | null;
   weekly52Low?: number | null;
+  baseResistance?: number | null;
+  entryLevel?: number | null;
+  entryBasis?: 'breakout' | 'pullback' | null;
+  marketOpen?: boolean | null;
 }
 
 export interface AnalysisResult {
   companyName?: string;
   tickerSymbol?: string;
   currentPrice: string;
-  priceTimestamp?: string; // Nuevo campo para precisión temporal
+  priceTimestamp?: string; // time of the price, already formatted in Madrid time
+  marketOpen?: boolean | null;
   stage: string;
   sma30Analysis: string;
   relativeStrength: string;

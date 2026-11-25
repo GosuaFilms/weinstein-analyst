@@ -4,7 +4,7 @@
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
 import { requireUser } from '../_shared/auth.ts';
 import { checkAiQuota, recordAiUsage } from '../_shared/quota.ts';
-import { getTechnicalSnapshot } from '../_shared/marketData.ts';
+import { getTechnicalSnapshot, formatPriceTime } from '../_shared/marketData.ts';
 import { classifyStage } from '../_shared/weinstein.ts';
 import { generate, extractJson } from '../_shared/anthropic.ts';
 
@@ -86,10 +86,8 @@ Return STRICT JSON in ${langName}:
     const result = extractJson<Record<string, unknown>>(raw);
     // Enforce authoritative numbers
     result.currentPrice = `${snap.currency === 'USD' ? '$' : snap.currency + ' '}${snap.currentPrice.toFixed(2)}`;
-    result.priceTimestamp = new Date(snap.priceTimestamp).toLocaleString(
-      settings.language === 'es' ? 'es-ES' : 'en-US',
-      { dateStyle: 'short', timeStyle: 'medium' }
-    );
+    result.priceTimestamp = formatPriceTime(snap.priceTimestamp, settings.language === 'es');
+    result.marketOpen = snap.marketOpen;
     result.profitAmount = `${profitAmount >= 0 ? '+' : ''}${profitAmount.toFixed(2)} ${snap.currency}`;
     result.profitPercentage = `${profitPct >= 0 ? '+' : ''}${profitPct.toFixed(2)}%`;
     result.tickerSymbol = snap.symbol;

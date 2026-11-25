@@ -152,7 +152,9 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
   const labels = language === Language.ES ? {
     report: 'REPORTE DE ACTIVO',
     terminal: 'TERMINAL ALPHA 3.1',
-    live: 'DATOS EN TIEMPO REAL',
+    marketOpen: 'MERCADO ABIERTO · PRECIO CON POSIBLE RETRASO',
+    marketClosed: 'MERCADO CERRADO · ÚLTIMO CIERRE',
+    marketUnknown: 'ÚLTIMO PRECIO DISPONIBLE',
     sma: 'Análisis SMA 30W',
     rs: 'Fuerza Relativa Mansfield',
     volume: 'Perfil de Volumen',
@@ -166,11 +168,13 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
     sync: 'Terminal Sincronizada',
     buffer: 'Escribiendo en Buffer...',
     currentPrice: 'PRECIO ACTUAL',
-    asOf: 'VÁLIDO A:'
+    asOf: 'PRECIO DE:'
   } : {
     report: 'ASSET REPORT',
     terminal: 'ALPHA TERMINAL 3.1',
-    live: 'LIVE MARKET FEED',
+    marketOpen: 'MARKET OPEN · PRICE MAY BE DELAYED',
+    marketClosed: 'MARKET CLOSED · LAST CLOSE',
+    marketUnknown: 'LATEST AVAILABLE PRICE',
     sma: '30W SMA Analysis',
     rs: 'Mansfield Rel. Strength',
     volume: 'Volume Profile',
@@ -184,7 +188,7 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
     sync: 'Terminal Synced',
     buffer: 'Writing to Buffer...',
     currentPrice: 'CURRENT PRICE',
-    asOf: 'AS OF:'
+    asOf: 'PRICE AS OF:'
   };
 
   return (
@@ -249,13 +253,10 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
                         </span>
                         <div className="flex flex-col gap-0.5">
                           {data.priceTimestamp && (
-                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest whitespace-nowrap">
+                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
                                 {labels.asOf} {data.priceTimestamp}
                             </span>
                           )}
-                          <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest whitespace-nowrap opacity-70">
-                            NY: {new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' })} | MAD: {new Date().toLocaleTimeString('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit' })}
-                          </span>
                         </div>
                     </div>
                   </div>
@@ -268,7 +269,8 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
                   <i className="fas fa-layer-group"></i> <span>{data.stage || 'Stage Unknown'}</span>
                 </div>
                 <div className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800/80 rounded-xl text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-widest border border-slate-200 dark:border-slate-700">
-                  <i className="fas fa-signal text-emerald-500"></i> <span>{labels.live}</span>
+                  <i className={`fas ${data.marketOpen ? 'fa-signal text-emerald-500' : 'fa-clock text-slate-400'}`}></i>
+                  <span>{data.marketOpen === true ? labels.marketOpen : data.marketOpen === false ? labels.marketClosed : labels.marketUnknown}</span>
                 </div>
               </div>
             </div>
@@ -512,89 +514,90 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
           </section>
         </div>
 
-        {/* ATR Position Sizing Calculator */}
+        {/* Position sizing calculator — uses the same entry and stop as the plan */}
         {data.technicalSnapshot?.atr14Weekly && (() => {
-          const atr = data.technicalSnapshot!.atr14Weekly!;
-          const price = data.technicalSnapshot!.currentPrice ?? parseFloat(data.currentPrice) ?? 0;
+          const snap = data.technicalSnapshot!;
+          const es = language === Language.ES;
+          const atr = snap.atr14Weekly!;
+          const price = snap.currentPrice ?? parseFloat(data.currentPrice) ?? 0;
           if (!price) return null;
+          // Waiting for a breakout: size the trade at the planned entry, not today's price
+          const waitingBreakout = snap.entryBasis === 'breakout' && snap.entryLevel != null && price < snap.entryLevel;
+          const entry = waitingBreakout ? snap.entryLevel! : price;
+          const planStop = snap.suggestedStopLoss ??
+            (data.stopLoss ? parseFloat(data.stopLoss.replace(/[^0-9.]/g, '')) : null);
 
           const riskAmt = posCalcPortfolio * posCalcRiskPct / 100;
-          const riskPerShare = atr * posCalcAtrMult;
-          const atrStop = price - riskPerShare;
-          const shares = riskPerShare > 0 ? Math.floor(riskAmt / riskPerShare) : 0;
-          const posValue = shares * price;
-          const posPct = posCalcPortfolio > 0 ? (posValue / posCalcPortfolio * 100) : 0;
-
-          const wsStop = data.technicalSnapshot!.suggestedStopLoss ??
-            (data.stopLoss ? parseFloat(data.stopLoss.replace(/[^0-9.]/g, '')) : null);
-          const wsRisk = wsStop ? price - wsStop : null;
-          const wsShares = (wsRisk && wsRisk > 0) ? Math.floor(riskAmt / wsRisk) : null;
-          const wsValue = wsShares ? wsShares * price : null;
-          const wsPct = (wsValue && posCalcPortfolio > 0) ? wsValue / posCalcPortfolio * 100 : null;
-
+          const sizing = (stop: number | null) => {
+            const perShare = stop != null ? entry - stop : null;
+            if (perShare == null || perShare <= 0) return null;
+            const shares = Math.floor(riskAmt / perShare);
+            const value = shares * entry;
+            return { stop: stop!, riskPct: perShare / entry * 100, shares, value, pct: posCalcPortfolio > 0 ? value / posCalcPortfolio * 100 : 0 };
+          };
+          const plan = sizing(planStop);
+          const alt = sizing(entry - atr * posCalcAtrMult);
           const fmt0 = (n: number) => n.toLocaleString('es-ES', { maximumFractionDigits: 0 });
+
+          const Row = ({ r, title, sub, primary }: { r: NonNullable<typeof plan>; title: string; sub: string; primary: boolean }) => (
+            <div className={`grid grid-cols-5 gap-2 rounded-xl p-3 border ${primary ? 'bg-violet-50 dark:bg-violet-500/10 border-violet-100 dark:border-violet-500/20' : 'bg-slate-100 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700/40'}`}>
+              {[
+                { k: title, v: r.stop.toFixed(2), sub, color: 'text-rose-600 dark:text-rose-400' },
+                { k: es ? 'Acciones' : 'Shares', v: r.shares.toLocaleString() },
+                { k: es ? 'Valor pos.' : 'Pos. value', v: fmt0(r.value) },
+                { k: `% ${es ? 'cartera' : 'portfolio'}`, v: `${r.pct.toFixed(1)}%`, color: r.pct > 25 ? 'text-amber-600 dark:text-amber-400' : undefined },
+                { k: es ? 'Riesgo' : 'Risk', v: fmt0(riskAmt), sub: `${r.riskPct.toFixed(1)}% ${es ? 'por acción' : 'per share'}`, color: 'text-rose-600 dark:text-rose-400' },
+              ].map((c) => (
+                <div key={c.k} className="text-center">
+                  <p className={`text-[9px] font-black uppercase tracking-wider mb-0.5 ${primary ? 'text-violet-500' : 'text-slate-400'}`}>{c.k}</p>
+                  <p className={`text-sm font-black ${c.color ?? 'text-slate-800 dark:text-slate-100'}`}>{c.v}</p>
+                  {c.sub && <p className="text-[8px] text-slate-400">{c.sub}</p>}
+                </div>
+              ))}
+            </div>
+          );
 
           return (
             <div className="px-8 md:px-12 pb-8" data-html2canvas-ignore="true">
               <div className="bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800 p-4">
-                {/* Header */}
-                <div className="flex items-center gap-2 mb-4">
+                <div className="flex flex-wrap items-center gap-2 mb-4">
                   <i className="fas fa-calculator text-violet-500 text-xs"></i>
                   <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex-grow">
-                    {language === Language.ES ? 'Calculadora de Posición (ATR)' : 'Position Sizing Calculator (ATR)'}
+                    {es ? 'Calculadora de posición' : 'Position sizing'}
                   </h3>
                   <span className="text-[9px] text-slate-400">
-                    ATR14w: <span className="font-black text-slate-600 dark:text-slate-300">{atr.toFixed(2)}</span>
-                    {data.technicalSnapshot!.atr14WeeklyPct != null && (
-                      <span className="ml-1">({data.technicalSnapshot!.atr14WeeklyPct!.toFixed(1)}%)</span>
-                    )}
-                    <span className="mx-2 text-slate-300 dark:text-slate-600">·</span>
-                    <span className="font-bold text-slate-500">{language === Language.ES ? 'Precio' : 'Price'}:</span> <span className="font-black text-slate-600 dark:text-slate-300">{price.toFixed(2)}</span>
+                    <span className="font-bold text-slate-500">{es ? 'Entrada' : 'Entry'}:</span>{' '}
+                    <span className="font-black text-slate-600 dark:text-slate-300">{entry.toFixed(2)}</span>
+                    <span className="ml-1">({waitingBreakout ? (es ? 'nivel de ruptura del plan' : 'plan breakout level') : (es ? 'precio actual' : 'current price')})</span>
                   </span>
                 </div>
 
-                {/* Controls */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
                   <div>
-                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1 block">
-                      {language === Language.ES ? 'Capital (€/$)' : 'Portfolio ($)'}
-                    </label>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1 block">{es ? 'Capital (€/$)' : 'Portfolio ($)'}</label>
                     <input
-                      type="number"
-                      min={1000}
-                      step={5000}
-                      value={posCalcPortfolio}
+                      type="number" min={1000} step={5000} value={posCalcPortfolio}
                       onChange={e => setPosCalcPortfolio(Math.max(0, Number(e.target.value)))}
                       className="w-full text-sm font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-400"
                     />
                   </div>
                   <div>
-                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1 block">
-                      {language === Language.ES ? 'Riesgo / trade' : 'Risk / trade'}
-                    </label>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1 block">{es ? 'Riesgo / operación' : 'Risk / trade'}</label>
                     <div className="flex gap-1">
                       {([0.5, 1, 1.5, 2] as const).map(v => (
-                        <button
-                          key={v}
-                          onClick={() => setPosCalcRiskPct(v)}
-                          className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all ${posCalcRiskPct === v ? 'bg-violet-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-violet-400'}`}
-                        >
+                        <button key={v} onClick={() => setPosCalcRiskPct(v)}
+                          className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all ${posCalcRiskPct === v ? 'bg-violet-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-violet-400'}`}>
                           {v}%
                         </button>
                       ))}
                     </div>
                   </div>
                   <div>
-                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1 block">
-                      ATR {language === Language.ES ? 'multiplicador' : 'multiplier'}
-                    </label>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1 block">{es ? 'Alternativa ATR' : 'ATR alternative'}</label>
                     <div className="flex gap-1">
                       {([1.5, 2, 2.5] as const).map(v => (
-                        <button
-                          key={v}
-                          onClick={() => setPosCalcAtrMult(v)}
-                          className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all ${posCalcAtrMult === v ? 'bg-violet-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-violet-400'}`}
-                        >
+                        <button key={v} onClick={() => setPosCalcAtrMult(v)}
+                          className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all ${posCalcAtrMult === v ? 'bg-slate-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-slate-400'}`}>
                           {v}×
                         </button>
                       ))}
@@ -602,65 +605,24 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
                   </div>
                 </div>
 
-                {/* Results */}
                 <div className="space-y-2">
-                  {/* ATR row */}
-                  <div className="grid grid-cols-5 gap-2 bg-violet-50 dark:bg-violet-500/10 rounded-xl p-3 border border-violet-100 dark:border-violet-500/20">
-                    <div className="text-center">
-                      <p className="text-[9px] text-violet-500 font-black uppercase tracking-wider mb-0.5">ATR Stop</p>
-                      <p className="text-sm font-black text-violet-700 dark:text-violet-300">{atrStop > 0 ? atrStop.toFixed(2) : '—'}</p>
-                      <p className="text-[8px] text-violet-400">−{posCalcAtrMult}×ATR</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[9px] text-violet-500 font-black uppercase tracking-wider mb-0.5">{language === Language.ES ? 'Acciones' : 'Shares'}</p>
-                      <p className="text-sm font-black text-slate-800 dark:text-slate-100">{shares.toLocaleString()}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[9px] text-violet-500 font-black uppercase tracking-wider mb-0.5">{language === Language.ES ? 'Valor pos.' : 'Pos. value'}</p>
-                      <p className="text-sm font-black text-slate-800 dark:text-slate-100">{fmt0(posValue)}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[9px] text-violet-500 font-black uppercase tracking-wider mb-0.5">% {language === Language.ES ? 'cartera' : 'portfolio'}</p>
-                      <p className={`text-sm font-black ${posPct > 25 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-800 dark:text-slate-100'}`}>{posPct.toFixed(1)}%</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[9px] text-violet-500 font-black uppercase tracking-wider mb-0.5">{language === Language.ES ? 'Riesgo €' : 'Risk $'}</p>
-                      <p className="text-sm font-black text-rose-600 dark:text-rose-400">{fmt0(riskAmt)}</p>
-                    </div>
-                  </div>
-
-                  {/* Weinstein stop comparison */}
-                  {wsStop != null && wsShares != null && wsValue != null && (
-                    <div className="grid grid-cols-5 gap-2 bg-slate-100 dark:bg-slate-900/50 rounded-xl p-3 border border-slate-200 dark:border-slate-700/40">
-                      <div className="text-center">
-                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-wider mb-0.5">{language === Language.ES ? 'Stop W.' : 'W. Stop'}</p>
-                        <p className="text-sm font-black text-rose-600 dark:text-rose-400">{wsStop.toFixed(2)}</p>
-                        <p className="text-[8px] text-slate-400">Weinstein</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-wider mb-0.5">{language === Language.ES ? 'Acciones' : 'Shares'}</p>
-                        <p className="text-sm font-black text-slate-600 dark:text-slate-400">{wsShares.toLocaleString()}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-wider mb-0.5">{language === Language.ES ? 'Valor pos.' : 'Pos. value'}</p>
-                        <p className="text-sm font-black text-slate-600 dark:text-slate-400">{fmt0(wsValue)}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-wider mb-0.5">% {language === Language.ES ? 'cartera' : 'portfolio'}</p>
-                        <p className={`text-sm font-black ${wsPct && wsPct > 25 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-600 dark:text-slate-400'}`}>{wsPct?.toFixed(1)}%</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-wider mb-0.5">{language === Language.ES ? 'Riesgo €' : 'Risk $'}</p>
-                        <p className="text-sm font-black text-rose-400">{fmt0(riskAmt)}</p>
-                      </div>
-                    </div>
+                  {plan
+                    ? <Row r={plan} primary title={es ? 'Stop del plan' : 'Plan stop'} sub="Weinstein" />
+                    : <p className="text-xs text-slate-500">{es ? 'El plan no tiene un stop válido por debajo de la entrada.' : 'The plan has no valid stop below the entry.'}</p>}
+                  {alt && (
+                    <>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 pt-1">
+                        {es ? `Alternativa: stop por volatilidad (${posCalcAtrMult}× ATR semanal ${atr.toFixed(2)})` : `Alternative: volatility stop (${posCalcAtrMult}× weekly ATR ${atr.toFixed(2)})`}
+                      </p>
+                      <Row r={alt} primary={false} title={es ? 'Stop ATR' : 'ATR stop'} sub={`−${posCalcAtrMult}×ATR`} />
+                    </>
                   )}
                 </div>
 
-                <p className="text-[8px] text-slate-300 dark:text-slate-600 mt-3 italic">
-                  {language === Language.ES
-                    ? 'Fórmula: Acciones = (Capital × Riesgo%) ÷ (ATR14w × mult). Solo orientativo, no constituye asesoramiento financiero.'
-                    : 'Formula: Shares = (Portfolio × Risk%) ÷ (ATR14w × mult). For reference only, not financial advice.'}
+                <p className="text-[8px] text-slate-400 dark:text-slate-500 mt-3 italic">
+                  {es
+                    ? 'Acciones = (Capital × Riesgo %) ÷ (Entrada − Stop). Solo orientativo, no constituye asesoramiento financiero.'
+                    : 'Shares = (Portfolio × Risk %) ÷ (Entry − Stop). For reference only, not financial advice.'}
                 </p>
               </div>
             </div>

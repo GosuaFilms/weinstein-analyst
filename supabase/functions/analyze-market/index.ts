@@ -5,7 +5,7 @@
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
 import { requireUser } from '../_shared/auth.ts';
 import { checkAiQuota, recordAiUsage } from '../_shared/quota.ts';
-import { getTechnicalSnapshot, type TechnicalSnapshot } from '../_shared/marketData.ts';
+import { getTechnicalSnapshot, formatPriceTime, type TechnicalSnapshot } from '../_shared/marketData.ts';
 import { classifyStage } from '../_shared/weinstein.ts';
 import { generate, extractJson, type ContentBlock } from '../_shared/anthropic.ts';
 
@@ -20,6 +20,7 @@ interface AnalysisResult {
   tickerSymbol?: string;
   currentPrice: string;
   priceTimestamp: string;
+  marketOpen?: boolean | null;
   stage: string;
   sma30Analysis: string;
   relativeStrength: string;
@@ -157,10 +158,8 @@ Deno.serve(async (req) => {
     // Enforce the real-time anchor — overwrite whatever Gemini wrote
     if (snap) {
       result.currentPrice = `${snap.currency === 'USD' ? '$' : snap.currency + ' '}${snap.currentPrice.toFixed(2)}`;
-      result.priceTimestamp = new Date(snap.priceTimestamp).toLocaleString(
-        settings.language === 'es' ? 'es-ES' : 'en-US',
-        { dateStyle: 'short', timeStyle: 'medium' }
-      );
+      result.priceTimestamp = formatPriceTime(snap.priceTimestamp, settings.language === 'es');
+      result.marketOpen = snap.marketOpen;
       result.tickerSymbol = snap.symbol;
       if (!result.companyName) result.companyName = snap.name;
       result.technicalSnapshot = snap;
@@ -174,7 +173,8 @@ Deno.serve(async (req) => {
         const es = settings.language === 'es';
         result.entryPrice = snap.entryBasis === 'pullback'
           ? (es ? `Retroceso hacia ${lvl} (resistencia rota)` : `Pullback towards ${lvl} (broken resistance)`)
-          : (es ? `Ruptura por encima de ${lvl}` : `Breakout above ${lvl}`);
+          : (es ? `Compra por encima de ${lvl} (1 % sobre la resistencia ${snap.baseResistance?.toFixed(2)})`
+                : `Buy above ${lvl} (1% over the ${snap.baseResistance?.toFixed(2)} resistance)`);
       }
 
       // The rule-based stage has the last word: no BUY outside Stage 2

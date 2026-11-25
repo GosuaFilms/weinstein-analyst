@@ -24,6 +24,8 @@ interface TDQuote {
   currency?: string;
   datetime?: string;
   timestamp?: number;
+  last_quote_at?: number; // unix time of the last trade/quote (timestamp is the bar's start)
+  is_market_open?: boolean;
   open?: string;
   high?: string;
   low?: string;
@@ -293,6 +295,8 @@ export interface TechnicalSnapshot {
   currency: string;
   currentPrice: number;
   priceTimestamp: string;
+  // true/false from the quote; null when the price is the last weekly close (no quote)
+  marketOpen: boolean | null;
   change: number;
   changePercent: number;
   dayHigh: number;
@@ -744,7 +748,10 @@ export async function getTechnicalSnapshot(
     name: quote?.name ?? bars.name ?? ticker,
     currency: bars.currency || quote?.currency || 'USD',
     currentPrice,
-    priceTimestamp: quote?.timestamp ? new Date(quote.timestamp * 1000).toISOString() : bars.fetchedAt,
+    priceTimestamp: (quote?.last_quote_at ?? quote?.timestamp)
+      ? new Date((quote.last_quote_at ?? quote.timestamp!) * 1000).toISOString()
+      : new Date((bars.timestamps.at(-1) ?? Date.now() / 1000) * 1000).toISOString(),
+    marketOpen: quote ? (typeof quote.is_market_open === 'boolean' ? quote.is_market_open : null) : null,
     change,
     changePercent,
     dayHigh: quote ? num(quote.high) : NaN,
@@ -791,4 +798,14 @@ export async function getTechnicalSnapshot(
     lows,
     smaPeriod,
   );
+}
+
+/** Time of the price for the UI, always in Madrid time (the server runs in UTC). */
+export function formatPriceTime(iso: string, es: boolean): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const s = d.toLocaleString(es ? 'es-ES' : 'en-GB', {
+    timeZone: 'Europe/Madrid', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+  return `${s} (${es ? 'hora de Madrid' : 'Madrid time'})`;
 }

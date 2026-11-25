@@ -15,11 +15,12 @@ const FEATURES: { label: string; free: Cell; pro: Cell; elite: Cell }[] = [
   { label: 'Watchlist', free: true, pro: true, elite: true },
   { label: 'Gráfico TradingView', free: true, pro: true, elite: true },
   { label: 'Compartir análisis (redes)', free: true, pro: true, elite: true },
+  { label: 'Revisión semanal de tu cartera y watchlist', free: true, pro: true, elite: true },
+  { label: 'Briefing diario de tu watchlist (L–V, opcional)', free: true, pro: true, elite: true },
   { label: 'Cartera IA Weinstein', free: false, pro: true, elite: true },
   { label: 'Backtest Stage 2', free: false, pro: true, elite: true },
   { label: 'Notificaciones Telegram', free: false, pro: true, elite: true },
   { label: 'Informe semanal de mercado', free: false, pro: true, elite: true },
-  { label: 'Briefing diario de tu watchlist (L–V, opcional)', free: false, pro: true, elite: true },
   { label: 'Soporte prioritario', free: false, pro: false, elite: true },
 ];
 
@@ -30,7 +31,7 @@ const FAQS = [
   },
   {
     q: '¿Qué diferencia hay entre Pro y Élite?',
-    a: 'Pro incluye 40 análisis Weinstein al mes, 10 análisis de operaciones, screener completo, hasta 20 alertas, cartera IA, Telegram, informe del sábado, revisión semanal de tu cartera y un briefing diario opcional de tu watchlist. Élite añade análisis ilimitados (uso razonable de hasta 15 al día), análisis de operaciones ilimitados, hasta 100 alertas y soporte prioritario.',
+    a: 'Pro incluye 40 análisis Weinstein al mes, 10 análisis de operaciones, screener completo, hasta 20 alertas, cartera IA, avisos por Telegram e informe del sábado. Élite añade análisis ilimitados (uso razonable de hasta 15 al día), análisis de operaciones ilimitados, hasta 100 alertas y soporte prioritario.',
   },
   {
     q: '¿Puedo cambiar de plan?',
@@ -173,6 +174,7 @@ const PricingPage: React.FC<Props> = ({ onGetStarted }) => {
                 'Watchlist ilimitada',
                 'Gráfico TradingView integrado',
                 'Compartir análisis en redes',
+                'Revisión semanal y briefing diario por email',
               ].map(f => (
                 <li key={f} className="flex items-center gap-3 text-sm text-slate-400">
                   <i className="fas fa-check text-slate-600 text-xs" />
@@ -221,7 +223,6 @@ const PricingPage: React.FC<Props> = ({ onGetStarted }) => {
                 { label: 'Backtest Stage 2', highlight: true },
                 { label: 'Notificaciones Telegram', highlight: true },
                 { label: 'Informe semanal de mercado', highlight: true },
-                { label: 'Briefing diario de tu watchlist (opcional)', highlight: false },
               ].map(({ label, highlight }) => (
                 <li key={label} className={`flex items-center gap-3 text-sm ${highlight ? 'text-white font-semibold' : 'text-slate-400'}`}>
                   <i className={`fas fa-check text-xs ${highlight ? 'text-amber-400' : 'text-slate-600'}`} />

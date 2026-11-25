@@ -88,6 +88,9 @@ const LandingPage: React.FC<Props> = ({ onGetStarted }) => {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <a href="/etapa-2" className="hidden sm:block text-slate-400 hover:text-white text-sm font-bold transition-colors px-3 py-2">
+              Etapa 2 hoy
+            </a>
             <a href="/resultados" className="hidden sm:block text-slate-400 hover:text-white text-sm font-bold transition-colors px-3 py-2">
               Resultados
             </a>

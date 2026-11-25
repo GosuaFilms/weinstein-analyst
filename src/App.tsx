@@ -21,6 +21,7 @@ import OnboardingModal from './components/OnboardingModal';
 import HelpPanel from './components/HelpPanel';
 import LandingPage from './components/LandingPage';
 import TrackRecordPage from './components/TrackRecordPage';
+import StageTwoTodayPage from './components/StageTwoTodayPage';
 import PricingPage from './components/PricingPage';
 import TermsPage from './components/TermsPage';
 import PrivacyPage from './components/PrivacyPage';
@@ -148,6 +149,28 @@ const App: React.FC = () => {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
+
+  // ── Deep link /?analizar=SYMBOL (public Stage 2 page) ─────────────────────
+  // Kept in sessionStorage so it survives sign-up and the Google OAuth round
+  // trip; the ticker is only pre-filled, the user still presses Analizar
+  // (it spends one of their analyses).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sym = params.get('analizar');
+    if (sym && /^[A-Za-z0-9.\-/]{1,15}$/.test(sym)) {
+      try { sessionStorage.setItem('pending_ticker', sym.toUpperCase()); } catch { /* private mode */ }
+      params.delete('analizar');
+      const qs = params.toString();
+      window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
+    }
+  }, []);
+  useEffect(() => {
+    if (!user) return;
+    let sym: string | null = null;
+    try { sym = sessionStorage.getItem('pending_ticker'); sessionStorage.removeItem('pending_ticker'); } catch { /* ignore */ }
+    if (sym) { setTicker(sym); setActiveTab('scan'); setShowOnboarding(false); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   // Trigger analysis once ticker state has settled (avoids stale closure race with setTimeout)
   useEffect(() => {
@@ -284,6 +307,9 @@ const App: React.FC = () => {
   // Public routes — visible without auth
   if (window.location.pathname === '/resultados') {
     return <TrackRecordPage />;
+  }
+  if (window.location.pathname === '/etapa-2') {
+    return <StageTwoTodayPage />;
   }
   if (window.location.pathname === '/precios') {
     return <PricingPage onGetStarted={() => setIsAuthOpen(true)} />;

@@ -131,9 +131,12 @@ const TrackRecordPage: React.FC = () => {
               <div className="text-amber-500 text-[8px] font-bold uppercase tracking-widest">Weinstein Terminal</div>
             </div>
           </a>
-          <a href="/" className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-900 font-black text-sm rounded-xl transition-all">
-            Empezar gratis →
-          </a>
+          <div className="flex items-center gap-2">
+            <a href="/etapa-2" className="hidden sm:block text-slate-400 hover:text-white text-sm font-bold px-3 py-2">Etapa 2 hoy</a>
+            <a href="/" className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-900 font-black text-sm rounded-xl transition-all">
+              Empezar gratis →
+            </a>
+          </div>
         </div>
       </nav>
 

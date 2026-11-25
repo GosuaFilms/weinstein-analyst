@@ -15,6 +15,10 @@ import { getTechnicalSnapshot } from '../_shared/marketData.ts';
 import { classifyStage } from '../_shared/weinstein.ts';
 import { INDICES } from '../_shared/indices.ts';
 import { trySendTelegram } from '../_shared/telegram.ts';
+import {
+  stepTrackRecord, saveSignals, symbolCloseOn, daysBetween, MAX_GAP_DAYS,
+  type ScanRow, type TrackSignal,
+} from '../_shared/trackRecord.ts';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -38,6 +42,9 @@ async function pooledMap<T, R>(items: T[], concurrency: number, fn: (item: T) =>
 
 // ─── Stage 2 scanner for one index ───────────────────────────────────────────
 
+// Prices of every stock scanned in this run (Stage 2 or not): exits need them
+const scannedPrices = new Map<string, number>();
+
 async function scanIndexStage2(indexId: string) {
   const indexDef = INDICES[indexId];
   if (!indexDef) return [];
@@ -45,6 +52,7 @@ async function scanIndexStage2(indexId: string) {
   const results = await pooledMap(indexDef.tickers, 8, async (ticker: string) => {
     try {
       const snap = await getTechnicalSnapshot(ticker, 30);
+      if (Number.isFinite(snap.currentPrice) && snap.currentPrice > 0) scannedPrices.set(snap.symbol, snap.currentPrice);
       const cls  = classifyStage(snap);
       if (cls.stage !== 'STAGE_2') return null;
       return {
@@ -77,12 +85,23 @@ function formatTelegramMessage(
   newEntries: { symbol: string; name: string; index_id: string; confidence: string }[],
   exits:      { symbol: string; name: string; index_id: string }[],
   total:      number,
+  gapDays:    number | null,
 ): string {
   const lines: string[] = [
     `📊 <b>Stage 2 Monitor — ${date}</b>`,
     `Total en Stage 2: <b>${total}</b> acciones`,
     '',
   ];
+
+  if (gapDays === null || gapDays > MAX_GAP_DAYS) {
+    // After a hole in the scan history the diff is meaningless
+    lines.push(gapDays === null
+      ? '🔄 Primer escaneo: a partir de mañana verás las entradas y salidas del día.'
+      : `🔄 Primer escaneo tras ${gapDays} días sin datos: mañana vuelven las entradas y salidas del día.`);
+    lines.push('');
+    lines.push('<i>#Stage2Monitor #Weinstein</i>');
+    return lines.join('\n');
+  }
 
   if (newEntries.length > 0) {
     lines.push(`🆕 <b>NUEVAS entradas en Stage 2 (${newEntries.length})</b>`);
@@ -149,8 +168,13 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
-  const today     = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  // Cron-only: rebuild the track record by replaying the stored scans
+  if ((body as { action?: string; from?: string }).action === 'backfill_track') {
+    if (!cronSecret || providedSecret !== cronSecret) return jsonResponse({ error: 'forbidden' }, 403);
+    return jsonResponse(await backfillTrack(supabase, (body as { from?: string }).from ?? '2026-10-13'));
+  }
+
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
   try {
     // ── 1. Scan indices sequentially, saving after each one ──────────────────
@@ -175,11 +199,20 @@ Deno.serve(async (req) => {
 
     console.log(`[stage2-daily] total Stage 2 stocks found: ${allStage2.length}`);
 
-    // ── 3. Load yesterday's list to compute diff ─────────────────────────────
-    const { data: yesterdayRows } = await supabase
+    // ── 3. Load the previous scan (not the calendar day before: Mondays and
+    //       holidays have no scan the day before) to compute the diff ────────
+    const { data: prevScan } = await supabase
       .from('stage2_snapshots')
-      .select('symbol, name, index_id')
-      .eq('scan_date', yesterday);
+      .select('scan_date')
+      .lt('scan_date', today)
+      .order('scan_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const prevDate: string | null = prevScan?.scan_date ?? null;
+    const gapDays = prevDate ? daysBetween(prevDate, today) : null;
+    const { data: yesterdayRows } = prevDate
+      ? await supabase.from('stage2_snapshots').select('symbol, name, index_id').eq('scan_date', prevDate)
+      : { data: [] as { symbol: string; name: string; index_id: string }[] };
 
     const todaySet     = new Set(allStage2.map(r => `${r.index_id}:${r.symbol}`));
     const yesterdaySet = new Set((yesterdayRows ?? []).map((r: { symbol: string; index_id: string }) => `${r.index_id}:${r.symbol}`));
@@ -187,7 +220,32 @@ Deno.serve(async (req) => {
     const newEntries = allStage2.filter(r => !yesterdaySet.has(`${r.index_id}:${r.symbol}`));
     const exits      = (yesterdayRows ?? []).filter((r: { symbol: string; index_id: string }) => !todaySet.has(`${r.index_id}:${r.symbol}`));
 
-    console.log(`[stage2-daily] new=${newEntries.length} exits=${exits.length}`);
+    console.log(`[stage2-daily] new=${newEntries.length} exits=${exits.length} prev=${prevDate}`);
+
+    // ── 3b. Track record: open/close signals for today ───────────────────────
+    let track: unknown = null;
+    try {
+      const { data: openRows, error } = await supabase
+        .from('track_signals')
+        .select('*')
+        .or(`status.eq.open,exit_date.eq.${today}`);
+      if (error) throw new Error(error.message);
+      const signals = (openRows ?? []) as TrackSignal[];
+      const res = await stepTrackRecord(signals, {
+        date: today,
+        prevDate,
+        stage2: allStage2 as ScanRow[],
+        prevSymbols: new Set((yesterdayRows ?? []).map((r: { symbol: string }) => r.symbol)),
+        scannedIndices: new Set(allStage2.map((r) => r.index_id)),
+        priceOn: async (symbol) => scannedPrices.get(symbol) ?? null,
+        dailyStopCheck: false,
+      });
+      await saveSignals(supabase, signals);
+      track = res;
+    } catch (e) {
+      console.error('[stage2-daily] track record failed:', e);
+      track = { error: String(e) };
+    }
 
     // ── 4. Send Telegram summary ─────────────────────────────────────────────
     const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
@@ -199,7 +257,7 @@ Deno.serve(async (req) => {
     if (alreadySent) {
       telegram = 'already sent today';
     } else if (botToken && chatId) {
-      const msg = formatTelegramMessage(today, newEntries, exits, allStage2.length);
+      const msg = formatTelegramMessage(today, newEntries, exits, allStage2.length, gapDays);
       const sent = await trySendTelegram(chatId, msg, botToken);
       telegram = sent.ok ? 'sent' : `failed: ${sent.error}`;
       if (sent.ok) await supabase.from('market_cache').upsert({ key: sentKey, payload: { sent_at: new Date().toISOString() } });
@@ -213,9 +271,61 @@ Deno.serve(async (req) => {
       exits:       exits.length,
       indices:     DAILY_INDICES.length,
       telegram,
+      prev_scan:   prevDate,
+      track,
     });
   } catch (err) {
     console.error('[stage2-daily] error:', err);
     return jsonResponse({ error: String(err) }, 500);
   }
 });
+
+// ─── Track record backfill ────────────────────────────────────────────────────
+
+// deno-lint-ignore no-explicit-any
+async function backfillTrack(supabase: any, from: string) {
+  const rows: (ScanRow & { scan_date: string })[] = [];
+  for (let page = 0; ; page++) {
+    const { data, error } = await supabase
+      .from('stage2_snapshots')
+      .select('scan_date, symbol, name, index_id, currency, current_price, confidence, stop_loss, distance_pct, mansfield_rs, extended')
+      .gte('scan_date', from)
+      .order('scan_date')
+      .range(page * 1000, page * 1000 + 999);
+    if (error) throw new Error(error.message);
+    rows.push(...data);
+    if (data.length < 1000) break;
+  }
+  const byDate = new Map<string, (ScanRow & { scan_date: string })[]>();
+  for (const r of rows) (byDate.get(r.scan_date) ?? byDate.set(r.scan_date, []).get(r.scan_date)!).push(r);
+  const dates = [...byDate.keys()].sort();
+
+  const { error: delErr } = await supabase.from('track_signals').delete().gte('id', 0);
+  if (delErr) throw new Error(delErr.message);
+
+  const signals: TrackSignal[] = [];
+  const log: { date: string; opened: number; closed: number }[] = [];
+  for (let i = 1; i < dates.length; i++) {
+    const date = dates[i], prevDate = dates[i - 1];
+    const today = byDate.get(date)!;
+    const res = await stepTrackRecord(signals, {
+      date,
+      prevDate,
+      stage2: today,
+      prevSymbols: new Set(byDate.get(prevDate)!.map((r) => r.symbol)),
+      scannedIndices: new Set(today.map((r) => r.index_id)),
+      priceOn: (symbol) => symbolCloseOn(symbol, date),
+      dailyStopCheck: true,
+    });
+    log.push({ date, ...res });
+  }
+  await saveSignals(supabase, signals);
+  return {
+    ok: true,
+    from,
+    scans: dates.length,
+    signals: signals.length,
+    open: signals.filter((s) => s.status === 'open').length,
+    log,
+  };
+}

@@ -259,6 +259,24 @@ export async function getWeeklyBars(ref: TdRef, maxAgeMin = 30): Promise<WeeklyB
   return bars;
 }
 
+/** Daily closes keyed by date (YYYY-MM-DD, exchange-local), from the shared cache when < 6 h old. */
+export async function getDailyCloses(ref: TdRef, outputsize = 90): Promise<Record<string, number>> {
+  const key = `d:${refKey(ref)}:${outputsize}`;
+  const cached = await cacheGet<Record<string, number>>(key, 6 * 60);
+  if (cached) return cached;
+  const body = await tdGet('time_series', { ...tdParams(ref), interval: '1day', outputsize: String(outputsize) });
+  if (body?.status !== 'ok' || !body.values?.length) {
+    throw new Error(`"${ref.symbol}" sin cierres diarios${body?.message ? `: ${body.message}` : ''}`);
+  }
+  const closes: Record<string, number> = {};
+  for (const v of body.values) {
+    const c = num(v.close);
+    if (Number.isFinite(c)) closes[String(v.datetime).slice(0, 10)] = c;
+  }
+  await cachePut(key, closes);
+  return closes;
+}
+
 async function getQuote(ref: TdRef): Promise<TDQuote | null> {
   const q = await tdGet('quote', tdParams(ref)).catch(() => null) as TDQuote | null;
   return q && q.status !== 'error' && q.close ? q : null;
@@ -333,7 +351,7 @@ interface WeeklySeries {
 
 // Mansfield RS benchmark: the index's ETF on the stock's own market (same currency
 // and calendar). Index series themselves are not part of the Venture plan.
-function pickBenchmark(ticker: string, currency: string): { ref: TdRef; symbol: string; name: string } {
+export function pickBenchmark(ticker: string, currency: string): { ref: TdRef; symbol: string; name: string } {
   const u = ticker.toUpperCase();
   const etf = (symbol: string, mic: string, name: string) => ({ ref: { symbol, mic_code: mic }, symbol: `${symbol}.${MIC_SUFFIX[mic]}`, name });
   if (u.endsWith('.MC')) return etf('LYXIB', 'XMAD', 'IBEX 35');

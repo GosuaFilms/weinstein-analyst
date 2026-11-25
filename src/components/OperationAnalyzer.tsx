@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Language, OperationAnalysisResult, Settings } from '../types';
 import { analyzeOperation } from '../lib/api';
+import { canvasToPagedPdf } from '../lib/pdfExport';
 // html2canvas and jspdf are loaded on-demand to keep the initial bundle small
 
 interface Props {
@@ -113,7 +114,7 @@ const OperationAnalyzer: React.FC<Props> = ({ language, settings, onSave, initia
       ]);
       const canvas = await html2canvas(displayRef.current, {
         backgroundColor: isDark ? '#0f172a' : '#ffffff',
-        scale: 3,
+        scale: 2,
         logging: false,
         useCORS: true,
         allowTaint: true,
@@ -127,12 +128,7 @@ const OperationAnalyzer: React.FC<Props> = ({ language, settings, onSave, initia
         link.href = canvas.toDataURL('image/png');
         link.click();
       } else {
-        const imgData = canvas.toDataURL('image/png');
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-        pdf.save(`${fileName}.pdf`);
+        canvasToPagedPdf(canvas, jsPDF, isDark ? '#0f172a' : '#ffffff').save(`${fileName}.pdf`);
       }
     } finally {
       setIsDownloading(false);

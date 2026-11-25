@@ -5,6 +5,7 @@ import { AnalysisResult, Verdict, Language } from '../types';
 import TradingViewWidget from './TradingViewWidget';
 import { useBacktest } from '../hooks/useBacktest';
 import { usePlan } from '../hooks/usePlan';
+import { canvasToPagedPdf } from '../lib/pdfExport';
 
 interface Props {
   data: AnalysisResult;
@@ -141,12 +142,7 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
         link.href = canvas.toDataURL('image/png');
         link.click();
       } else {
-        const imgData = canvas.toDataURL('image/jpeg', 0.82);
-        const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
-        pdf.save(`${fileName}.pdf`);
+        canvasToPagedPdf(canvas, jsPDF, isDark ? '#0f172a' : '#ffffff').save(`${fileName}.pdf`);
       }
     } finally {
       setIsDownloading(false);

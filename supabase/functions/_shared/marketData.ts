@@ -105,6 +105,24 @@ async function tdGet(path: string, params: Record<string, string>): Promise<any>
   }
 }
 
+/** Company sector and industry (Twelve Data profile), cached 30 days. */
+export async function getProfile(ref: TdRef): Promise<{ sector: string | null; industry: string | null }> {
+  const key = `p:${refKey(ref)}`;
+  const cached = await cacheGet<{ sector: string | null; industry: string | null }>(key, 30 * 24 * 60);
+  if (cached) return cached;
+  const body = await tdGet('profile', tdParams(ref));
+  if (body?.status === 'error' || body?.code) throw new Error(`perfil de ${ref.symbol}: ${body?.message ?? 'sin datos'}`);
+  const out = { sector: body?.sector || null, industry: body?.industry || null };
+  await cachePut(key, out);
+  return out;
+}
+
+/** Raw Twelve Data request for one instrument (diagnostics and small extra endpoints). */
+// deno-lint-ignore no-explicit-any
+export function tdRequest(path: string, ref: TdRef, extra: Record<string, string> = {}): Promise<any> {
+  return tdGet(path, { ...tdParams(ref), ...extra });
+}
+
 // Brand names whose legal name in the exchange directory doesn't contain them
 const NAME_ALIASES: Record<string, string> = {
   inditex: 'ITX.MC', zara: 'ITX.MC', iberia: 'IAG.MC', 'red electrica': 'RED.MC',
@@ -587,6 +605,7 @@ async function attachWeinsteinExtras(
   stockLows: number[],
   smaPeriod: number,
   weekInProgress: boolean,
+  benchmarkOverride?: { ref: TdRef; symbol: string; name: string },
 ): Promise<TechnicalSnapshot> {
   // MM30 slope (% change of the SMA line over the last 5 weeks).
   const smaSeries = computeSMASeries(stock.closes, smaPeriod);
@@ -646,7 +665,7 @@ async function attachWeinsteinExtras(
     : null;
 
   // Mansfield RS + benchmark stage.
-  const bench = pickBenchmark(base.symbol, base.currency);
+  const bench = benchmarkOverride ?? pickBenchmark(base.symbol, base.currency);
   let benchSeries: WeeklySeries | null = null;
   try {
     const b = await getWeeklyBars(bench.ref, 6 * 60);
@@ -731,6 +750,9 @@ export async function getLivePrice(ticker: string): Promise<{ price: number | nu
 export interface SnapshotOptions {
   maxAgeMin?: number;  // accept cached weekly bars up to this age (default 30)
   withQuote?: boolean; // +1 credit: live daily fields (change, day range) for single-ticker views
+  // Index to measure Mansfield RS against, instead of the stock's own market ETF
+  // (sector ETFs listed in Germany are compared with the STOXX 600, not the DAX)
+  benchmark?: { ref: TdRef; symbol: string; name: string };
 }
 
 export async function getTechnicalSnapshot(
@@ -846,6 +868,7 @@ export async function getTechnicalSnapshot(
     lows,
     smaPeriod,
     weekInProgress,
+    opts.benchmark,
   );
 }
 

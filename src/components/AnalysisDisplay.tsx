@@ -272,6 +272,24 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
                   <i className={`fas ${data.marketOpen ? 'fa-signal text-emerald-500' : 'fa-clock text-slate-400'}`}></i>
                   <span>{data.marketOpen === true ? labels.marketOpen : data.marketOpen === false ? labels.marketClosed : labels.marketUnknown}</span>
                 </div>
+                {data.sector && (() => {
+                  const sec = data.sector!;
+                  const es = language === Language.ES;
+                  const n = sec.stage.slice(-1);
+                  const color = sec.stage === 'STAGE_2' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/30'
+                    : sec.stage === 'STAGE_4' ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/30'
+                    : sec.stage === 'STAGE_3' ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/30'
+                    : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/80 dark:text-slate-300 dark:border-slate-700';
+                  return (
+                    <div
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest ${color}`}
+                      title={es ? `Sector medido con ${sec.etf} · puesto ${sec.rank} de ${sec.of} por etapa y fuerza relativa` : `Sector measured with ${sec.etf} · rank ${sec.rank} of ${sec.of} by stage and relative strength`}
+                    >
+                      <i className="fas fa-layer-group"></i>
+                      <span>{es ? 'Sector' : 'Sector'}: {es ? sec.name_es : sec.name_en} · {es ? 'Etapa' : 'Stage'} {n} · {sec.rank}/{sec.of}</span>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 

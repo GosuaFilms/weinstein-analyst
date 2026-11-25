@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { loadSectorRanking, type SectorRow } from './SectorPanel';
 
 // Public page /etapa-2: the latest daily Stage 2 scan (table stage2_snapshots,
 // written by the stage2-daily function), readable without an account.
@@ -18,6 +19,7 @@ interface Row {
   extended: boolean | null;
   stop_loss: number | null;
   stop_risk_pct: number | null;
+  sector_etf: string | null;
 }
 
 const INDEX_LABEL: Record<string, string> = {
@@ -57,6 +59,8 @@ const StageTwoTodayPage: React.FC = () => {
   const [index, setIndex] = useState<string>('ALL');
   const [onlyNew, setOnlyNew] = useState(false);
   const [sort, setSort] = useState<Sort>('rs');
+  const [sectors, setSectors] = useState<Map<string, SectorRow>>(new Map());
+  const [strongSectors, setStrongSectors] = useState(false);
 
   useEffect(() => {
     setMeta(
@@ -69,7 +73,7 @@ const StageTwoTodayPage: React.FC = () => {
       const date = last.scan_date as string;
       const [{ data: today }, { data: prev }] = await Promise.all([
         supabase.from('stage2_snapshots')
-          .select('symbol, name, index_id, currency, current_price, confidence, distance_pct, mansfield_rs, volume_ratio, extended, stop_loss, stop_risk_pct')
+          .select('symbol, name, index_id, currency, current_price, confidence, distance_pct, mansfield_rs, volume_ratio, extended, stop_loss, stop_risk_pct, sector_etf')
           .eq('scan_date', date),
         supabase.from('stage2_snapshots').select('scan_date').lt('scan_date', date).order('scan_date', { ascending: false }).limit(1).maybeSingle(),
       ]);
@@ -80,6 +84,7 @@ const StageTwoTodayPage: React.FC = () => {
         prevSet = new Set((prevRows ?? []).map((r) => `${r.index_id}:${r.symbol}`));
       }
       setRows((today as Row[]) ?? []);
+      loadSectorRanking().then((sr) => setSectors(new Map(sr.map((x) => [x.etf, x]))));
       setPrevKeys(prevSet);
       setScanDate(date);
       setLoading(false);
@@ -105,11 +110,12 @@ const StageTwoTodayPage: React.FC = () => {
     const seen = new Set<string>();
     return rows
       .filter((r) => (index === 'ALL' || r.index_id === index) && (!onlyNew || isNew(r)))
+      .filter((r) => !strongSectors || (r.sector_etf != null && sectors.get(r.sector_etf)?.stage === 'STAGE_2'))
       // A stock in two indices (e.g. SAN.PA in CAC 40 and Euro Stoxx 50) is listed once under "Todos"
       .filter((r) => index !== 'ALL' || (!seen.has(r.symbol) && seen.add(r.symbol)))
       .sort((a, b) => key[sort](b) - key[sort](a));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, index, onlyNew, sort, prevKeys]);
+  }, [rows, index, onlyNew, sort, prevKeys, strongSectors, sectors]);
 
   const chip = (active: boolean) =>
     `shrink-0 px-3.5 py-2 rounded-xl text-xs font-black transition-all border ${active ? 'bg-amber-500 text-slate-900 border-amber-500' : 'bg-white/5 text-slate-400 hover:text-white border-white/5'}`;
@@ -165,6 +171,11 @@ const StageTwoTodayPage: React.FC = () => {
               <i className="fas fa-bolt mr-1" /> Solo nuevas hoy ({newCount})
             </button>
           )}
+          {sectors.size > 0 && (
+            <button className={chip(strongSectors)} onClick={() => setStrongSectors(!strongSectors)} title="Weinstein: los mejores valores de los mejores sectores">
+              <i className="fas fa-layer-group mr-1" /> Solo sectores en Etapa 2
+            </button>
+          )}
           <span className="text-slate-500 font-bold ml-auto">Ordenar:</span>
           {([['rs', 'Fuerza relativa'], ['distance', 'Más cerca de la MM30'], ['volume', 'Volumen']] as const).map(([k, l]) => (
             <button key={k} className={chip(sort === k)} onClick={() => setSort(k)}>{l}</button>
@@ -186,6 +197,15 @@ const StageTwoTodayPage: React.FC = () => {
                       {isNew(r) && <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">Nueva</span>}
                       {r.extended && <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400" title="Más de un 15 % sobre la MM30: Weinstein no compra tan lejos">Extendida</span>}
                       <span className="text-[10px] text-slate-500 font-bold">{INDEX_LABEL[r.index_id] ?? r.index_id}</span>
+                      {r.sector_etf && sectors.get(r.sector_etf) && (() => {
+                        const sec = sectors.get(r.sector_etf!)!;
+                        const color = sec.stage === 'STAGE_2' ? 'text-emerald-400 border-emerald-500/30' : sec.stage === 'STAGE_4' ? 'text-rose-400 border-rose-500/30' : sec.stage === 'STAGE_3' ? 'text-amber-400 border-amber-500/30' : 'text-slate-400 border-white/10';
+                        return (
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${color}`} title={`Sector en ${sec.stage.replace('STAGE_', 'Etapa ')} · puesto ${sec.rank} de su región`}>
+                            {sec.name_es} · E{sec.stage.slice(-1)}
+                          </span>
+                        );
+                      })()}
                     </div>
                     <div className="text-slate-400 text-xs truncate">{r.name}</div>
                   </div>

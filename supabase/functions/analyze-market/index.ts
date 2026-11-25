@@ -4,6 +4,8 @@
 
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
 import { requireUser } from '../_shared/auth.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import { getSectorContext, type SectorContext } from '../_shared/sectors.ts';
 import { checkAiQuota, recordAiUsage } from '../_shared/quota.ts';
 import { getTechnicalSnapshot, formatPriceTime, type TechnicalSnapshot } from '../_shared/marketData.ts';
 import { classifyStage } from '../_shared/weinstein.ts';
@@ -33,9 +35,10 @@ interface AnalysisResult {
   verdictType: 'BUY' | 'SELL' | 'WAIT' | 'CLOSE';
   suggestedStrategy: string;
   technicalSnapshot?: TechnicalSnapshot;
+  sector?: SectorContext | null;
 }
 
-function buildSystemInstruction(lang: 'es' | 'en', snap: TechnicalSnapshot | null, stageHint: string): string {
+function buildSystemInstruction(lang: 'es' | 'en', snap: TechnicalSnapshot | null, stageHint: string, sector: SectorContext | null): string {
   const langName = lang === 'es' ? 'Spanish' : 'English';
   const anchor = snap
     ? `
@@ -55,6 +58,7 @@ REAL-TIME TECHNICAL ANCHOR (source: Twelve Data — DO NOT invent prices):
 - Mansfield Relative Strength vs ${snap.benchmarkName ?? 'benchmark'} (${snap.benchmarkSymbol ?? 'N/A'}): ${snap.mansfieldRS?.toFixed(2) ?? 'N/A'} (prev: ${snap.mansfieldRSPrev?.toFixed(2) ?? 'N/A'}, 13w MA: ${snap.mansfieldRSMA13?.toFixed(2) ?? 'N/A'}) → trend = ${snap.mansfieldRSTrend ?? 'N/A'}
   Weinstein rule: Stage 2 requires RS > 0 AND rising; Stage 4 usually RS < 0 AND falling.
 - Market filter (${snap.benchmarkName ?? 'benchmark'} own stage): ${snap.benchmarkStage ?? 'N/A'} — ${snap.benchmarkStageReason ?? 'N/A'}
+- Sector group (Weinstein's second filter, market → sector → stock): ${sector ? `${sector.name_en} (${sector.etf}) — ${sector.stage}, rank ${sector.rank} of ${sector.of} ${sector.region === 'US' ? 'US' : 'European'} sectors (ordered by stage, then Mansfield RS ${sector.rs?.toFixed(1) ?? 'N/A'}, ${sector.rs_trend ?? 'N/A'}), as of ${sector.scan_date}. Weinstein: buy the strongest stocks in the strongest groups; avoid stocks in Stage 4 groups even if the chart looks good. Mention the sector in the plan.` : 'N/A'}
   Weinstein rule: do NOT open longs if the market/benchmark is itself in Stage 3 or 4.
 - SMA10 weekly (≈SMA50d): ${snap.sma10Weekly?.toFixed(2) ?? 'N/A'} → trend = ${snap.sma10WeeklyTrend ?? 'N/A'}
 - SMA40 weekly (≈SMA200d): ${snap.sma40Weekly?.toFixed(2) ?? 'N/A'} → trend = ${snap.sma40WeeklyTrend ?? 'N/A'}
@@ -125,11 +129,14 @@ Deno.serve(async (req) => {
     let snap: TechnicalSnapshot | null = null;
     let cls: ReturnType<typeof classifyStage> | null = null;
     let stageHint = 'N/A';
+    let sector: SectorContext | null = null;
     if (ticker) {
       try {
         snap = await getTechnicalSnapshot(ticker.toUpperCase().trim(), settings.smaPeriod ?? 30, { maxAgeMin: 10, withQuote: true });
         cls = classifyStage(snap);
         stageHint = `${cls.stage} (${cls.confidence}) — ${cls.reasoning}`;
+        sector = await getSectorContext(snap.symbol, createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!))
+          .catch(() => null);
       } catch (e) {
         // Ticker not available on Twelve Data — fall through to chart-only analysis
         console.error('Market data snapshot failed, falling back:', (e as Error).message);
@@ -150,7 +157,7 @@ Deno.serve(async (req) => {
     });
 
     const raw = await generate({
-      system: buildSystemInstruction(settings.language, snap, stageHint),
+      system: buildSystemInstruction(settings.language, snap, stageHint, sector),
       messages: [{ role: 'user', content }],
     });
 
@@ -164,6 +171,7 @@ Deno.serve(async (req) => {
       result.tickerSymbol = snap.symbol;
       if (!result.companyName) result.companyName = snap.name;
       result.technicalSnapshot = snap;
+      result.sector = sector;
 
       // Rule-based levels win over the model's: the prompt asks for them, this guarantees them
       if (snap.suggestedStopLoss != null) result.stopLoss = snap.suggestedStopLoss.toFixed(2);

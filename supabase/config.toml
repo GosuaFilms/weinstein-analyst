@@ -116,3 +116,6 @@ verify_jwt = false
 
 [functions.virtual-portfolio]
 verify_jwt = false
+
+[functions.sector-ranking]
+verify_jwt = false

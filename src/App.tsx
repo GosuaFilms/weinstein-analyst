@@ -44,6 +44,7 @@ const OperationAnalyzer = lazy(() => import('./components/OperationAnalyzer'));
 const TradingViewWidget = lazy(() => import('./components/TradingViewWidget'));
 const ScreenerPanel     = lazy(() => import('./components/ScreenerPanel'));
 const Stage2MonitorPanel = lazy(() => import('./components/Stage2MonitorPanel'));
+const SectorPanel = lazy(() => import('./components/SectorPanel'));
 const PortfolioPanel    = lazy(() => import('./components/PortfolioPanel'));
 const VirtualPortfolioPanel = lazy(() => import('./components/VirtualPortfolioPanel'));
 
@@ -114,6 +115,7 @@ const App: React.FC = () => {
   const [isWatchlistOpen, setIsWatchlistOpen] = useState(false);
   const [isScreenerOpen, setIsScreenerOpen] = useState(false);
   const [isStage2MonitorOpen, setIsStage2MonitorOpen] = useState(false);
+  const [isSectorOpen, setIsSectorOpen] = useState(false);
   const [isPortfolioOpen, setIsPortfolioOpen] = useState(false);
   const [isVirtualPortfolioOpen, setIsVirtualPortfolioOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -429,6 +431,7 @@ const App: React.FC = () => {
                   trigger={(open) => <><i className="fas fa-globe text-emerald-500"></i>{es ? 'Mercado' : 'Market'}<i className={`fas fa-chevron-down text-[10px] transition-transform ${open ? 'rotate-180' : ''}`}></i></>}
                   items={[
                     { icon: 'fa-arrow-trend-up text-emerald-500', label: es ? 'Stage 2 del día' : "Today's Stage 2", desc: es ? 'Valores en Etapa 2 en 7 índices, con entradas y salidas' : 'Stage 2 stocks across 7 indices, with entries and exits', onClick: needUser(() => setIsStage2MonitorOpen(true)) },
+                    { icon: 'fa-layer-group text-blue-500', label: es ? 'Sectores' : 'Sectors', desc: es ? 'Qué sectores están en Etapa 2 y lideran el mercado' : 'Which sectors are in Stage 2 and lead the market', onClick: () => setIsSectorOpen(true) },
                     { icon: 'fa-filter text-emerald-500', label: 'Screener', desc: es ? 'Filtra un índice por etapa, fuerza relativa y volumen' : 'Filter an index by stage, relative strength and volume', onClick: needUser(() => setIsScreenerOpen(true)) },
                   ]}
                 />
@@ -781,6 +784,11 @@ const App: React.FC = () => {
             }}
             onClose={() => setIsStage2MonitorOpen(false)}
           />
+          </ErrorBoundary>
+        )}
+        {isSectorOpen && (
+          <ErrorBoundary label="Error en Sectores">
+            <SectorPanel onClose={() => setIsSectorOpen(false)} />
           </ErrorBoundary>
         )}
       </Suspense>

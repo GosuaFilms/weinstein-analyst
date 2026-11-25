@@ -14,6 +14,7 @@ import { requireUser } from '../_shared/auth.ts';
 import { getTechnicalSnapshot } from '../_shared/marketData.ts';
 import { classifyStage } from '../_shared/weinstein.ts';
 import { INDICES } from '../_shared/indices.ts';
+import { sectorEtfOf } from '../_shared/sectors.ts';
 import { trySendTelegram } from '../_shared/telegram.ts';
 import {
   stepTrackRecord, saveSignals, symbolCloseOn, daysBetween, isFriday, MAX_GAP_DAYS,
@@ -70,6 +71,7 @@ async function scanIndexStage2(indexId: string) {
         stop_loss:     snap.suggestedStopLoss,
         stop_risk_pct: snap.stopLossRiskPct,
         benchmark_stage: snap.benchmarkStage,
+        sector_etf:    await sectorEtfOf(snap.symbol).catch(() => null),
       };
     } catch {
       return null;

@@ -85,6 +85,8 @@ export interface AnalysisResult {
   currentPrice: string;
   priceTimestamp?: string; // time of the price, already formatted in Madrid time
   marketOpen?: boolean | null;
+  // Weinstein's sector filter: the stock's sector ETF and its latest ranking
+  sector?: { etf: string; region: 'US' | 'EU'; name_es: string; name_en: string; stage: string; rank: number; of: number; rs: number | null; scan_date: string } | null;
   stage: string;
   sma30Analysis: string;
   relativeStrength: string;

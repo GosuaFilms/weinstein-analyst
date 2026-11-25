@@ -163,7 +163,7 @@ const SECTIONS: Section[] = [
     id: 'portfolio',
     icon: 'fa-briefcase',
     iconColor: 'text-blue-500',
-    title: 'Portfolio de operaciones',
+    title: 'Mis posiciones (Mi cartera)',
     content: (
       <div className="space-y-3 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
         <p>Registra tus operaciones reales para hacer seguimiento completo de tu cartera:</p>
@@ -191,7 +191,7 @@ const SECTIONS: Section[] = [
     id: 'ai-portfolio',
     icon: 'fa-chart-pie',
     iconColor: 'text-violet-500',
-    title: 'Cartera IA Weinstein',
+    title: 'Cartera modelo IA (Mi cartera)',
     content: (
       <div className="space-y-3 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
         <p>La Cartera IA analiza automáticamente una lista de activos y construye una <strong className="text-slate-800 dark:text-white">cartera óptima según el modelo Weinstein</strong>:</p>

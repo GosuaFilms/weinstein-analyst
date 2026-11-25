@@ -33,6 +33,7 @@ import { useWatchlist } from './hooks/useWatchlist';
 import WatchlistSidebar from './components/WatchlistSidebar';
 import { usePlan, PLAN_LABEL } from './hooks/usePlan';
 import { PricingModal } from './components/PricingModal';
+import NavMenu from './components/NavMenu';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Heavy panels — loaded lazily so they don't bloat the initial bundle
@@ -335,41 +336,11 @@ const App: React.FC = () => {
           <LiveClock language={language} />
 
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <Tip label={language === Language.ES ? 'Cambiar a inglés' : 'Switch to Spanish'}>
-              <button onClick={toggleLanguage} aria-label={`Cambiar idioma a ${language === Language.ES ? 'inglés' : 'español'}`} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 hover:text-amber-500">
-                {language.toUpperCase()}
-              </button>
-            </Tip>
-
-            <Tip label={theme === 'light' ? 'Modo oscuro' : 'Modo claro'}>
-              <button onClick={toggleTheme} aria-label={theme === 'light' ? 'Activar modo oscuro' : 'Activar modo claro'} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
-                <i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
-              </button>
-            </Tip>
-
-            <Tip label={`Alertas técnicas${triggeredAlertsCount > 0 ? ` (${triggeredAlertsCount} disparadas)` : ''}`}>
+            <Tip label={`${language === Language.ES ? 'Alertas técnicas' : 'Technical alerts'}${triggeredAlertsCount > 0 ? ` (${triggeredAlertsCount})` : ''}`}>
               <button onClick={() => setIsAlertsOpen(true)} aria-label="Alertas técnicas" className="relative w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
                 <i className="fas fa-bell"></i>
                 {triggeredAlertsCount > 0 && (
                   <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center animate-pulse">!</span>
-                )}
-              </button>
-            </Tip>
-
-            <Tip label={`Watchlist (${watchlist.length} valores)`}>
-              <button onClick={() => setIsWatchlistOpen(true)} aria-label="Watchlist" className="relative w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
-                <i className="fas fa-star"></i>
-                {watchlist.length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">{watchlist.length > 9 ? '9+' : watchlist.length}</span>
-                )}
-              </button>
-            </Tip>
-
-            <Tip label={`Historial (${history.length} análisis)`}>
-              <button onClick={() => setIsHistoryOpen(true)} aria-label="Historial de análisis" className="relative w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
-                <i className="fas fa-history"></i>
-                {history.length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">{history.length > 9 ? '9+' : history.length}</span>
                 )}
               </button>
             </Tip>
@@ -381,92 +352,75 @@ const App: React.FC = () => {
                 </button>
               </Tip>
             ) : (
-              <Tip label="Iniciar sesión">
-                <button onClick={() => setIsAuthOpen(true)} aria-label="Iniciar sesión" className="w-10 h-10 rounded-full bg-amber-500 text-slate-900 flex items-center justify-center shadow-lg shadow-amber-500/20">
-                  <i className="fas fa-user"></i>
-                </button>
-              </Tip>
+              <button onClick={() => setIsAuthOpen(true)} className="h-10 px-4 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-900 text-sm font-black flex items-center gap-2 shadow-lg shadow-amber-500/20">
+                <i className="fas fa-user"></i><span className="hidden sm:inline">{language === Language.ES ? 'Entrar' : 'Sign in'}</span>
+              </button>
             )}
 
-            <Tip label="Señales públicas">
-              <a
-                href="/resultados"
-                className="hidden sm:flex w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/30 items-center justify-center text-emerald-600 dark:text-emerald-400"
-              >
-                <i className="fas fa-trophy text-sm" />
-              </a>
-            </Tip>
-
-            <Tip label={isPro ? `Tu plan: ${PLAN_LABEL[plan]} ⚡` : 'Mejorar plan'}>
-              <button
-                onClick={() => setIsPricingOpen(true)}
-                className="hidden sm:flex w-10 h-10 rounded-full bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 border border-amber-200 dark:border-amber-500/30 items-center justify-center text-amber-600 dark:text-amber-400"
-              >
-                <i className="fas fa-crown text-sm" />
-              </button>
-            </Tip>
-
-            <Tip label="Ayuda y manual">
-              <button onClick={() => setIsHelpOpen(true)} aria-label="Manual de uso" className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center text-blue-500 dark:text-blue-400 font-black text-sm">
-                ?
-              </button>
-            </Tip>
-
-            <Tip label="Configuración">
-              <button onClick={() => setIsSettingsOpen(true)} aria-label="Configuración" className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
-                <i className="fas fa-cog"></i>
-              </button>
-            </Tip>
+            <NavMenu
+              align="right"
+              ariaLabel={language === Language.ES ? 'Más opciones' : 'More options'}
+              triggerClassName="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400"
+              trigger={() => <i className="fas fa-ellipsis"></i>}
+              items={[
+                { icon: 'fa-history text-blue-500', label: language === Language.ES ? 'Historial de análisis' : 'Analysis history', badge: history.length || null, onClick: () => setIsHistoryOpen(true) },
+                { icon: 'fa-crown text-amber-500', label: isPro ? `${language === Language.ES ? 'Tu plan' : 'Your plan'}: ${PLAN_LABEL[plan]}` : (language === Language.ES ? 'Planes y precios' : 'Plans & pricing'), onClick: () => setIsPricingOpen(true) },
+                { icon: 'fa-trophy text-emerald-500', label: language === Language.ES ? 'Resultados públicos' : 'Public track record', desc: language === Language.ES ? 'Historial automático de señales' : 'Automatic signal history', href: '/resultados' },
+                { icon: `${theme === 'light' ? 'fa-moon' : 'fa-sun'} text-slate-500`, label: theme === 'light' ? (language === Language.ES ? 'Modo oscuro' : 'Dark mode') : (language === Language.ES ? 'Modo claro' : 'Light mode'), onClick: toggleTheme },
+                { icon: 'fa-language text-slate-500', label: language === Language.ES ? 'English' : 'Español', onClick: toggleLanguage },
+                { icon: 'fa-circle-question text-blue-500', label: language === Language.ES ? 'Ayuda y manual' : 'Help', onClick: () => setIsHelpOpen(true) },
+                { icon: 'fa-cog text-slate-500', label: language === Language.ES ? 'Configuración' : 'Settings', onClick: () => setIsSettingsOpen(true) },
+              ]}
+            />
           </div>
         </div>
       </header>
 
       <main className="flex-grow container mx-auto px-4 py-8">
-        <div className="flex flex-wrap justify-center gap-2 mb-8">
-          {/* Main tabs */}
-          <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl inline-flex shadow-inner">
-            <button onClick={() => { setActiveTab('scan'); setOperationResult(null); }} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'scan' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}>
-              <i className="fas fa-search mr-2"></i>
-              {language === Language.ES ? 'Escaneo' : 'Scan'}
-            </button>
-            <button onClick={() => setActiveTab('operation')} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'operation' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}>
-              <i className="fas fa-suitcase mr-2"></i>
-              {language === Language.ES ? 'Operaciones' : 'Operations'}
-            </button>
-          </div>
-
-          {/* Tool buttons */}
-          <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl inline-flex shadow-inner gap-1">
-            <button
-              onClick={() => { if (!user) { setIsAuthOpen(true); return; } setIsPortfolioOpen(true); }}
-              className="px-4 py-2 rounded-lg text-sm font-bold transition-all text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 hover:shadow-sm flex items-center gap-2"
-            >
-              <i className="fas fa-briefcase text-blue-500"></i>
-              <span className="hidden sm:inline">{language === Language.ES ? 'Portfolio' : 'Portfolio'}</span>
-            </button>
-            <button
-              onClick={() => { if (!user) { setIsAuthOpen(true); return; } setIsVirtualPortfolioOpen(true); }}
-              className="px-4 py-2 rounded-lg text-sm font-bold transition-all text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700 hover:text-violet-600 dark:hover:text-violet-400 hover:shadow-sm flex items-center gap-2"
-            >
-              <i className="fas fa-chart-pie text-violet-500"></i>
-              <span className="hidden sm:inline">{language === Language.ES ? 'Cartera IA' : 'AI Portfolio'}</span>
-            </button>
-            <button
-              onClick={() => { if (!user) { setIsAuthOpen(true); return; } setIsScreenerOpen(true); }}
-              className="px-4 py-2 rounded-lg text-sm font-bold transition-all text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700 hover:text-emerald-600 dark:hover:text-emerald-400 hover:shadow-sm flex items-center gap-2"
-            >
-              <i className="fas fa-filter text-emerald-500"></i>
-              <span className="hidden sm:inline">Screener</span>
-            </button>
-            <button
-              onClick={() => { if (!user) { setIsAuthOpen(true); return; } setIsStage2MonitorOpen(true); }}
-              className="px-4 py-2 rounded-lg text-sm font-bold transition-all text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700 hover:text-emerald-600 dark:hover:text-emerald-400 hover:shadow-sm flex items-center gap-2"
-            >
-              <i className="fas fa-arrow-trend-up text-emerald-500"></i>
-              <span className="hidden sm:inline">Stage 2</span>
-            </button>
-          </div>
-        </div>
+        {(() => {
+          const es = language === Language.ES;
+          const needUser = (open: () => void) => () => { if (!user) { setIsAuthOpen(true); return; } open(); };
+          const sectionCls = (active: boolean) =>
+            `px-3 sm:px-5 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all flex items-center gap-1.5 sm:gap-2 ${active ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`;
+          return (
+            <div className="flex flex-col items-center gap-3 mb-8">
+              <nav className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl inline-flex shadow-inner gap-1" aria-label={es ? 'Secciones' : 'Sections'}>
+                <button onClick={() => { setActiveTab('scan'); setOperationResult(null); }} className={sectionCls(true)}>
+                  <i className="fas fa-magnifying-glass-chart text-amber-500"></i>{es ? 'Analizar' : 'Analyze'}
+                </button>
+                <NavMenu
+                  ariaLabel={es ? 'Mercado' : 'Market'}
+                  triggerClassName={sectionCls(false)}
+                  trigger={(open) => <><i className="fas fa-globe text-emerald-500"></i>{es ? 'Mercado' : 'Market'}<i className={`fas fa-chevron-down text-[10px] transition-transform ${open ? 'rotate-180' : ''}`}></i></>}
+                  items={[
+                    { icon: 'fa-arrow-trend-up text-emerald-500', label: es ? 'Stage 2 del día' : "Today's Stage 2", desc: es ? 'Valores en Etapa 2 en 7 índices, con entradas y salidas' : 'Stage 2 stocks across 7 indices, with entries and exits', onClick: needUser(() => setIsStage2MonitorOpen(true)) },
+                    { icon: 'fa-filter text-emerald-500', label: 'Screener', desc: es ? 'Filtra un índice por etapa, fuerza relativa y volumen' : 'Filter an index by stage, relative strength and volume', onClick: needUser(() => setIsScreenerOpen(true)) },
+                  ]}
+                />
+                <NavMenu
+                  align="right"
+                  ariaLabel={es ? 'Mi cartera' : 'My portfolio'}
+                  triggerClassName={sectionCls(false)}
+                  trigger={(open) => <><i className="fas fa-briefcase text-blue-500"></i>{es ? 'Mi cartera' : 'Portfolio'}<i className={`fas fa-chevron-down text-[10px] transition-transform ${open ? 'rotate-180' : ''}`}></i></>}
+                  items={[
+                    { icon: 'fa-briefcase text-blue-500', label: es ? 'Mis posiciones' : 'My positions', desc: es ? 'Tus operaciones reales con su resultado' : 'Your real trades and their P&L', onClick: needUser(() => setIsPortfolioOpen(true)) },
+                    { icon: 'fa-star text-amber-500', label: 'Watchlist', desc: es ? 'Valores que sigues, con su etapa actual' : 'Stocks you follow, with their current stage', badge: watchlist.length || null, onClick: () => setIsWatchlistOpen(true) },
+                    { icon: 'fa-bell text-amber-500', label: es ? 'Alertas' : 'Alerts', desc: es ? 'Avisos de precio y de etapa' : 'Price and stage alerts', badge: triggeredAlertsCount || null, onClick: () => setIsAlertsOpen(true) },
+                    { icon: 'fa-chart-pie text-violet-500', label: es ? 'Cartera modelo IA' : 'AI model portfolio', desc: es ? 'Cartera simulada con los mejores Stage 2' : 'Simulated portfolio of the best Stage 2 stocks', onClick: needUser(() => setIsVirtualPortfolioOpen(true)) },
+                  ]}
+                />
+              </nav>
+              <div className="inline-flex text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <button onClick={() => { setActiveTab('scan'); setOperationResult(null); }} className={`px-4 py-1.5 transition-colors ${activeTab === 'scan' ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                  {es ? 'Un valor' : 'A stock'}
+                </button>
+                <button onClick={() => setActiveTab('operation')} className={`px-4 py-1.5 transition-colors ${activeTab === 'operation' ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                  {es ? 'Mi operación abierta' : 'My open trade'}
+                </button>
+              </div>
+            </div>
+          );
+        })()}
 
         {activeTab === 'scan' ? (
           <>

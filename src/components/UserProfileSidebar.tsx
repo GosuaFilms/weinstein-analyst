@@ -366,6 +366,38 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
           )}
         </div>
 
+        {/* Weekly stage-change review */}
+        <div className="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="p-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
+                <i className="fas fa-clipboard-list text-amber-500"></i>
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-slate-900 dark:text-white">Revisión semanal</p>
+                <p className="text-[11px] text-slate-500 leading-tight">Cambios de etapa y stops de tus posiciones y watchlist</p>
+              </div>
+            </div>
+            <button
+              onClick={() => updateNotif({ weekly_stage_alerts: !(notifSettings?.weekly_stage_alerts ?? true) })}
+              disabled={notifLoading || notifSaving}
+              aria-label="Activar o desactivar la revisión semanal"
+              className={`relative flex-shrink-0 w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none ${(notifSettings?.weekly_stage_alerts ?? true) ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${(notifSettings?.weekly_stage_alerts ?? true) ? 'translate-x-6' : 'translate-x-0'}`}></span>
+            </button>
+          </div>
+          {(notifSettings?.weekly_stage_alerts ?? true) && (
+            <div className="px-4 pb-4">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/50 rounded-xl p-3 leading-relaxed">
+                <i className="fas fa-calendar-week text-amber-400 mr-1.5"></i>
+                Cada <strong>viernes tras el cierre</strong>, solo si hay algo que contar: un valor que cambia de etapa, una posición que cierra en tu stop o un stop que puedes subir.
+                Llega por Telegram si lo tienes conectado; si no, por email.
+              </p>
+            </div>
+          )}
+        </div>
+
         {/* Send test email */}
         <div>
           <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Probar Ahora</h4>

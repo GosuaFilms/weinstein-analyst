@@ -134,3 +134,31 @@ export async function sendAlertEmail(payload: AlertEmailPayload): Promise<void> 
     // Don't throw — a failed email must never break the alert pipeline
   }
 }
+
+/** Generic branded email: `bodyHtml` goes inside the standard Alpha Stage frame. Never throws. */
+export async function sendEmail(p: { to: string; subject: string; bodyHtml: string; footer?: string }): Promise<boolean> {
+  const html = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${p.subject}</title></head>
+<body style="margin:0;padding:0;background:#0b1220;font-family:'Segoe UI',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#0b1220;padding:32px 12px;"><tr><td align="center">
+<table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#141c2e;border-radius:16px;overflow:hidden;border:1px solid #1e293b;">
+<tr><td style="padding:24px 28px;border-bottom:1px solid #1e293b;">
+  <span style="display:inline-block;background:#f59e0b;width:32px;height:32px;border-radius:8px;line-height:32px;text-align:center;font-size:16px;vertical-align:middle;">&#9889;</span>
+  <span style="color:#ffffff;font-size:18px;font-weight:900;vertical-align:middle;margin-left:8px;">ALPHA STAGE</span>
+</td></tr>
+<tr><td style="padding:24px 28px;color:#cbd5e1;font-size:14px;line-height:1.6;">${p.bodyHtml}</td></tr>
+<tr><td style="padding:16px 28px;border-top:1px solid #1e293b;color:#64748b;font-size:11px;line-height:1.5;">${p.footer ?? ''}</td></tr>
+</table></td></tr></table></body></html>`;
+  try {
+    const res = await fetch(RESEND_API, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${getKey()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: fromAddress(), to: [p.to], subject: p.subject, html }),
+    });
+    if (!res.ok) console.error(`Resend error ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    return res.ok;
+  } catch (e) {
+    console.error('Resend fetch error:', e);
+    return false;
+  }
+}

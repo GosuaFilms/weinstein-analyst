@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 
 interface UserSettings {
   daily_email_enabled: boolean;
+  weekly_stage_alerts: boolean;
 }
 
 interface UseUserSettingsReturn {
@@ -26,12 +27,12 @@ export function useUserSettings(): UseUserSettingsReturn {
 
       const { data } = await supabase
         .from('user_settings')
-        .select('daily_email_enabled')
+        .select('daily_email_enabled, weekly_stage_alerts')
         .eq('user_id', user.id)
         .maybeSingle();
 
       if (!cancelled) {
-        setSettings(data ?? { daily_email_enabled: true });
+        setSettings(data ?? { daily_email_enabled: true, weekly_stage_alerts: true });
         setLoading(false);
       }
     }
@@ -45,7 +46,7 @@ export function useUserSettings(): UseUserSettingsReturn {
     if (!user) return;
 
     setSaving(true);
-    const next = { ...(settings ?? { daily_email_enabled: true }), ...patch };
+    const next = { ...(settings ?? { daily_email_enabled: true, weekly_stage_alerts: true }), ...patch };
     setSettings(next);
 
     await supabase.from('user_settings').upsert({

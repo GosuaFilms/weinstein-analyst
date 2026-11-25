@@ -482,7 +482,7 @@ export function classifyTrend(slopePct: number | null, flatBand = 0.5): Trend | 
   return 'flat';
 }
 
-// Lowest of the last `lookback` weekly lows (excluding the most recent unfinished week).
+// Lowest of the last `lookback` weekly lows (the running week counts: a new low is real).
 export function findRecentSwingLow(lows: number[], lookback = 10): number | null {
   if (!lows.length) return null;
   const slice = lows.slice(-Math.min(lookback, lows.length));
@@ -510,30 +510,28 @@ export function suggestEntry(
     : { level: resistance * 1.01, basis: 'breakout' };
 }
 
-// Weinstein-style stop: prefer the nearest swing-low below current price (with 2% buffer),
-// otherwise fall back to just below MM30 (3% buffer).
+// Weinstein's initial stop: just under the significant support — the low of the base
+// or of the last correction (lowest weekly low of the last 10 weeks), with a 2% buffer.
+// It is NOT the tighter of several levels: a stop under the MM30 that sits above the
+// support gets hit by normal pullbacks. The MM30 (−3%) is only a fallback when there
+// is no support below the price. As new corrections form higher lows, this level
+// rises: that is how Weinstein trails the stop.
 export function suggestStopLoss(
   currentPrice: number,
   sma30: number | null,
   swingLow: number | null
 ): { level: number; basis: string; riskPct: number } | null {
-  const candidates: Array<{ level: number; basis: string }> = [];
+  let level: number | null = null;
+  let basis = '';
   if (swingLow && swingLow < currentPrice) {
-    candidates.push({ level: swingLow * 0.98, basis: 'último swing-low (−2%)' });
+    level = swingLow * 0.98;
+    basis = 'bajo el soporte: mínimo de la base o de la última corrección (10 semanas) −2%';
+  } else if (sma30 && sma30 < currentPrice) {
+    level = sma30 * 0.97;
+    basis = 'MM30 semanal −3% (sin soporte reciente por debajo del precio)';
   }
-  if (sma30 && sma30 < currentPrice) {
-    candidates.push({ level: sma30 * 0.97, basis: 'MM30 semanal (−3%)' });
-  }
-  if (!candidates.length) return null;
-  // Use the tightest stop (closest to price) — Weinstein prefers swing-low, but
-  // if MM30 sits above the swing-low we use MM30 to avoid giving back too much.
-  candidates.sort((a, b) => b.level - a.level);
-  const best = candidates[0];
-  return {
-    level: best.level,
-    basis: best.basis,
-    riskPct: ((currentPrice - best.level) / currentPrice) * 100,
-  };
+  if (level == null) return null;
+  return { level, basis, riskPct: ((currentPrice - level) / currentPrice) * 100 };
 }
 
 /** 14-period Average True Range from aligned weekly OHLC arrays. */

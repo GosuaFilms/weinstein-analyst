@@ -50,6 +50,7 @@ const METHOD = [
   'Salida = el primer cierre diario en o por debajo del stop inicial, o que el valor deje de estar en Etapa 2 al cierre semanal del viernes. Se toma el cierre de ese día.',
   'Cambio de reglas de salida el 26 nov 2026: hasta esa fecha, la salida por perder la Etapa 2 se tomaba en el primer escaneo diario fuera de Etapa 2; desde entonces se confirma con el cierre del viernes. Las señales cerradas antes no se han recalculado.',
   'Cambio de reglas de entrada el 27 nov 2026: hasta esa fecha, una señal se abría cualquier día en que el valor aparecía en Etapa 2 sin estar extendido, sin exigir fuerza relativa positiva ni mirar el mercado. Las señales abiertas antes se mantienen con sus reglas.',
+  'Stop inicial = bajo el soporte: el mínimo de la base o de la última corrección (10 semanas) −2 %, como lo coloca Weinstein. Cambio el 26 nov 2026: antes se tomaba el más ajustado entre ese nivel y la MM30 −3 %, que saltaba con retrocesos normales. Las señales abiertas antes mantienen su stop.',
   'Cada señal se compara con el ETF de su índice durante los mismos días.',
   'Sin comisiones, deslizamiento ni dividendos. Las señales abiertas se valoran al último cierre.',
 ];

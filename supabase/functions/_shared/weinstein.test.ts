@@ -59,3 +59,16 @@ Deno.test('the current week is in progress until Friday 21:00 UTC', () => {
   assertEquals(isWeekInProgress(monday, new Date(Date.UTC(2026, 10, 27, 22))), false); // Fri after close
   assertEquals(isWeekInProgress(monday, new Date(Date.UTC(2026, 10, 30, 9))), false);  // next Monday
 });
+
+import { suggestStopLoss } from './marketData.ts';
+
+Deno.test('initial stop goes under the support, not under a tighter MM30', () => {
+  // Price 110, MM30 at 104 (above the 10-week low of 98): the old rule chose 104×0.97 = 100.9
+  const stop = suggestStopLoss(110, 104, 98)!;
+  assertEquals(stop.level.toFixed(2), (98 * 0.98).toFixed(2));
+});
+
+Deno.test('MM30 is only the fallback when there is no support below the price', () => {
+  const stop = suggestStopLoss(100, 95, 100)!; // price sits at its 10-week low
+  assertEquals(stop.level.toFixed(2), (95 * 0.97).toFixed(2));
+});

@@ -87,7 +87,7 @@ Output STRICT JSON in ${langName} with this exact schema:
   "support": "Soporte numérico (sin texto) — usa el swing-low reciente del anchor si aplica",
   "resistance": "Usa la base resistance del anchor tal cual (numérico, sin texto)",
   "entryPrice": "Usa la rule-based entry del anchor (ruptura o retroceso a la resistencia rota)",
-  "stopLoss": "Usa el suggestedStopLoss del anchor tal cual (basado en swing-low o MM30 según Weinstein)",
+  "stopLoss": "Usa el suggestedStopLoss del anchor tal cual: stop inicial de Weinstein bajo el soporte (mínimo de la base o de la última corrección). Si el riesgo supera ~15%, dilo y sugiere posición menor o esperar un retroceso.",
   "verdict": "Frase corta de acción",
   "verdictType": "BUY | SELL | WAIT | CLOSE",
   "suggestedStrategy": "Plan concreto (2-4 frases) que incluya: (a) veredicto de Etapa 1/2/3/4 explícito, (b) filtro de mercado (si el benchmark NO está en Etapa 2, evitar largos), (c) acción recomendada con entrada/stop/objetivo, (d) advertencia si Etapa 2 está extendida (>15% sobre MM30)."

@@ -183,6 +183,7 @@ Deno.serve(async (req) => {
           t, stage: cls.stage, conf: cls.confidence, dist: snap.distanceFromSMA30Pct?.toFixed(1), slope: snap.sma30Trend,
           prior: snap.priorTrend, priorPct: snap.priorTrendPct?.toFixed(0), rs: snap.mansfieldRS?.toFixed(2), rsTrend: snap.mansfieldRSTrend,
           vol: snap.volumeRatio?.toFixed(2), inProgress: snap.weekInProgress,
+          price: snap.currentPrice, sma30: snap.sma30Weekly, swing: snap.recentSwingLow, stop: snap.suggestedStopLoss, risk: snap.stopLossRiskPct,
         };
       } catch (e) { return { t, error: (e as Error).message }; }
     });

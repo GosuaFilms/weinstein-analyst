@@ -93,6 +93,10 @@ async function tdGet(path: string, params: Record<string, string>): Promise<any>
     const res = await fetch(url);
     const body = await res.json().catch(() => ({}));
     if (res.status !== 429 && body?.code !== 429) return body;
+    // Daily quota (free plan) doesn't reset within the minute: waiting only makes the request hang
+    if (/for the day/i.test(String(body?.message ?? ''))) {
+      throw new Error('Datos de mercado no disponibles: se ha agotado el cupo diario del proveedor (Twelve Data).');
+    }
     if (attempt >= 2) throw new Error('Twelve Data: límite de consultas por minuto alcanzado; inténtalo en un minuto');
     // Credits reset at the start of each minute
     await new Promise((r) => setTimeout(r, (61 - new Date().getUTCSeconds()) * 1000));

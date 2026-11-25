@@ -21,7 +21,7 @@ const FREE_FEATURES: Feature[] = [
   { es: '1 alerta activa', en: '1 active alert' },
   { es: 'Historial y watchlist', en: 'History and watchlist' },
   { es: 'Gráfico TradingView', en: 'TradingView chart' },
-  { es: 'Revisión semanal y briefing diario', en: 'Weekly review and daily brief' },
+  { es: 'Informe del sábado, revisión semanal y briefing diario', en: 'Saturday report, weekly review and daily brief' },
 ];
 
 const PRO_FEATURES: Feature[] = [
@@ -31,7 +31,6 @@ const PRO_FEATURES: Feature[] = [
   { es: '10 análisis de operaciones al mes', en: '10 position reviews a month' },
   { es: 'Cartera virtual y backtest Stage 2', en: 'Virtual portfolio and Stage 2 backtest', highlight: true },
   { es: 'Avisos por Telegram', en: 'Telegram alerts', highlight: true },
-  { es: 'Informe semanal de mercado', en: 'Weekly market report' },
 ];
 
 const ELITE_FEATURES: Feature[] = [

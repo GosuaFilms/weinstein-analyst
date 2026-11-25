@@ -46,7 +46,7 @@ const FEATURES = [
     color: 'text-sky-400',
     bg: 'bg-sky-500/10 border-sky-500/20',
     title: 'Informe semanal de mercado',
-    desc: 'Cada sábado recibes en Telegram y email un análisis completo del mercado: índices, rotación sectorial, macro y los mejores Stage 2 de la semana.',
+    desc: 'Cada sábado recibes por email (y en Telegram con Pro) un análisis completo del mercado: índices, rotación sectorial, macro y los mejores Stage 2 de la semana.',
   },
 ];
 

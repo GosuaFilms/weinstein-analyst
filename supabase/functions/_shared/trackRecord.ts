@@ -5,14 +5,20 @@
 //    scan, and it is not extended (> 15 % over its MM30). Entry = that day's close.
 //    Entries are only taken when the previous scan is ≤ MAX_GAP_DAYS old — after
 //    a hole in the data we can't tell when the stock really entered.
-//  • Exit: the first daily close at or below the initial stop, or the first scan
-//    on which the stock is no longer in Stage 2 (exit = that day's close).
+//  • Exit: the first daily close at or below the initial stop, or the stock no
+//    longer being in Stage 2 (exit = that day's close). Since WEEKLY_EXIT_FROM the
+//    Stage 2 exit is only confirmed on Friday's scan (weekly close, as Weinstein
+//    reads charts); before that date any daily scan closed it. Stops stay daily.
 //  • Each signal is measured against its market's index ETF over the same days.
 //  • No commissions, slippage or dividends.
 
 import { getDailyCloses, pickBenchmark, toTdRef, type TdRef } from './marketData.ts';
 
 export const MAX_GAP_DAYS = 5;
+/** From this date on, leaving Stage 2 closes a signal only on the Friday (weekly-close) scan. */
+export const WEEKLY_EXIT_FROM = '2026-11-26';
+
+const isFriday = (date: string) => new Date(`${date}T12:00:00Z`).getUTCDay() === 5;
 
 export interface ScanRow {
   symbol: string;
@@ -139,7 +145,8 @@ export async function stepTrackRecord(signals: TrackSignal[], input: StepInput):
     const price = await input.priceOn(s.symbol);
     if (!exit) {
       if (price == null || !input.scannedIndices.has(s.index_id)) { openSymbols.add(s.symbol); continue; }
-      if (!today.has(s.symbol)) exit = { date, price, reason: 'stage_exit', gap };
+      const exitDay = date < WEEKLY_EXIT_FROM || isFriday(date);
+      if (!today.has(s.symbol) && exitDay) exit = { date, price, reason: 'stage_exit', gap };
     }
 
     if (exit) {

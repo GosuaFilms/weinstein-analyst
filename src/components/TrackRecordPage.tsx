@@ -46,7 +46,8 @@ const INDEX_LABEL: Record<string, string> = {
 const METHOD = [
   'Cada día laborable, tras el cierre, la app escanea 7 índices (IBEX 35, S&P 100, NASDAQ, DAX, CAC 40, FTSE 100 y Euro Stoxx 50) con las reglas de Weinstein.',
   'Señal = un valor que entra en Etapa 2 (no estaba en el escaneo anterior) y no está extendido (menos de un 15 % sobre su MM30). Se toma el cierre de ese día.',
-  'Salida = el primer cierre diario en o por debajo del stop inicial, o el primer escaneo en que el valor ya no está en Etapa 2. Se toma el cierre de ese día.',
+  'Salida = el primer cierre diario en o por debajo del stop inicial, o que el valor deje de estar en Etapa 2 al cierre semanal del viernes. Se toma el cierre de ese día.',
+  'Cambio de regla el 26 nov 2026: hasta esa fecha, la salida por perder la Etapa 2 se tomaba en el primer escaneo diario fuera de Etapa 2. Desde entonces se confirma con el cierre del viernes, como lee los gráficos Weinstein. Las señales cerradas antes no se han recalculado.',
   'Cada señal se compara con el ETF de su índice durante los mismos días.',
   'Sin comisiones, deslizamiento ni dividendos. Las señales abiertas se valoran al último cierre.',
 ];
@@ -154,6 +155,10 @@ const TrackRecordPage: React.FC = () => {
             Nadie elige qué se muestra: cada señal se abre y se cierra sola según reglas fijas.
           </p>
           {lastUpdate && <p className="text-slate-600 text-xs mt-3">Actualizado con el cierre del {fmtDate(lastUpdate)}</p>}
+          <p className="text-slate-500 text-xs mt-1">
+            Regla actualizada el 26 nov 2026: la salida por perder la Etapa 2 se confirma ahora con el cierre del viernes.{' '}
+            <button onClick={() => setShowMethod(true)} className="underline hover:text-slate-300">Ver reglas</button>
+          </p>
         </div>
 
         {/* ── Stats ── */}

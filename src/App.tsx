@@ -25,6 +25,7 @@ import StockPage from './components/StockPage';
 import StocksIndexPage from './components/StocksIndexPage';
 import SharedAnalysisPage from './components/SharedAnalysisPage';
 import UnsubscribePage from './components/UnsubscribePage';
+import MarketPage from './components/MarketPage';
 import { readSignupSource, alreadySaved, markSaved } from './lib/attribution';
 import PricingPage from './components/PricingPage';
 import TermsPage from './components/TermsPage';
@@ -326,6 +327,9 @@ const App: React.FC = () => {
   if (window.location.pathname === '/etapa-2') {
     return <StageTwoTodayPage />;
   }
+  if (window.location.pathname === '/mercado') {
+    return <MarketPage />;
+  }
   if (window.location.pathname === '/valores') {
     return <StocksIndexPage />;
   }
@@ -447,6 +451,7 @@ const App: React.FC = () => {
                   trigger={(open) => <><i className="fas fa-globe text-emerald-500"></i>{es ? 'Mercado' : 'Market'}<i className={`fas fa-chevron-down text-[10px] transition-transform ${open ? 'rotate-180' : ''}`}></i></>}
                   items={[
                     { icon: 'fa-arrow-trend-up text-emerald-500', label: es ? 'Stage 2 del día' : "Today's Stage 2", desc: es ? 'Valores en Etapa 2 en 7 índices, con entradas y salidas' : 'Stage 2 stocks across 7 indices, with entries and exits', onClick: needUser(() => setIsStage2MonitorOpen(true)) },
+                    { icon: 'fa-temperature-half text-rose-500', label: es ? 'Termómetro' : 'Thermometer', desc: es ? 'Cuántos valores de cada índice están en tendencia alcista' : 'How many stocks in each index are in an uptrend', onClick: () => { window.location.href = '/mercado'; } },
                     { icon: 'fa-layer-group text-blue-500', label: es ? 'Sectores' : 'Sectors', desc: es ? 'Qué sectores están en Etapa 2 y lideran el mercado' : 'Which sectors are in Stage 2 and lead the market', onClick: () => setIsSectorOpen(true) },
                     { icon: 'fa-filter text-emerald-500', label: 'Screener', desc: es ? 'Filtra un índice por etapa, fuerza relativa y volumen' : 'Filter an index by stage, relative strength and volume', onClick: needUser(() => setIsScreenerOpen(true)) },
                   ]}

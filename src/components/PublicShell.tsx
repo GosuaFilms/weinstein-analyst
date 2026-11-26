@@ -13,6 +13,7 @@ const PublicShell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
           </div>
         </a>
         <div className="flex items-center gap-1 sm:gap-2">
+          <a href="/mercado" className="hidden sm:block text-slate-400 hover:text-white text-sm font-bold px-3 py-2">Mercado</a>
           <a href="/valores" className="text-slate-400 hover:text-white text-sm font-bold px-2 sm:px-3 py-2">Valores</a>
           <a href="/etapa-2" className="hidden sm:block text-slate-400 hover:text-white text-sm font-bold px-3 py-2">Etapa 2 hoy</a>
           <a href="/resultados" className="hidden sm:block text-slate-400 hover:text-white text-sm font-bold px-3 py-2">Resultados</a>

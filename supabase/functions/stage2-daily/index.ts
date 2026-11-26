@@ -15,6 +15,7 @@ import { getTechnicalSnapshot } from '../_shared/marketData.ts';
 import { classifyStage } from '../_shared/weinstein.ts';
 import { INDICES } from '../_shared/indices.ts';
 import { sectorEtfOf } from '../_shared/sectors.ts';
+import { breadthByIndex } from '../_shared/breadth.ts';
 import { trySendTelegram } from '../_shared/telegram.ts';
 import {
   stepTrackRecord, saveSignals, symbolCloseOn, daysBetween, isFriday, MAX_GAP_DAYS,
@@ -111,7 +112,7 @@ async function scanIndexStage2(indexId: string, maxAgeMin?: number) {
 // Upserts every scanned stock into stock_pages, carrying "in this stage since"
 // forward while the stage holds, and appends one row to stock_stage_history.
 // deno-lint-ignore no-explicit-any
-async function saveStockPages(supabase: any, date: string): Promise<{ saved: number; changed: number; error?: string }> {
+async function saveStockPages(supabase: any, date: string): Promise<{ saved: number; changed: number; error?: string; breadth?: string[] }> {
   const rows = [...pageRows.values()];
   if (!rows.length) return { saved: 0, changed: 0 };
   const prev = new Map<string, { stage: string; stage_since: string | null; prev_stage: string | null; scan_date: string }>();
@@ -138,7 +139,13 @@ async function saveStockPages(supabase: any, date: string): Promise<{ saved: num
   for (let i = 0; i < hist.length; i += 200) {
     await supabase.from('stock_stage_history').upsert(hist.slice(i, i + 200), { onConflict: 'symbol,scan_date' });
   }
-  return { saved: rows.length, changed };
+
+  // Market thermometer: breadth per index from the same rows and their weekly charts
+  // deno-lint-ignore no-explicit-any
+  const breadth = breadthByIndex(rows as any).map((b) => ({ ...b, scan_date: date, updated_at: new Date().toISOString() }));
+  const { error: bErr } = await supabase.from('market_breadth').upsert(breadth, { onConflict: 'index_id' });
+  if (bErr) console.error('[stage2-daily] market_breadth:', bErr.message);
+  return { saved: rows.length, changed, breadth: breadth.map((b) => `${b.index_id} ${b.pct_above}%/${b.pct_uptrend}%`) };
 }
 
 // ─── Telegram formatter ───────────────────────────────────────────────────────

@@ -101,6 +101,9 @@ const LandingPage: React.FC<Props> = ({ onGetStarted }) => {
             <a href="/etapa-2" className="hidden sm:block text-slate-400 hover:text-white text-sm font-bold transition-colors px-3 py-2">
               Etapa 2 hoy
             </a>
+            <a href="/valores" className="hidden sm:block text-slate-400 hover:text-white text-sm font-bold transition-colors px-3 py-2">
+              Valores
+            </a>
             <a href="/resultados" className="hidden sm:block text-slate-400 hover:text-white text-sm font-bold transition-colors px-3 py-2">
               Resultados
             </a>

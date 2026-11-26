@@ -5,12 +5,28 @@
   "redirects": [
     {
       "source": "/(.*)",
-      "has": [{ "type": "host", "value": "weinstein-analyst.vercel.app" }],
+      "has": [
+        {
+          "type": "host",
+          "value": "weinstein-analyst.vercel.app"
+        }
+      ],
       "destination": "https://www.alphastage.finance/$1",
       "permanent": true
     }
   ],
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/valor/:slug",
+      "destination": "/api/stock-page?slug=:slug"
+    },
+    {
+      "source": "/sitemap-valores.xml",
+      "destination": "/api/sitemap-valores"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }

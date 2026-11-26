@@ -46,15 +46,40 @@ async function pooledMap<T, R>(items: T[], concurrency: number, fn: (item: T) =>
 // Prices of every stock scanned in this run (Stage 2 or not): exits need them
 const scannedPrices = new Map<string, number>();
 
-async function scanIndexStage2(indexId: string) {
+// Every stock scanned in this run, any stage, for the public pages /valor/<slug>
+// deno-lint-ignore no-explicit-any
+const pageRows = new Map<string, Record<string, any>>();
+
+export const slugOf = (symbol: string) => symbol.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const round = (v: number | null | undefined, d = 4) => (v == null || !Number.isFinite(v) ? null : Math.round(v * 10 ** d) / 10 ** d);
+
+async function scanIndexStage2(indexId: string, maxAgeMin?: number) {
   const indexDef = INDICES[indexId];
   if (!indexDef) return [];
 
   const results = await pooledMap(indexDef.tickers, 8, async (ticker: string) => {
     try {
-      const snap = await getTechnicalSnapshot(ticker, 30);
+      const snap = await getTechnicalSnapshot(ticker, 30, maxAgeMin ? { maxAgeMin } : {});
       if (Number.isFinite(snap.currentPrice) && snap.currentPrice > 0) scannedPrices.set(snap.symbol, snap.currentPrice);
       const cls  = classifyStage(snap);
+      const sector = await sectorEtfOf(snap.symbol).catch(() => null);
+      const prev = pageRows.get(snap.symbol);
+      if (prev) prev.index_ids.push(indexId);
+      else if (Number.isFinite(snap.currentPrice) && snap.currentPrice > 0) {
+        pageRows.set(snap.symbol, {
+          symbol: snap.symbol, slug: slugOf(snap.symbol), name: snap.name, currency: snap.currency,
+          index_ids: [indexId], price: round(snap.currentPrice), change_pct: round(snap.changePercent, 2),
+          stage: cls.stage, confidence: cls.confidence, reasoning: cls.reasoning,
+          sma30: round(snap.sma30Weekly), sma30_trend: snap.sma30Trend, distance_pct: round(snap.distanceFromSMA30Pct, 2),
+          rs: round(snap.mansfieldRS, 2), rs_trend: snap.mansfieldRSTrend, volume_ratio: round(snap.volumeRatio, 2),
+          high52: round(snap.weekly52High), low52: round(snap.weekly52Low),
+          stop_loss: cls.stage === 'STAGE_2' ? round(snap.suggestedStopLoss) : null,
+          stop_risk_pct: cls.stage === 'STAGE_2' ? round(snap.stopLossRiskPct, 2) : null,
+          extended: snap.extendedStage2, base_resistance: round(snap.baseResistance),
+          benchmark: snap.benchmarkName, benchmark_stage: snap.benchmarkStage, sector_etf: sector,
+          chart: snap.weeklyChart ?? null,
+        });
+      }
       if (cls.stage !== 'STAGE_2') return null;
       return {
         index_id:      indexId,
@@ -71,7 +96,7 @@ async function scanIndexStage2(indexId: string) {
         stop_loss:     snap.suggestedStopLoss,
         stop_risk_pct: snap.stopLossRiskPct,
         benchmark_stage: snap.benchmarkStage,
-        sector_etf:    await sectorEtfOf(snap.symbol).catch(() => null),
+        sector_etf:    sector,
       };
     } catch {
       return null;
@@ -79,6 +104,41 @@ async function scanIndexStage2(indexId: string) {
   });
 
   return results.filter((r): r is NonNullable<typeof r> => r !== null);
+}
+
+// ─── Public stock pages ───────────────────────────────────────────────────────
+
+// Upserts every scanned stock into stock_pages, carrying "in this stage since"
+// forward while the stage holds, and appends one row to stock_stage_history.
+// deno-lint-ignore no-explicit-any
+async function saveStockPages(supabase: any, date: string): Promise<{ saved: number; changed: number; error?: string }> {
+  const rows = [...pageRows.values()];
+  if (!rows.length) return { saved: 0, changed: 0 };
+  const prev = new Map<string, { stage: string; stage_since: string | null; prev_stage: string | null; scan_date: string }>();
+  for (let i = 0; i < rows.length; i += 200) {
+    const { data } = await supabase.from('stock_pages').select('symbol, stage, stage_since, prev_stage, scan_date')
+      .in('symbol', rows.slice(i, i + 200).map((r) => r.symbol));
+    for (const p of data ?? []) prev.set(p.symbol, p);
+  }
+  let changed = 0;
+  for (const r of rows) {
+    const p = prev.get(r.symbol);
+    if (!p) { r.stage_since = null; r.prev_stage = null; }
+    else if (p.stage === r.stage) { r.stage_since = p.stage_since; r.prev_stage = p.prev_stage; }
+    else if (p.scan_date === date) { r.stage_since = date; r.prev_stage = p.prev_stage; changed++; } // re-run of the same day
+    else { r.stage_since = date; r.prev_stage = p.stage; changed++; }
+    r.scan_date = date;
+    r.updated_at = new Date().toISOString();
+  }
+  for (let i = 0; i < rows.length; i += 100) {
+    const { error } = await supabase.from('stock_pages').upsert(rows.slice(i, i + 100), { onConflict: 'symbol' });
+    if (error) return { saved: i, changed, error: error.message };
+  }
+  const hist = rows.map((r) => ({ scan_date: date, symbol: r.symbol, stage: r.stage, price: r.price, rs: r.rs }));
+  for (let i = 0; i < hist.length; i += 200) {
+    await supabase.from('stock_stage_history').upsert(hist.slice(i, i + 200), { onConflict: 'symbol,scan_date' });
+  }
+  return { saved: rows.length, changed };
 }
 
 // ─── Telegram formatter ───────────────────────────────────────────────────────
@@ -198,6 +258,17 @@ Deno.serve(async (req) => {
     return jsonResponse(await backfillTrack(supabase, (body as { from?: string }).from ?? '2026-10-13'));
   }
 
+  // Cron-only: refresh the public stock pages without the Telegram post or the
+  // track record (uses cached bars up to `max_age_min`, default 24 h)
+  if ((body as { action?: string }).action === 'pages_only') {
+    if (!cronSecret || providedSecret !== cronSecret) return jsonResponse({ error: 'forbidden' }, 403);
+    const b = body as { date?: string; max_age_min?: number };
+    for (const indexId of DAILY_INDICES) {
+      try { await scanIndexStage2(indexId, b.max_age_min ?? 24 * 60); } catch (e) { console.error(`[pages_only] ${indexId}:`, e); }
+    }
+    return jsonResponse(await saveStockPages(supabase, b.date ?? new Date().toISOString().slice(0, 10)));
+  }
+
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
   try {
@@ -222,6 +293,14 @@ Deno.serve(async (req) => {
     }
 
     console.log(`[stage2-daily] total Stage 2 stocks found: ${allStage2.length}`);
+
+    // ── 2. Public stock pages (every stock, any stage) ───────────────────────
+    try {
+      const pages = await saveStockPages(supabase, today);
+      console.log(`[stage2-daily] stock pages: ${pages.saved} saved, ${pages.changed} stage changes${pages.error ? `, error ${pages.error}` : ''}`);
+    } catch (e) {
+      console.error('[stage2-daily] stock pages failed:', e);
+    }
 
     // ── 3. Load the previous scan (not the calendar day before: Mondays and
     //       holidays have no scan the day before) to compute the diff ────────

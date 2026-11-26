@@ -1,4 +1,4 @@
-// Sector groups for Weinstein's "forest to the trees": market → sector → stock.
+// Sector groups (11 US + 17 STOXX Europe 600) for Weinstein's "forest to the trees": market → sector → stock.
 // Each group is an ETF classified like any stock (stage on the weekly MM30) with
 // Mansfield RS against its region's broad index. A stock is mapped to its group
 // from Twelve Data's profile (sector + industry, cached 30 days).
@@ -28,6 +28,7 @@ export const SECTORS: SectorDef[] = [
   { etf: 'XLU', region: 'US', es: 'Servicios públicos', en: 'Utilities' },
   { etf: 'EXV1.DE', region: 'EU', es: 'Bancos', en: 'Banks' },
   { etf: 'EXH5.DE', region: 'EU', es: 'Seguros', en: 'Insurance' },
+  { etf: 'EXH2.DE', region: 'EU', es: 'Servicios financieros', en: 'Financial services' },
   { etf: 'EXH1.DE', region: 'EU', es: 'Petróleo y gas', en: 'Oil & gas' },
   { etf: 'EXV3.DE', region: 'EU', es: 'Tecnología', en: 'Technology' },
   { etf: 'EXV4.DE', region: 'EU', es: 'Salud', en: 'Health care' },
@@ -69,7 +70,10 @@ export function sectorEtfFor(region: Region, sector: string | null, industry: st
   if (region === 'US') return US_BY_SECTOR[sector] ?? null;
   const ind = industry ?? '';
   switch (sector) {
-    case 'Financial Services': return /insurance/i.test(ind) ? 'EXH5.DE' : 'EXV1.DE';
+    case 'Financial Services':
+      if (/insurance/i.test(ind)) return 'EXH5.DE';
+      if (/bank/i.test(ind) || !ind) return 'EXV1.DE';
+      return 'EXH2.DE'; // exchanges, asset managers, payments, credit services
     case 'Energy': return 'EXH1.DE';
     case 'Technology': return 'EXV3.DE';
     case 'Healthcare': return 'EXV4.DE';

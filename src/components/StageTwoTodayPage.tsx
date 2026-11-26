@@ -193,7 +193,7 @@ const StageTwoTodayPage: React.FC = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
                   <div className="min-w-0 sm:flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-white font-black">{r.symbol}</span>
+                      <a href={`/valor/${r.symbol.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`} className="text-white font-black hover:text-amber-400 hover:underline">{r.symbol}</a>
                       {isNew(r) && <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">Nueva</span>}
                       {r.extended && <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400" title="Más de un 15 % sobre la MM30: Weinstein no compra tan lejos">Extendida</span>}
                       <span className="text-[10px] text-slate-500 font-bold">{INDEX_LABEL[r.index_id] ?? r.index_id}</span>

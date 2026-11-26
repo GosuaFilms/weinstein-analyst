@@ -76,9 +76,9 @@ export function classifyStage(snap: TechnicalSnapshot): StageClassification {
     const multiMaStr = multiMaAlignment === 'bullish'
       ? ` MA10w(${sma10?.toFixed(2) ?? '?'}) > MA30w > MA40w(${sma40?.toFixed(2) ?? '?'}) alcistas alineadas ✓`
       : multiMaAlignment === 'partial'
-      ? ` MAs parcialmente alineadas (${multiMaAlignment})`
+      ? ' Medias móviles parcialmente alineadas'
       : multiMaAlignment === 'bearish'
-      ? ` ⚠ MAs en alineación bajista`
+      ? ' ⚠ Medias móviles en alineación bajista'
       : '';
     return {
       stage: 'STAGE_2',

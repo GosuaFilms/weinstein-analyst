@@ -369,6 +369,31 @@ export interface TechnicalSnapshot {
   baseResistance: number | null;
   entryLevel: number | null;
   entryBasis: 'breakout' | 'pullback' | null;
+  // Last ~78 weekly closes with the rolling MM30, for small charts (public stock pages)
+  weeklyChart?: WeeklyChart;
+}
+
+export interface WeeklyChart {
+  t: number[];             // unix seconds of each weekly candle
+  c: number[];             // close
+  ma: (number | null)[];   // rolling SMA of `smaPeriod` closes (null until enough history)
+}
+
+/** Last `weeks` closes with their rolling SMA (rounded to keep the payload small). */
+export function buildWeeklyChart(timestamps: number[], closes: number[], period = 30, weeks = 78): WeeklyChart {
+  const r = (v: number) => Math.round(v * 1e4) / 1e4;
+  const start = Math.max(0, closes.length - weeks);
+  const t: number[] = [], c: number[] = [], ma: (number | null)[] = [];
+  for (let i = start; i < closes.length; i++) {
+    t.push(timestamps[i]);
+    c.push(r(closes[i]));
+    if (i + 1 >= period) {
+      let sum = 0;
+      for (let j = i + 1 - period; j <= i; j++) sum += closes[j];
+      ma.push(r(sum / period));
+    } else ma.push(null);
+  }
+  return { t, c, ma };
 }
 
 interface WeeklySeries {
@@ -861,6 +886,7 @@ export async function getTechnicalSnapshot(
     baseResistance: null,
     entryLevel: null,
     entryBasis: null,
+    weeklyChart: buildWeeklyChart(bars.timestamps, closes, smaPeriod),
   };
   return await attachWeinsteinExtras(
     base,

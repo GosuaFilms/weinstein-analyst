@@ -1,6 +1,6 @@
 // POST /functions/v1/sector-ranking
-// Weekdays 22:15 UTC via pg_cron (after the Stage 2 scan). Classifies the 27 sector
-// ETFs (11 US, 16 STOXX Europe 600) with the same Weinstein rules as stocks, with
+// Weekdays 22:15 UTC via pg_cron (after the Stage 2 scan). Classifies the 28 sector
+// ETFs (11 US, 17 STOXX Europe 600) with the same Weinstein rules as stocks, with
 // Mansfield RS against S&P 500 / STOXX 600, ranks them per region (Stage 2 first,
 // then Stage 1, 3, 4; within a stage by RS) and stores the day in sector_ranking.
 //

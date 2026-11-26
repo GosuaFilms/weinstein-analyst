@@ -22,6 +22,8 @@ import HelpPanel from './components/HelpPanel';
 import LandingPage from './components/LandingPage';
 import TrackRecordPage from './components/TrackRecordPage';
 import StageTwoTodayPage from './components/StageTwoTodayPage';
+import StockPage from './components/StockPage';
+import StocksIndexPage from './components/StocksIndexPage';
 import { readSignupSource, alreadySaved, markSaved } from './lib/attribution';
 import PricingPage from './components/PricingPage';
 import TermsPage from './components/TermsPage';
@@ -322,6 +324,13 @@ const App: React.FC = () => {
   }
   if (window.location.pathname === '/etapa-2') {
     return <StageTwoTodayPage />;
+  }
+  if (window.location.pathname === '/valores') {
+    return <StocksIndexPage />;
+  }
+  const stockSlug = window.location.pathname.match(/^\/valor\/([a-z0-9-]{1,30})\/?$/i)?.[1];
+  if (stockSlug) {
+    return <StockPage slug={stockSlug} />;
   }
   if (window.location.pathname === '/precios') {
     return <PricingPage onGetStarted={() => setIsAuthOpen(true)} />;

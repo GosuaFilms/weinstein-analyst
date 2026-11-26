@@ -20,7 +20,7 @@ const FEATURES = [
     color: 'text-blue-400',
     bg: 'bg-blue-500/10 border-blue-500/20',
     title: 'Alertas técnicas automáticas',
-    desc: 'Configura alertas para cruces de SMA30, rupturas de resistencia y explosiones de volumen. Se comprueban cada 5 minutos. Recibe avisos por Telegram o notificación push.',
+    desc: 'Configura alertas para cruces de SMA30, rupturas de resistencia y explosiones de volumen. Se comprueban cada 15 minutos en horario de mercado, de lunes a viernes. Recibe avisos por Telegram, notificación push o email.',
   },
   {
     icon: 'fa-filter',
@@ -61,7 +61,7 @@ const STAGES = [
 
 const STEPS = [
   { num: '01', icon: 'fa-keyboard', title: 'Introduce el ticker', desc: 'Escribe el símbolo bursátil (AAPL, SAN.MC, BTC-USD) o el nombre de la empresa. También puedes subir una captura de gráfico.' },
-  { num: '02', icon: 'fa-microchip', title: 'La IA analiza', desc: 'En segundos obtienes el stage actual, análisis de la SMA30 semanal, volumen, Relative Strength y objetivos de precio T1, T2 y T3.' },
+  { num: '02', icon: 'fa-microchip', title: 'La IA analiza', desc: 'En segundos obtienes el stage actual, análisis de la SMA30 semanal, volumen, fuerza relativa de Mansfield y un plan con entrada y stop.' },
   { num: '03', icon: 'fa-bullseye', title: 'Toma decisiones', desc: 'Actúa con criterio. Compra en Stage 2, espera en Stage 1, cierra en Stage 3-4. Sin ruido, sin emociones.' },
 ];
 

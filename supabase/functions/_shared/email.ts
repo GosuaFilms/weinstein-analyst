@@ -84,12 +84,12 @@ function buildHtml(p: AlertEmailPayload): string {
       <!-- CTA -->
       <tr>
         <td style="padding:0 32px 32px;text-align:center;">
-          <a href="${url}?ticker=${encodeURIComponent(p.ticker)}"
+          <a href="${url}/?analizar=${encodeURIComponent(p.ticker)}&utm_source=email&utm_medium=alerta"
              style="display:inline-block;background:#10b981;color:#0b1220;text-decoration:none;font-weight:900;font-size:14px;padding:14px 32px;border-radius:12px;letter-spacing:0.5px;">
             📊 ANALIZAR ${p.ticker} AHORA
           </a>
           <p style="margin:16px 0 0;color:#475569;font-size:11px;">
-            Alerta generada automáticamente · <a href="${url}/settings" style="color:#64748b;">Gestionar alertas</a>
+            Alerta generada automáticamente · Puedes pausarla o borrarla en <a href="${url}" style="color:#64748b;">Alpha Stage</a> → Alertas (icono de la campana)
           </p>
         </td>
       </tr>

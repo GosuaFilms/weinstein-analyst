@@ -178,7 +178,7 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
 
   const labels = language === Language.ES ? {
     report: 'REPORTE DE ACTIVO',
-    terminal: 'TERMINAL ALPHA 3.1',
+    terminal: 'ANÁLISIS WEINSTEIN',
     marketOpen: 'MERCADO ABIERTO · PRECIO CON POSIBLE RETRASO',
     marketClosed: 'MERCADO CERRADO · ÚLTIMO CIERRE',
     marketUnknown: 'ÚLTIMO PRECIO DISPONIBLE',
@@ -191,14 +191,14 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
     buyTrigger: 'Punto de Entrada',
     stopLoss: 'Stop de Protección',
     verification: 'Fuentes de Verificación',
-    disclaimer: 'Datos de mercado Alpha Pro. No es consejo financiero.',
-    sync: 'Terminal Sincronizada',
-    buffer: 'Escribiendo en Buffer...',
+    disclaimer: 'Datos de mercado: Twelve Data. Herramienta educativa, no es asesoramiento financiero.',
+    sync: 'Guardado en tu historial',
+    buffer: 'Guardando…',
     currentPrice: 'PRECIO ACTUAL',
     asOf: 'PRECIO DE:'
   } : {
     report: 'ASSET REPORT',
-    terminal: 'ALPHA TERMINAL 3.1',
+    terminal: 'WEINSTEIN ANALYSIS',
     marketOpen: 'MARKET OPEN · PRICE MAY BE DELAYED',
     marketClosed: 'MARKET CLOSED · LAST CLOSE',
     marketUnknown: 'LATEST AVAILABLE PRICE',
@@ -211,9 +211,9 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
     buyTrigger: 'Entry Trigger',
     stopLoss: 'Protection Stop',
     verification: 'Verification Sources',
-    disclaimer: 'Alpha Pro Market Data. Non-financial advice.',
-    sync: 'Terminal Synced',
-    buffer: 'Writing to Buffer...',
+    disclaimer: 'Market data: Twelve Data. Educational tool, not financial advice.',
+    sync: 'Saved to history',
+    buffer: 'Saving…',
     currentPrice: 'CURRENT PRICE',
     asOf: 'PRICE AS OF:'
   };
@@ -1091,7 +1091,7 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
         );
       })()}
 
-      <div className="text-center text-[9px] text-slate-400 dark:text-slate-500 max-w-xs mx-auto italic font-black uppercase tracking-[0.2em] opacity-40 mt-8">
+      <div className="text-center text-[11px] text-slate-500 dark:text-slate-400 max-w-sm mx-auto font-bold mt-8">
         {labels.disclaimer}
       </div>
 

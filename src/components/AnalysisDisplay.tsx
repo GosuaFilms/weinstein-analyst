@@ -6,7 +6,7 @@ import TradingViewWidget from './TradingViewWidget';
 import { useBacktest } from '../hooks/useBacktest';
 import { usePlan } from '../hooks/usePlan';
 import { canvasToPagedPdf } from '../lib/pdfExport';
-import { createShareLink } from '../lib/shareAnalysis';
+import { createShareLink, unshare } from '../lib/shareAnalysis';
 
 interface Props {
   data: AnalysisResult;
@@ -28,6 +28,9 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [isSharing, setIsSharing] = useState(false);
   const [shareFailed, setShareFailed] = useState(false);
+  const [shareId, setShareId] = useState<string | null>(null);
+  const [confirmUnshare, setConfirmUnshare] = useState(false);
+  const [unshared, setUnshared] = useState(false);
   // Position sizing calculator state
   const [posCalcPortfolio, setPosCalcPortfolio] = useState(100000);
   const [posCalcRiskPct, setPosCalcRiskPct] = useState(1);
@@ -77,6 +80,8 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
     try {
       const link = await createShareLink(data.resultId, shareCardRef.current);
       setShareLink(link.url);
+      setShareId(link.id);
+      setUnshared(false);
       return link.url;
     } catch {
       setShareFailed(true);
@@ -347,6 +352,9 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
                             ? 'Se crea una página pública con este análisis (sin tus datos) y tu enlace de invitación.'
                             : 'Este análisis es anterior a los enlaces públicos: se compartirá la web.'}
                         </p>
+                        {unshared && !shareLink && (
+                          <p className="px-5 pb-3 text-[11px] text-emerald-600 dark:text-emerald-400">Enlace retirado: la página ya no es pública.</p>
+                        )}
                         {(shareLink || isSharing || shareFailed) && (
                           <div className="px-5 pb-3">
                             {isSharing ? (
@@ -354,8 +362,28 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
                             ) : shareFailed && !shareLink ? (
                               <p className="text-[11px] text-rose-500">No se ha podido crear el enlace; se compartirá la web.</p>
                             ) : shareLink ? (
-                              <input readOnly value={shareLink} onFocus={(e) => e.target.select()} aria-label="Enlace del análisis"
-                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-[10px] font-mono text-slate-600 dark:text-slate-300" />
+                              <>
+                                <input readOnly value={shareLink} onFocus={(e) => e.target.select()} aria-label="Enlace del análisis"
+                                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-[10px] font-mono text-slate-600 dark:text-slate-300" />
+                                {shareId && (confirmUnshare ? (
+                                  <p className="mt-1.5 text-[11px] text-slate-500">
+                                    ¿Retirar la página pública?{' '}
+                                    <button onClick={async () => {
+                                      try {
+                                        await unshare(shareId);
+                                        setShareLink(null); setShareId(null); setUnshared(true);
+                                      } catch { setShareFailed(true); }
+                                      setConfirmUnshare(false);
+                                    }} className="font-black text-rose-600 dark:text-rose-400 hover:underline">Sí, retirar</button>
+                                    {' · '}
+                                    <button onClick={() => setConfirmUnshare(false)} className="font-bold hover:underline">No</button>
+                                  </p>
+                                ) : (
+                                  <button onClick={() => setConfirmUnshare(true)} className="mt-1.5 text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:underline">
+                                    Retirar enlace
+                                  </button>
+                                ))}
+                              </>
                             ) : null}
                           </div>
                         )}

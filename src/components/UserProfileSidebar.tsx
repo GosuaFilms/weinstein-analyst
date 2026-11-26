@@ -6,6 +6,7 @@ import { useUserSettings } from '../hooks/useUserSettings';
 import AdminMetricsPanel, { type AdminMetrics } from './AdminMetricsPanel';
 import { PLAN_LABEL, type Plan } from '../hooks/usePlan';
 import ReferralView from './ReferralView';
+import MySharesView from './MySharesView';
 
 interface Props {
   isOpen: boolean;
@@ -20,7 +21,7 @@ interface Props {
   initialView?: ViewState;
 }
 
-export type ViewState = 'main' | 'security' | 'export' | 'notifications' | 'invite';
+export type ViewState = 'main' | 'security' | 'export' | 'notifications' | 'invite' | 'shares';
 
 const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCount, alertsCount, onLogout, isPro = false, plan = 'free', onUpgrade, initialView = 'main' }) => {
   const [currentView, setCurrentView] = useState<ViewState>(initialView);
@@ -214,6 +215,17 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
               <div className="flex items-center gap-3">
                 <i className="fas fa-file-export text-slate-400 group-hover:text-blue-500 transition-colors"></i>
                 <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Exportar Datos</span>
+              </div>
+              <i className="fas fa-chevron-right text-[10px] text-slate-300"></i>
+           </button>
+
+           <button
+             onClick={() => setCurrentView('shares')}
+             className="w-full flex items-center justify-between p-4 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 transition-all group"
+           >
+              <div className="flex items-center gap-3">
+                <i className="fas fa-share-nodes text-slate-400 group-hover:text-amber-500 transition-colors"></i>
+                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Análisis compartidos</span>
               </div>
               <i className="fas fa-chevron-right text-[10px] text-slate-300"></i>
            </button>
@@ -497,6 +509,20 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
     </div>
   );
 
+  const renderSharesView = () => (
+    <div className="flex flex-col h-full animate-in slide-in-from-right duration-300">
+      <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center gap-4 bg-slate-50 dark:bg-slate-900/50">
+        <button onClick={() => setCurrentView('main')} aria-label="Volver" className="w-8 h-8 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors shadow-sm">
+          <i className="fas fa-arrow-left"></i>
+        </button>
+        <h3 className="text-lg font-black text-slate-900 dark:text-white">Análisis compartidos</h3>
+      </div>
+      <div className="p-6 flex-grow overflow-y-auto">
+        <MySharesView />
+      </div>
+    </div>
+  );
+
   const renderExportView = () => (
     <div className="flex flex-col h-full animate-in slide-in-from-right duration-300">
       <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center gap-4 bg-slate-50 dark:bg-slate-900/50">
@@ -551,6 +577,7 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
         {currentView === 'export'        && renderExportView()}
         {currentView === 'notifications' && renderNotificationsView()}
         {currentView === 'invite'        && renderInviteView()}
+        {currentView === 'shares'        && renderSharesView()}
 
       </div>
       {metricsOpen && adminMetrics && (

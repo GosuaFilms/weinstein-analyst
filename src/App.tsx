@@ -16,7 +16,6 @@ import AlertsSidebar from './components/AlertsSidebar';
 import AuthModal from './components/AuthModal';
 import UserProfileSidebar from './components/UserProfileSidebar';
 import EpicHero from './components/EpicHero';
-import LiveClock from './components/LiveClock';
 import OnboardingModal from './components/OnboardingModal';
 import HelpPanel from './components/HelpPanel';
 import LandingPage from './components/LandingPage';
@@ -388,8 +387,6 @@ const App: React.FC = () => {
               <p className="text-[10px] text-amber-600 dark:text-amber-500 font-bold uppercase tracking-widest mt-0.5">Weinstein Pro Terminal</p>
             </div>
           </div>
-
-          <LiveClock language={language} />
 
           <div className="flex items-center gap-1.5 sm:gap-2">
             <Tip label={`${language === Language.ES ? 'Alertas técnicas' : 'Technical alerts'}${triggeredAlertsCount > 0 ? ` (${triggeredAlertsCount})` : ''}`}>

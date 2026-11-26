@@ -122,3 +122,6 @@ verify_jwt = false
 
 [functions.onboarding-emails]
 verify_jwt = false
+
+[functions.breakout-alerts]
+verify_jwt = false

@@ -16,6 +16,7 @@ import { classifyStage } from '../_shared/weinstein.ts';
 import { INDICES } from '../_shared/indices.ts';
 import { sectorEtfOf } from '../_shared/sectors.ts';
 import { breadthByIndex } from '../_shared/breadth.ts';
+import { detectBreakout, weekStart, FAIL_BUFFER } from '../_shared/breakouts.ts';
 import { trySendTelegram } from '../_shared/telegram.ts';
 import {
   stepTrackRecord, saveSignals, symbolCloseOn, daysBetween, isFriday, MAX_GAP_DAYS,
@@ -112,18 +113,30 @@ async function scanIndexStage2(indexId: string, maxAgeMin?: number) {
 // Upserts every scanned stock into stock_pages, carrying "in this stage since"
 // forward while the stage holds, and appends one row to stock_stage_history.
 // deno-lint-ignore no-explicit-any
-async function saveStockPages(supabase: any, date: string): Promise<{ saved: number; changed: number; error?: string; breadth?: string[] }> {
+async function saveStockPages(supabase: any, date: string): Promise<{ saved: number; changed: number; error?: string; breadth?: string[]; breakouts?: string[] }> {
   const rows = [...pageRows.values()];
   if (!rows.length) return { saved: 0, changed: 0 };
-  const prev = new Map<string, { stage: string; stage_since: string | null; prev_stage: string | null; scan_date: string }>();
+  const prev = new Map<string, { stage: string; stage_since: string | null; prev_stage: string | null; scan_date: string; price: number | null; base_resistance: number | null }>();
   for (let i = 0; i < rows.length; i += 200) {
-    const { data } = await supabase.from('stock_pages').select('symbol, stage, stage_since, prev_stage, scan_date')
+    const { data } = await supabase.from('stock_pages').select('symbol, stage, stage_since, prev_stage, scan_date, price, base_resistance')
       .in('symbol', rows.slice(i, i + 200).map((r) => r.symbol));
     for (const p of data ?? []) prev.set(p.symbol, p);
   }
   let changed = 0;
+  // deno-lint-ignore no-explicit-any
+  const breakouts: Record<string, any>[] = [];
   for (const r of rows) {
     const p = prev.get(r.symbol);
+    // Weinstein's buy point: crossed above the base since the previous scan (not a re-run of the same day)
+    const b = p && p.scan_date !== date ? detectBreakout(p, r as { price: number | null; base_resistance: number | null; stage: string; sma30_trend: string | null }) : null;
+    if (b) {
+      breakouts.push({
+        symbol: r.symbol, slug: r.slug, name: r.name, currency: r.currency, index_ids: r.index_ids,
+        week: weekStart(date), detected_on: date, kind: b.kind, stage_before: p!.stage,
+        resistance: r.base_resistance, entry_level: b.entry, price: r.price, sma30_trend: r.sma30_trend,
+        rs: r.rs, rs_trend: r.rs_trend, sector_etf: r.sector_etf, benchmark_stage: r.benchmark_stage,
+      });
+    }
     if (!p) { r.stage_since = null; r.prev_stage = null; }
     else if (p.stage === r.stage) { r.stage_since = p.stage_since; r.prev_stage = p.prev_stage; }
     else if (p.scan_date === date) { r.stage_since = date; r.prev_stage = p.prev_stage; changed++; } // re-run of the same day
@@ -140,12 +153,35 @@ async function saveStockPages(supabase: any, date: string): Promise<{ saved: num
     await supabase.from('stock_stage_history').upsert(hist.slice(i, i + 200), { onConflict: 'symbol,scan_date' });
   }
 
+  // Base breakouts: new ones, Friday confirmation (weekly close + the week's volume), failures
+  if (breakouts.length) {
+    const { error } = await supabase.from('base_breakouts').upsert(breakouts, { onConflict: 'symbol,week', ignoreDuplicates: true });
+    if (error) console.error('[stage2-daily] base_breakouts:', error.message);
+  }
+  const byPrice = new Map(rows.map((r) => [r.symbol, r]));
+  const { data: open } = await supabase.from('base_breakouts').select('id, symbol, week, resistance, entry_level, confirmed')
+    .is('failed_on', null).gte('detected_on', new Date(Date.parse(date) - 35 * 86_400_000).toISOString().slice(0, 10));
+  for (const o of open ?? []) {
+    const cur = byPrice.get(o.symbol);
+    if (!cur || cur.price == null) continue;
+    // deno-lint-ignore no-explicit-any
+    const patch: Record<string, any> = {};
+    if (cur.price < Number(o.resistance) * FAIL_BUFFER) patch.failed_on = date;
+    if (isFriday(date) && o.week === weekStart(date) && o.confirmed == null) {
+      patch.confirmed = cur.price >= Number(o.entry_level);
+      patch.confirmed_on = date;
+      patch.close_week = cur.price;
+      patch.volume_ratio = cur.volume_ratio; // from Friday 21:00 UTC the volume is this week's, completed
+    }
+    if (Object.keys(patch).length) await supabase.from('base_breakouts').update(patch).eq('id', o.id);
+  }
+
   // Market thermometer: breadth per index from the same rows and their weekly charts
   // deno-lint-ignore no-explicit-any
   const breadth = breadthByIndex(rows as any).map((b) => ({ ...b, scan_date: date, updated_at: new Date().toISOString() }));
   const { error: bErr } = await supabase.from('market_breadth').upsert(breadth, { onConflict: 'index_id' });
   if (bErr) console.error('[stage2-daily] market_breadth:', bErr.message);
-  return { saved: rows.length, changed, breadth: breadth.map((b) => `${b.index_id} ${b.pct_above}%/${b.pct_uptrend}%`) };
+  return { saved: rows.length, changed, breakouts: breakouts.map((b) => `${b.symbol} ${b.kind}`), breadth: breadth.map((b) => `${b.index_id} ${b.pct_above}%/${b.pct_uptrend}%`) };
 }
 
 // ─── Telegram formatter ───────────────────────────────────────────────────────

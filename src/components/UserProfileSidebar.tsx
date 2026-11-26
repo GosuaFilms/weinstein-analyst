@@ -448,6 +448,27 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
           </button>
         </div>
 
+        {/* Base breakouts (Pro) */}
+        <div className="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0">
+              <i className="fas fa-rocket text-emerald-500"></i>
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-slate-900 dark:text-white">Rupturas de base {!isPro && <span className="ml-1 text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-500 text-slate-900">Pro</span>}</p>
+              <p className="text-[11px] text-slate-500 leading-tight">Aviso cada noche que un valor rompe su base</p>
+            </div>
+          </div>
+          <button
+            onClick={() => updateNotif({ breakout_alerts: !(notifSettings?.breakout_alerts ?? true) })}
+            disabled={notifLoading || notifSaving || !isPro}
+            aria-label="Activar o desactivar los avisos de ruptura de base"
+            className={`relative flex-shrink-0 w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50 ${isPro && (notifSettings?.breakout_alerts ?? true) ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${isPro && (notifSettings?.breakout_alerts ?? true) ? 'translate-x-6' : 'translate-x-0'}`}></span>
+          </button>
+        </div>
+
         {/* Welcome e-mails (only the first days after sign-up) */}
         <div className="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">

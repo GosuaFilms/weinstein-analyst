@@ -49,6 +49,7 @@ const TradingViewWidget = lazy(() => import('./components/TradingViewWidget'));
 const ScreenerPanel     = lazy(() => import('./components/ScreenerPanel'));
 const Stage2MonitorPanel = lazy(() => import('./components/Stage2MonitorPanel'));
 const SectorPanel = lazy(() => import('./components/SectorPanel'));
+const BreakoutsPanel = lazy(() => import('./components/BreakoutsPanel'));
 const PortfolioPanel    = lazy(() => import('./components/PortfolioPanel'));
 const VirtualPortfolioPanel = lazy(() => import('./components/VirtualPortfolioPanel'));
 
@@ -120,6 +121,7 @@ const App: React.FC = () => {
   const [isScreenerOpen, setIsScreenerOpen] = useState(false);
   const [isStage2MonitorOpen, setIsStage2MonitorOpen] = useState(false);
   const [isSectorOpen, setIsSectorOpen] = useState(false);
+  const [isBreakoutsOpen, setIsBreakoutsOpen] = useState(false);
   const [isPortfolioOpen, setIsPortfolioOpen] = useState(false);
   const [isVirtualPortfolioOpen, setIsVirtualPortfolioOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -452,6 +454,7 @@ const App: React.FC = () => {
                   items={[
                     { icon: 'fa-arrow-trend-up text-emerald-500', label: es ? 'Stage 2 del día' : "Today's Stage 2", desc: es ? 'Valores en Etapa 2 en 7 índices, con entradas y salidas' : 'Stage 2 stocks across 7 indices, with entries and exits', onClick: needUser(() => setIsStage2MonitorOpen(true)) },
                     { icon: 'fa-temperature-half text-rose-500', label: es ? 'Termómetro' : 'Thermometer', desc: es ? 'Cuántos valores de cada índice están en tendencia alcista' : 'How many stocks in each index are in an uptrend', onClick: () => { window.location.href = '/mercado'; } },
+                    { icon: 'fa-rocket text-emerald-500', label: es ? 'Rupturas de base' : 'Base breakouts', desc: es ? 'Valores que rompen o están a punto de romper su base (Pro)' : 'Stocks breaking out of their base (Pro)', onClick: needUser(() => setIsBreakoutsOpen(true)) },
                     { icon: 'fa-layer-group text-blue-500', label: es ? 'Sectores' : 'Sectors', desc: es ? 'Qué sectores están en Etapa 2 y lideran el mercado' : 'Which sectors are in Stage 2 and lead the market', onClick: () => setIsSectorOpen(true) },
                     { icon: 'fa-filter text-emerald-500', label: 'Screener', desc: es ? 'Filtra un índice por etapa, fuerza relativa y volumen' : 'Filter an index by stage, relative strength and volume', onClick: needUser(() => setIsScreenerOpen(true)) },
                   ]}
@@ -817,6 +820,11 @@ const App: React.FC = () => {
             }}
             onClose={() => setIsStage2MonitorOpen(false)}
           />
+          </ErrorBoundary>
+        )}
+        {isBreakoutsOpen && (
+          <ErrorBoundary label="Error en Rupturas">
+            <BreakoutsPanel onClose={() => setIsBreakoutsOpen(false)} isPro={isPro} onUpgrade={() => { setIsBreakoutsOpen(false); setIsPricingOpen(true); }} />
           </ErrorBoundary>
         )}
         {isSectorOpen && (

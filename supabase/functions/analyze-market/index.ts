@@ -196,6 +196,16 @@ Deno.serve(async (req) => {
     }
 
     await recordAiUsage(authed.id, 'analysis');
+
+    // Keep a server-side copy so the user can share exactly this result (/a/<id>)
+    try {
+      const { technicalSnapshot: _snap, ...shareable } = result;
+      const { data: saved } = await createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+        .from('ai_results').insert({ user_id: authed.id, result: shareable }).select('id').single();
+      if (saved) (result as AnalysisResult & { resultId?: string }).resultId = saved.id;
+    } catch (e) {
+      console.warn('[analyze-market] could not keep result for sharing:', (e as Error).message);
+    }
     return jsonResponse(result);
   } catch (err) {
     console.error('analyze-market error:', err);

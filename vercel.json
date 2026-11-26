@@ -21,6 +21,10 @@
       "destination": "/api/stock-page?slug=:slug"
     },
     {
+      "source": "/a/:id",
+      "destination": "/api/shared-analysis?id=:id"
+    },
+    {
       "source": "/sitemap-valores.xml",
       "destination": "/api/sitemap-valores"
     },

@@ -100,6 +100,8 @@ export interface AnalysisResult {
   suggestedStrategy: string;
   groundingSources?: Array<{ title: string; uri: string }>;
   technicalSnapshot?: TechnicalSnapshotSummary;
+  // Server-side copy of this result (ai_results), needed to share it as /a/<id>
+  resultId?: string;
 }
 
 export interface OperationAnalysisResult {

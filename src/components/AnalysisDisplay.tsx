@@ -6,6 +6,7 @@ import TradingViewWidget from './TradingViewWidget';
 import { useBacktest } from '../hooks/useBacktest';
 import { usePlan } from '../hooks/usePlan';
 import { canvasToPagedPdf } from '../lib/pdfExport';
+import { createShareLink } from '../lib/shareAnalysis';
 
 interface Props {
   data: AnalysisResult;
@@ -23,6 +24,10 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [isGeneratingCard, setIsGeneratingCard] = useState(false);
+  // Public link /a/<id>?ref=<code>, created on the first share
+  const [shareLink, setShareLink] = useState<string | null>(null);
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareFailed, setShareFailed] = useState(false);
   // Position sizing calculator state
   const [posCalcPortfolio, setPosCalcPortfolio] = useState(100000);
   const [posCalcRiskPct, setPosCalcRiskPct] = useState(1);
@@ -59,30 +64,52 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
   const siteUrl = 'https://www.alphastage.finance';
 
   const getShareText = () => {
-    const sym = ticker ? `$${ticker.toUpperCase()} ` : '';
+    const sym = (data.tickerSymbol || ticker) ? `$${(data.tickerSymbol || ticker)!.toUpperCase()} ` : '';
     const verdictEmoji = data.verdictType === 'BUY' ? '🟢' : data.verdictType === 'SELL' ? '🔴' : '🟡';
-    return `📊 ${sym}analizado con el método Weinstein\n📍 ${data.stage}\n${verdictEmoji} Veredicto: ${data.verdict}\n\nAnaliza cualquier activo gratis 👇\n${siteUrl}\n\n#Weinstein #Bolsa #Inversión`;
+    return `📊 ${sym}según el método Weinstein: ${data.stage}\n${verdictEmoji} ${data.verdict}`;
   };
 
-  const shareVia = async (network: 'twitter' | 'linkedin' | 'whatsapp' | 'copy') => {
-    setShowShareMenu(false);
-    const text = getShareText();
-    const encodedText = encodeURIComponent(text);
-    const encodedUrl = encodeURIComponent(siteUrl);
-
-    const urls: Record<string, string> = {
-      twitter: `https://twitter.com/intent/tweet?text=${encodedText}`,
-      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}&summary=${encodedText}`,
-      whatsapp: `https://wa.me/?text=${encodedText}`,
-    };
-
-    if (network === 'copy') {
-      await navigator.clipboard.writeText(`${text}`);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } else {
-      window.open(urls[network], '_blank', 'noopener,noreferrer,width=600,height=500');
+  /** The analysis' public link (created once); the website when it can't be shared. */
+  const ensureShareLink = async (): Promise<string> => {
+    if (shareLink) return shareLink;
+    if (!data.resultId) return siteUrl;
+    setIsSharing(true);
+    try {
+      const link = await createShareLink(data.resultId, shareCardRef.current);
+      setShareLink(link.url);
+      return link.url;
+    } catch {
+      setShareFailed(true);
+      return siteUrl;
+    } finally {
+      setIsSharing(false);
     }
+  };
+
+  const shareVia = async (network: 'twitter' | 'linkedin' | 'whatsapp' | 'telegram' | 'copy') => {
+    // Open the window now, inside the click: after an await, browsers block pop-ups
+    const win = network === 'copy' ? null : window.open('', '_blank');
+    if (win) win.opener = null;
+    const link = await ensureShareLink();
+    const text = getShareText();
+    const enc = encodeURIComponent;
+    const urls: Record<string, string> = {
+      twitter: `https://x.com/intent/post?text=${enc(text)}&url=${enc(link)}`,
+      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${enc(link)}`,
+      whatsapp: `https://wa.me/?text=${enc(`${text}\n${link}`)}`,
+      telegram: `https://t.me/share/url?url=${enc(link)}&text=${enc(text)}`,
+    };
+    if (network === 'copy') {
+      try {
+        await navigator.clipboard.writeText(link);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch { /* the link stays visible in the menu to copy by hand */ }
+      return;
+    }
+    setShowShareMenu(false);
+    if (win) win.location.href = urls[network];
+    else window.open(urls[network], '_blank', 'noopener,noreferrer');
   };
 
   const generateShareCard = async () => {
@@ -314,7 +341,24 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
                     <>
                       <div className="fixed inset-0 z-10" onClick={() => setShowShareMenu(false)} />
                       <div className="absolute right-0 mt-3 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-20 py-2 animate-in fade-in slide-in-from-top-2">
-                        <p className="px-5 pt-2 pb-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Compartir análisis</p>
+                        <p className="px-5 pt-2 pb-2 text-[9px] font-black text-slate-400 uppercase tracking-widest">Compartir análisis</p>
+                        <p className="px-5 pb-3 text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                          {data.resultId
+                            ? 'Se crea una página pública con este análisis (sin tus datos) y tu enlace de invitación.'
+                            : 'Este análisis es anterior a los enlaces públicos: se compartirá la web.'}
+                        </p>
+                        {(shareLink || isSharing || shareFailed) && (
+                          <div className="px-5 pb-3">
+                            {isSharing ? (
+                              <p className="text-[11px] text-slate-500"><i className="fas fa-circle-notch animate-spin mr-1.5"></i>Creando enlace…</p>
+                            ) : shareFailed && !shareLink ? (
+                              <p className="text-[11px] text-rose-500">No se ha podido crear el enlace; se compartirá la web.</p>
+                            ) : shareLink ? (
+                              <input readOnly value={shareLink} onFocus={(e) => e.target.select()} aria-label="Enlace del análisis"
+                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-[10px] font-mono text-slate-600 dark:text-slate-300" />
+                            ) : null}
+                          </div>
+                        )}
 
                         {/* Twitter/X */}
                         <button onClick={() => shareVia('twitter')}
@@ -343,6 +387,15 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
                           <span className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">WhatsApp</span>
                         </button>
 
+                        {/* Telegram */}
+                        <button onClick={() => shareVia('telegram')}
+                          className="w-full text-left px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-4 transition-colors">
+                          <div className="w-8 h-8 rounded-lg bg-[#229ED9] flex items-center justify-center shrink-0">
+                            <i className="fab fa-telegram text-white text-sm"></i>
+                          </div>
+                          <span className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">Telegram</span>
+                        </button>
+
                         <div className="my-2 border-t border-slate-100 dark:border-slate-700" />
 
                         {/* Share card image */}
@@ -363,7 +416,7 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
                             <i className={`fas ${copied ? 'fa-check text-emerald-500' : 'fa-link text-slate-500'} text-sm`}></i>
                           </div>
                           <span className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">
-                            {copied ? '¡Copiado!' : 'Copiar texto'}
+                            {copied ? '¡Copiado!' : 'Copiar enlace'}
                           </span>
                         </button>
                       </div>
@@ -1090,7 +1143,15 @@ const AnalysisDisplay: React.FC<Props> = ({ data, isSaved, onSave, ticker, langu
               {ticker && data.companyName && (
                 <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 700, marginTop: '4px' }}>{data.companyName}</div>
               )}
-              <div style={{ marginTop: '12px', display: 'inline-block', padding: '5px 14px', borderRadius: '20px', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399', fontSize: '11px', fontWeight: 900, letterSpacing: '2px' }}>
+              <div style={(() => {
+                // Badge colour follows the stage (green 2, amber 3, red 4, grey 1)
+                const st = String(data.stage || '').toLowerCase();
+                const [bg, bd, fg] = /(stage|etapa) 2/.test(st) ? ['rgba(16,185,129,0.15)', 'rgba(16,185,129,0.3)', '#34d399']
+                  : /(stage|etapa) 3/.test(st) ? ['rgba(245,158,11,0.15)', 'rgba(245,158,11,0.3)', '#fbbf24']
+                  : /(stage|etapa) 4/.test(st) ? ['rgba(239,68,68,0.15)', 'rgba(239,68,68,0.3)', '#f87171']
+                  : ['rgba(148,163,184,0.15)', 'rgba(148,163,184,0.3)', '#cbd5e1'];
+                return { marginTop: '12px', display: 'inline-block', padding: '5px 14px', borderRadius: '20px', background: bg, border: `1px solid ${bd}`, color: fg, fontSize: '11px', fontWeight: 900, letterSpacing: '2px' };
+              })()}>
                 {data.stage || 'Stage Analysis'}
               </div>
             </div>

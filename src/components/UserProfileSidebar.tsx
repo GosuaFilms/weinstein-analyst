@@ -5,6 +5,7 @@ import { User } from '../types';
 import { useUserSettings } from '../hooks/useUserSettings';
 import AdminMetricsPanel, { type AdminMetrics } from './AdminMetricsPanel';
 import { PLAN_LABEL, type Plan } from '../hooks/usePlan';
+import ReferralView from './ReferralView';
 
 interface Props {
   isOpen: boolean;
@@ -16,12 +17,14 @@ interface Props {
   isPro?: boolean;
   plan?: Plan;
   onUpgrade?: () => void;
+  initialView?: ViewState;
 }
 
-type ViewState = 'main' | 'security' | 'export' | 'notifications';
+export type ViewState = 'main' | 'security' | 'export' | 'notifications' | 'invite';
 
-const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCount, alertsCount, onLogout, isPro = false, plan = 'free', onUpgrade }) => {
-  const [currentView, setCurrentView] = useState<ViewState>('main');
+const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCount, alertsCount, onLogout, isPro = false, plan = 'free', onUpgrade, initialView = 'main' }) => {
+  const [currentView, setCurrentView] = useState<ViewState>(initialView);
+  useEffect(() => { if (isOpen) setCurrentView(initialView); }, [isOpen, initialView]);
   const [exporting,   setExporting]   = useState(false);
   const { settings: notifSettings, loading: notifLoading, saving: notifSaving, update: updateNotif } = useUserSettings();
   const [testEmailState, setTestEmailState] = useState<'idle' | 'sending' | 'ok' | 'error'>('idle');
@@ -175,6 +178,20 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
             </button>
           </div>
         )}
+
+        <button
+          onClick={() => setCurrentView('invite')}
+          className="w-full flex items-center justify-between p-4 bg-emerald-500/10 hover:bg-emerald-500/15 rounded-xl border border-emerald-500/30 transition-all"
+        >
+          <div className="flex items-center gap-3 text-left">
+            <i className="fas fa-gift text-emerald-500"></i>
+            <div>
+              <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">Invita a un amigo</span>
+              <span className="block text-[11px] text-slate-500">Gana análisis extra por cada amigo</span>
+            </div>
+          </div>
+          <i className="fas fa-chevron-right text-[10px] text-emerald-500"></i>
+        </button>
 
         <div className="space-y-2">
            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Ajustes de Cuenta</h4>
@@ -445,6 +462,20 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
     </div>
   );
 
+  const renderInviteView = () => (
+    <div className="flex flex-col h-full animate-in slide-in-from-right duration-300">
+      <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center gap-4 bg-slate-50 dark:bg-slate-900/50">
+        <button onClick={() => setCurrentView('main')} aria-label="Volver" className="w-8 h-8 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors shadow-sm">
+          <i className="fas fa-arrow-left"></i>
+        </button>
+        <h3 className="text-lg font-black text-slate-900 dark:text-white">Invita a un amigo</h3>
+      </div>
+      <div className="p-6 flex-grow overflow-y-auto">
+        <ReferralView />
+      </div>
+    </div>
+  );
+
   const renderExportView = () => (
     <div className="flex flex-col h-full animate-in slide-in-from-right duration-300">
       <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center gap-4 bg-slate-50 dark:bg-slate-900/50">
@@ -498,6 +529,7 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
         {currentView === 'security'      && renderSecurityView()}
         {currentView === 'export'        && renderExportView()}
         {currentView === 'notifications' && renderNotificationsView()}
+        {currentView === 'invite'        && renderInviteView()}
 
       </div>
       {metricsOpen && adminMetrics && (

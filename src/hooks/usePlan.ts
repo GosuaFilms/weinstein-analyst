@@ -62,6 +62,7 @@ interface AiUsage {
   analysis_day: number;
   operation_month: number;
   operation_day: number;
+  bonus_left?: number;  // extra analyses (invite a friend), spent after the plan quota
 }
 
 export function usePlan() {
@@ -82,6 +83,7 @@ export function usePlan() {
   const limits = PLAN_LIMITS[plan];
   const analysesUsed  = usage ? usage[`analysis_${limits.analysesPer}`] : 0;
   const operationsUsed = usage ? usage[`operation_${limits.analysesPer}`] : 0;
+  const bonusLeft = usage?.bonus_left ?? 0;
 
   return {
     plan,
@@ -90,7 +92,8 @@ export function usePlan() {
     isElite: plan === 'elite',
     analysesUsed,
     operationsUsed,
-    analysisLimitReached:  analysesUsed  >= limits.maxAnalyses,
+    bonusLeft,
+    analysisLimitReached:  analysesUsed  >= limits.maxAnalyses && bonusLeft === 0,
     operationLimitReached: operationsUsed >= limits.maxOperations,
     refreshUsage: refresh,
     loading,

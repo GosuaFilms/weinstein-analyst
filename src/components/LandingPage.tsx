@@ -1,5 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import { readSignupSource } from '../lib/attribution';
 
 interface Props {
   onGetStarted: () => void;
@@ -65,6 +67,14 @@ const STEPS = [
 
 const LandingPage: React.FC<Props> = ({ onGetStarted }) => {
   const [scrolled, setScrolled] = useState(false);
+  const [invited, setInvited] = useState(false);
+
+  // Arrived through a friend's link (?ref=CODE): say what they get
+  useEffect(() => {
+    const ref = readSignupSource()?.ref;
+    if (!ref || !/^[a-z2-9]{7}$/.test(ref)) return;
+    supabase.rpc('referral_code_valid', { p_code: ref }).then(({ data }) => setInvited(data === true));
+  }, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -121,6 +131,14 @@ const LandingPage: React.FC<Props> = ({ onGetStarted }) => {
         <div className="absolute top-20 right-1/4 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl pointer-events-none"></div>
 
         <div className="max-w-5xl mx-auto text-center relative z-10">
+          {invited && (
+            <button onClick={onGetStarted} className="mb-6 mx-auto flex items-center gap-3 px-5 py-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-left hover:bg-emerald-500/15 transition-colors">
+              <i className="fas fa-gift text-emerald-400 text-xl"></i>
+              <span className="text-sm text-slate-200">
+                <strong className="text-white">Te ha invitado un amigo.</strong> Regístrate y tendrás 3 análisis extra, además de los 3 gratis de cada mes.
+              </span>
+            </button>
+          )}
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/20 rounded-full text-amber-400 text-xs font-black uppercase tracking-widest mb-8">
             <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-ping"></span>
             Método Stan Weinstein · Análisis técnico profesional

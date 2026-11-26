@@ -71,7 +71,7 @@ interface ImageFile {
 
 const App: React.FC = () => {
   const { user, signOut, loading: authLoading } = useAuth();
-  const { isPro, limits, plan, analysesUsed, analysisLimitReached, refreshUsage } = usePlan();
+  const { isPro, limits, plan, analysesUsed, bonusLeft, analysisLimitReached, refreshUsage } = usePlan();
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
   const { history, save: saveAnalysis, remove: removeAnalysis, clear: clearHistory } = useAnalyses();
@@ -120,6 +120,7 @@ const App: React.FC = () => {
   const [isVirtualPortfolioOpen, setIsVirtualPortfolioOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [profileView, setProfileView] = useState<'main' | 'invite'>('main');
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => {
     return !localStorage.getItem('weinstein_onboarding_done');
@@ -520,10 +521,22 @@ const App: React.FC = () => {
                     ) : analysisLimitReached ? (
                       <><i className="fas fa-crown"></i> {language === Language.ES ? 'LÍMITE ALCANZADO · MEJORAR PLAN' : 'LIMIT REACHED · UPGRADE'}</>
                     ) : (
-                      <><i className="fas fa-chart-simple"></i> {language === Language.ES ? `ANALIZAR · ${analysesUsed}/${limits.maxAnalyses} ${quotaPeriod}` : `ANALYZE · ${analysesUsed}/${limits.maxAnalyses} ${quotaPeriod}`}</>
+                      <><i className="fas fa-chart-simple"></i> {analysesUsed >= limits.maxAnalyses
+                        ? (language === Language.ES ? `ANALIZAR · ${bonusLeft} extra` : `ANALYZE · ${bonusLeft} extra`)
+                        : language === Language.ES
+                          ? `ANALIZAR · ${analysesUsed}/${limits.maxAnalyses} ${quotaPeriod}${bonusLeft ? ` +${bonusLeft}` : ''}`
+                          : `ANALYZE · ${analysesUsed}/${limits.maxAnalyses} ${quotaPeriod}${bonusLeft ? ` +${bonusLeft}` : ''}`}</>
                     )}
                   </button>
                 </form>
+                {analysisLimitReached && !isPro && language === Language.ES && (
+                  <p className="mt-3 text-xs text-slate-500 dark:text-slate-400 text-center">
+                    ¿Sin cupo este mes?{' '}
+                    <button type="button" onClick={() => { setProfileView('invite'); setIsProfileOpen(true); }} className="font-bold text-emerald-600 dark:text-emerald-400 hover:underline">
+                      Invita a un amigo y gana análisis extra
+                    </button>
+                  </p>
+                )}
               </div>
 
               <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" multiple className="hidden" aria-label="Subir gráficos para analizar" />
@@ -837,7 +850,8 @@ const App: React.FC = () => {
       )}
       <UserProfileSidebar
         isOpen={isProfileOpen}
-        onClose={() => setIsProfileOpen(false)}
+        onClose={() => { setIsProfileOpen(false); setProfileView('main'); }}
+        initialView={profileView}
         user={user}
         historyCount={history.length}
         alertsCount={alerts.length}

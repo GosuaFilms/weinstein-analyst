@@ -157,6 +157,7 @@ const PrivacyPage: React.FC = () => {
             <h2 className="text-white font-black text-lg mb-3">7. Cookies</h2>
             <p className="text-slate-400">La Plataforma utiliza exclusivamente cookies técnicas estrictamente necesarias para el funcionamiento del servicio (sesión de autenticación y preferencias de interfaz). No se utilizan cookies de seguimiento, publicidad ni analytics de terceros.</p>
             <p className="text-slate-400 mt-3">Para saber cómo nos conocen los nuevos usuarios, al abrir la web se guarda temporalmente en tu navegador (almacenamiento de sesión, que se borra al cerrar la pestaña) la etiqueta del enlace por el que llegaste (por ejemplo, «telegram») o el nombre de la web de procedencia. Si creas una cuenta en esa visita, ese dato se asocia a tu perfil para estadísticas internas agregadas; no se comparte con terceros ni se usa para seguirte en otras webs.</p>
+            <p className="text-slate-400 mt-3">Programa «Invita a un amigo»: si te registras con el enlace de otro usuario, guardamos qué cuenta te invitó y si has hecho tu primer análisis, solo para dar a ambos los análisis extra. Quien invita ve únicamente cuántos amigos se han registrado y cuántos están activos, nunca tu nombre ni tu correo.</p>
           </section>
 
           <section>

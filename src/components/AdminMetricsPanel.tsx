@@ -15,6 +15,8 @@ export interface AdminMetrics {
   events_30d: Array<{ event: string; n: number; users: number }>;
   // Signups by first-touch source; 'sin datos' = accounts created before it was tracked
   sources?: Array<{ source: string; users: number; users_30d: number; activated: number; paid: number }>;
+  // Invite a friend: friends signed up / ran a first analysis, people who invited, links created
+  referrals?: { signed_up: number; activated: number; inviters: number; codes: number };
 }
 
 // Edge function name → what the owner calls it
@@ -181,6 +183,13 @@ const AdminMetricsPanel: React.FC<Props> = ({ metrics: m, onClose }) => {
             <p className="text-[11px] text-slate-400 mt-2">
               Se registra desde el 26 nov 2026 a partir de las etiquetas <code>utm_source</code> o <code>ref</code> del enlace, o de la web de procedencia. «directo» = sin etiqueta ni web de origen; «sin datos» = cuentas anteriores.
             </p>
+            {m.referrals && (
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-3">
+                <i className="fas fa-gift text-emerald-500 mr-1.5"></i>
+                Invita a un amigo: {m.referrals.codes} enlaces creados · {m.referrals.inviters} usuarios han invitado ·{' '}
+                {m.referrals.signed_up} amigos registrados · {m.referrals.activated} activos.
+              </p>
+            )}
           </div>
 
           <p className="text-[11px] text-slate-400">

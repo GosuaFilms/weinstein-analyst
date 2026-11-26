@@ -35,6 +35,8 @@ export async function checkAiQuota(userId: string, kind: AiKind): Promise<Respon
   const quota = AI_QUOTAS[plan][kind];
   const used = Number(usage[`${kind}_${quota.per}`] ?? 0);
   if (used < quota.limit) return null;
+  // Extra analyses (invite a friend) are spent once the plan quota is used up
+  if (kind === 'analysis' && Number(usage.bonus_left ?? 0) > 0) return null;
 
   return jsonResponse({
     error: plan === 'free' && quota.limit === 0
@@ -45,8 +47,18 @@ export async function checkAiQuota(userId: string, kind: AiKind): Promise<Respon
   }, 402);
 }
 
-/** Records one successful generation. Never fails the request. */
+/** Records one successful generation, paid with an extra analysis when the
+ *  plan quota is already used up. Never fails the request. */
 export async function recordAiUsage(userId: string, kind: AiKind): Promise<void> {
-  const { error } = await admin().from('ai_usage').insert({ user_id: userId, kind });
+  const db = admin();
+  let fromBonus = false;
+  if (kind === 'analysis') {
+    const { data } = await db.rpc('ai_usage_for', { p_user: userId });
+    const usage = (data ?? {}) as Record<string, number | string>;
+    const plan = (['pro', 'elite'].includes(usage.plan as string) ? usage.plan : 'free') as Plan;
+    const quota = AI_QUOTAS[plan][kind];
+    fromBonus = Number(usage[`${kind}_${quota.per}`] ?? 0) >= quota.limit && Number(usage.bonus_left ?? 0) > 0;
+  }
+  const { error } = await db.from('ai_usage').insert({ user_id: userId, kind, from_bonus: fromBonus });
   if (error) console.error('[quota] record failed:', error.message);
 }

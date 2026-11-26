@@ -5,10 +5,11 @@ interface UserSettings {
   daily_email_enabled: boolean;
   weekly_stage_alerts: boolean;
   weekly_report_enabled: boolean;
+  onboarding_emails: boolean;
 }
 
 // Daily brief is opt-in; the weekly review and Saturday report are on until switched off
-const DEFAULTS: UserSettings = { daily_email_enabled: false, weekly_stage_alerts: true, weekly_report_enabled: true };
+const DEFAULTS: UserSettings = { daily_email_enabled: false, weekly_stage_alerts: true, weekly_report_enabled: true, onboarding_emails: true };
 
 interface UseUserSettingsReturn {
   settings: UserSettings | null;

@@ -136,7 +136,7 @@ export async function sendAlertEmail(payload: AlertEmailPayload): Promise<void> 
 }
 
 /** Generic branded email: `bodyHtml` goes inside the standard Alpha Stage frame. Never throws. */
-export async function sendEmail(p: { to: string; subject: string; bodyHtml: string; footer?: string }): Promise<boolean> {
+export async function sendEmail(p: { to: string; subject: string; bodyHtml: string; footer?: string; headers?: Record<string, string> }): Promise<boolean> {
   const html = `<!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${p.subject}</title></head>
 <body style="margin:0;padding:0;background:#0b1220;font-family:'Segoe UI',Arial,sans-serif;">
@@ -153,7 +153,7 @@ export async function sendEmail(p: { to: string; subject: string; bodyHtml: stri
     const res = await fetch(RESEND_API, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${getKey()}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: fromAddress(), to: [p.to], subject: p.subject, html }),
+      body: JSON.stringify({ from: fromAddress(), to: [p.to], subject: p.subject, html, ...(p.headers ? { headers: p.headers } : {}) }),
     });
     if (!res.ok) console.error(`Resend error ${res.status}: ${(await res.text()).slice(0, 200)}`);
     return res.ok;

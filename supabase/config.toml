@@ -119,3 +119,6 @@ verify_jwt = false
 
 [functions.sector-ranking]
 verify_jwt = false
+
+[functions.onboarding-emails]
+verify_jwt = false

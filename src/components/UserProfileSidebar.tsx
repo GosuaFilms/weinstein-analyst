@@ -436,6 +436,27 @@ const UserProfileSidebar: React.FC<Props> = ({ isOpen, onClose, user, historyCou
           </button>
         </div>
 
+        {/* Welcome e-mails (only the first days after sign-up) */}
+        <div className="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0">
+              <i className="fas fa-hand-sparkles text-emerald-500"></i>
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-slate-900 dark:text-white">Correos de bienvenida</p>
+              <p className="text-[11px] text-slate-500 leading-tight">Tres consejos para empezar en tu primera semana</p>
+            </div>
+          </div>
+          <button
+            onClick={() => updateNotif({ onboarding_emails: !(notifSettings?.onboarding_emails ?? true) })}
+            disabled={notifLoading || notifSaving}
+            aria-label="Activar o desactivar los correos de bienvenida"
+            className={`relative flex-shrink-0 w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none ${(notifSettings?.onboarding_emails ?? true) ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${(notifSettings?.onboarding_emails ?? true) ? 'translate-x-6' : 'translate-x-0'}`}></span>
+          </button>
+        </div>
+
         {/* Send test email */}
         <div>
           <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Probar Ahora</h4>
